@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   images: { unoptimized: true },
   assetPrefix: isElectron ? "." : undefined,
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   transpilePackages: [
     "@mdword/shared",
     "@mdword/document-model",

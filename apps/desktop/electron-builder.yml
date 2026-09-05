@@ -3,15 +3,14 @@ productName: MDWord
 copyright: Copyright © 2026 Giacomo Bordiga
 directories:
   output: release
+  buildResources: resources
 files:
   - dist/**/*
   - resources/**/*
 asar: true
-asarUnpack:
-  - resources/web/**/*
-extraResources:
-  - from: resources/web
-    to: web
+extraMetadata:
+  name: mdword
+  author: Giacomo Bordiga
 win:
   target:
     - nsis
@@ -30,5 +29,7 @@ linux:
     - AppImage
     - deb
   category: Office
+  executableName: MDWord
+  maintainer: Giacomo Bordiga <gbordiga@gmail.com>
   artifactName: MDWord-${version}.${ext}
 publish: null
