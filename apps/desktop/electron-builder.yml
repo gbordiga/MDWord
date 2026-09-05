@@ -1,0 +1,34 @@
+appId: app.mdword.desktop
+productName: MDWord
+copyright: Copyright © 2026 Giacomo Bordiga
+directories:
+  output: release
+files:
+  - dist/**/*
+  - resources/**/*
+asar: true
+asarUnpack:
+  - resources/web/**/*
+extraResources:
+  - from: resources/web
+    to: web
+win:
+  target:
+    - nsis
+  artifactName: MDWord-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target:
+    - dmg
+  category: public.app-category.productivity
+  artifactName: MDWord-${version}.${ext}
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Office
+  artifactName: MDWord-${version}.${ext}
+publish: null

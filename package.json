@@ -1,0 +1,35 @@
+{
+  "name": "mdword",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MDWord — a semantic-first structured document editor with MyST Markdown as the source of truth.",
+  "license": "MIT",
+  "author": "Giacomo Bordiga",
+  "packageManager": "pnpm@10.33.3",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @mdword/web dev",
+    "dev:web": "pnpm --filter @mdword/web dev",
+    "dev:desktop": "pnpm --filter @mdword/desktop dev",
+    "build": "pnpm -r --if-present build",
+    "build:web": "pnpm --filter @mdword/web build",
+    "build:desktop": "pnpm --filter @mdword/desktop build",
+    "dist": "pnpm build:web && mkdir -p apps/desktop/resources/web && cp -R apps/web/out/. apps/desktop/resources/web/ && pnpm --filter @mdword/desktop dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "pnpm --filter @mdword/web test:e2e",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "clean": "pnpm -r --if-present clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "fast-check": "^3.23.2",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "electron", "electron-winstaller"]
+  }
+}

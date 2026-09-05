@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --md-bg: #d8dee6;
+  --md-surface: #ffffff;
+  --md-ink: #1c1f24;
+  --md-muted: #5c6570;
+  --md-line: #d0d5dd;
+  --md-accent: #1d4ed8;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--md-ink);
+  background: var(--md-bg);
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
+}
+
+*:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
+.ProseMirror {
+  outline: none;
+  min-height: 100%;
+}
+
+.callout {
+  border-left: 4px solid #1d4ed8;
+  background: #f8fafc;
+  padding: 10px 14px;
+  margin: 12px 0;
+  border-radius: 0 6px 6px 0;
+}
+
+.callout-warning {
+  border-color: #d97706;
+  background: #fffbeb;
+}
+.callout-tip {
+  border-color: #059669;
+  background: #ecfdf5;
+}
+.callout-important,
+.callout-danger {
+  border-color: #b42318;
+  background: #fef3f2;
+}
+
+.page-break-block {
+  height: 28px;
+  margin: 18px -8px;
+  background: linear-gradient(#d8dee6, #d8dee6) center / 100% 12px no-repeat;
+  position: relative;
+}
+
+.page-break-block::after {
+  content: "Page break";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #667085;
+  background: #d8dee6;
+  padding: 0 8px;
+}
+
+.wikilink {
+  color: #1d4ed8;
+  background: #e8eefc;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.wikilink.broken {
+  color: #b42318;
+  background: #fef3f2;
+  text-decoration: underline wavy;
+}
+
+.myst-raw {
+  background: #f2f4f7;
+  border: 1px dashed #98a2b3;
+  padding: 10px;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.md-figure {
+  margin: 16px 0;
+  text-align: center;
+}
+
+.md-figure img {
+  max-width: 100%;
+}
+
+.md-caption {
+  font-size: 10pt;
+  color: #4b5563;
+  margin-top: 6px;
+}
+
+.cm-editor {
+  height: 100%;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid #d0d5dd;
+  padding: 6px 8px;
+  min-width: 48px;
+}
+
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+}

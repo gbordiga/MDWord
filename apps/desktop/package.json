@@ -1,0 +1,25 @@
+{
+  "name": "@mdword/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MDWord desktop shell",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "dist": "node scripts/build.mjs && electron-builder --config electron-builder.yml",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mdword/renderer": "workspace:*",
+    "@mdword/shared": "workspace:*",
+    "electron-updater": "^6.6.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "electron": "^35.1.2",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.25.2",
+    "typescript": "^5.8.2"
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdword.app/schemas/mdoc.schema.json",
+  "title": "mdoc",
+  "description": "MDWord document layout metadata (frontmatter.mdoc)",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "version": { "type": "integer", "minimum": 1, "default": 1 },
+    "template": { "type": "string" },
+    "page": { "$ref": "#/$defs/page" },
+    "margins": { "$ref": "#/$defs/margins" },
+    "typography": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/textStyle" }
+    },
+    "header": { "$ref": "#/$defs/running" },
+    "footer": { "$ref": "#/$defs/running" },
+    "numbering": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "headings": { "type": "boolean" },
+        "figures": { "type": "boolean" },
+        "tables": { "type": "boolean" }
+      }
+    },
+    "toc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "depth": { "type": "integer", "minimum": 1, "maximum": 6 }
+      }
+    }
+  },
+  "$defs": {
+    "length": {
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)?(mm|cm|in|pt)$"
+    },
+    "pageSizeName": {
+      "type": "string",
+      "enum": ["A4", "A3", "A5", "Letter", "Legal"]
+    },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "size": {
+          "oneOf": [
+            { "$ref": "#/$defs/pageSizeName" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["width", "height"],
+              "properties": {
+                "width": { "$ref": "#/$defs/length" },
+                "height": { "$ref": "#/$defs/length" }
+              }
+            }
+          ]
+        },
+        "orientation": { "type": "string", "enum": ["portrait", "landscape"] }
+      }
+    },
+    "margins": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "top": { "$ref": "#/$defs/length" },
+        "right": { "$ref": "#/$defs/length" },
+        "bottom": { "$ref": "#/$defs/length" },
+        "left": { "$ref": "#/$defs/length" }
+      }
+    },
+    "textStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "font-family": { "type": "string" },
+        "font-size": { "$ref": "#/$defs/length" },
+        "weight": { "type": ["integer", "string"] },
+        "line-height": { "type": ["number", "string"] },
+        "color": { "type": "string" }
+      }
+    },
+    "running": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "left": { "type": "string" },
+        "center": { "type": "string" },
+        "right": { "type": "string" }
+      }
+    }
+  }
+}

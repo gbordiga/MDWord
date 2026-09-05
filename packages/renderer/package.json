@@ -1,0 +1,17 @@
+{
+  "name": "@mdword/renderer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@mdword/shared": "workspace:*",
+    "@mdword/layout-engine": "workspace:*",
+    "sanitize-html": "^2.14.0"
+  },
+  "devDependencies": {
+    "@types/sanitize-html": "^2.13.0"
+  }
+}
