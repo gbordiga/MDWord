@@ -393,7 +393,9 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             <Btn title="Zoom out" onClick={() => actions.setZoom(actions.zoom - 0.1)}>
               <ZoomOut size={16} />
             </Btn>
-            <span className="px-1 text-[12px] text-[#667085]">{Math.round(actions.zoom * 100)}%</span>
+            <span className="px-1 text-[12px] text-[#667085]" data-testid="zoom-level">
+              {Math.round(actions.zoom * 100)}%
+            </span>
             <Btn title="Zoom in" onClick={() => actions.setZoom(actions.zoom + 0.1)}>
               <ZoomIn size={16} />
             </Btn>

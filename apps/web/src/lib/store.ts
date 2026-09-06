@@ -318,7 +318,7 @@ export const useApp = create<AppState>((set, get) => {
     });
     set({ model: next, dirty: true, syncGeneration: get().syncGeneration + 1 });
   },
-  setZoom: (zoom) => set({ zoom: Math.min(2, Math.max(0.5, zoom)) }),
+  setZoom: (zoom) => set({ zoom: Math.min(2, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
   toggleLeft: () => set({ leftOpen: !get().leftOpen }),
   toggleRight: () => set({ rightOpen: !get().rightOpen }),
   setMobileSheet: (mobileSheet) => set({ mobileSheet }),
