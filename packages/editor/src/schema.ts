@@ -15,10 +15,20 @@ export function editorExtensions() {
   return [
     StarterKit.configure({
       heading: { levels: [1, 2, 3, 4, 5, 6] },
-      codeBlock: { HTMLAttributes: { class: "md-code" } }
+      bulletList: { HTMLAttributes: { class: "md-list md-list-bullet" } },
+      orderedList: { HTMLAttributes: { class: "md-list md-list-ordered" } },
+      listItem: { HTMLAttributes: { class: "md-list-item" } },
+      blockquote: { HTMLAttributes: { class: "md-quote" } },
+      codeBlock: { HTMLAttributes: { class: "md-code" } },
+      horizontalRule: { HTMLAttributes: { class: "md-hr" } }
     }),
     Underline,
-    Link.configure({ openOnClick: false, autolink: true }),
+    Link.configure({
+      openOnClick: false,
+      autolink: true,
+      linkOnPaste: true,
+      HTMLAttributes: { class: "md-link" }
+    }),
     Image,
     Placeholder.configure({ placeholder: "Start writing…" }),
     Table.configure({ resizable: false }),

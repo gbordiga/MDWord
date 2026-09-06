@@ -44,11 +44,13 @@ function IconBtn({
   title,
   onClick,
   pressed,
+  testId,
   children
 }: {
   title: string;
   onClick: () => void;
   pressed?: boolean;
+  testId?: string;
   children: ReactNode;
 }) {
   return (
@@ -57,6 +59,7 @@ function IconBtn({
       title={title}
       aria-label={title}
       aria-pressed={pressed}
+      data-testid={testId}
       onClick={onClick}
       className={`inline-flex h-11 min-w-11 shrink-0 items-center justify-center rounded-lg px-2 text-[#1c1f24] touch-manipulation ${
         pressed ? "bg-[#e8eefc] text-accent" : "hover:bg-[#eef2f6] active:bg-[#e8eefc]"
@@ -167,6 +170,7 @@ export function MobileFormatBar({ editor }: { editor: Editor | null }) {
       </IconBtn>
       <IconBtn
         title="Bullet list"
+        testId="fmt-bullet"
         pressed={editor?.isActive("bulletList")}
         onClick={() => editor?.chain().focus().toggleBulletList().run()}
       >
@@ -174,6 +178,7 @@ export function MobileFormatBar({ editor }: { editor: Editor | null }) {
       </IconBtn>
       <IconBtn
         title="Numbered list"
+        testId="fmt-ordered"
         pressed={editor?.isActive("orderedList")}
         onClick={() => editor?.chain().focus().toggleOrderedList().run()}
       >
@@ -181,12 +186,13 @@ export function MobileFormatBar({ editor }: { editor: Editor | null }) {
       </IconBtn>
       <IconBtn
         title="Quote"
+        testId="fmt-quote"
         pressed={editor?.isActive("blockquote")}
         onClick={() => editor?.chain().focus().toggleBlockquote().run()}
       >
         <Quote size={18} />
       </IconBtn>
-      <IconBtn title="Link" onClick={() => editor && promptLink(editor)}>
+      <IconBtn title="Link" testId="fmt-link" onClick={() => editor && promptLink(editor)}>
         <LinkIcon size={18} />
       </IconBtn>
     </div>

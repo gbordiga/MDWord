@@ -22,7 +22,7 @@ export default defineConfig({
     {
       name: "mobile",
       use: { ...devices["iPhone 13"], browserName: "chromium" },
-      testMatch: /mobile\.spec/
+      testMatch: /(mobile|formatting)\.spec/
     }
   ]
 });

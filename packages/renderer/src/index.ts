@@ -197,6 +197,11 @@ export function renderPrintDocument(options: {
     .unsupported-directive { background: #f1f5f9; font-size: 0.9em; }
     h1 { font-size: ${options.mdoc.typography?.["heading-1"]?.["font-size"] ?? "20pt"}; }
     h2 { font-size: ${options.mdoc.typography?.["heading-2"]?.["font-size"] ?? "16pt"}; }
+    ul { list-style: disc outside; padding-left: 1.5em; }
+    ol { list-style: decimal outside; padding-left: 1.5em; }
+    li { display: list-item; }
+    blockquote { border-left: 3px solid #1d4ed8; padding-left: 1em; margin: 0.7em 0; color: #344054; font-style: italic; }
+    a { color: #1d4ed8; text-decoration: underline; }
   </style>
 </head>
 <body>

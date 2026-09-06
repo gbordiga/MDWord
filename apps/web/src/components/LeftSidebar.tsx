@@ -47,12 +47,28 @@ export function LeftSidebar({ className }: { className?: string }) {
       </div>
       <div className="flex-1 overflow-auto p-2 text-[13px]">
         {left === "files" && (
-          <ul className="space-y-1">
-            {(workspace?.files.filter((f) => f.name.endsWith(".md")) ?? []).map((f) => (
-              <li key={f.path} className="truncate rounded px-2 py-2.5 hover:bg-[#f2f4f7]">
-                {f.name}
-              </li>
-            ))}
+          <ul className="space-y-1" data-testid="workspace-files">
+            {(workspace?.files.filter((f) => f.name.endsWith(".md")) ?? []).map((f) => {
+              const active = path === f.path || path === f.name || (path ?? "").endsWith(`/${f.name}`);
+              return (
+                <li key={f.path}>
+                  <button
+                    type="button"
+                    data-testid="workspace-file"
+                    data-path={f.path}
+                    onClick={() => void useApp.getState().openWorkspaceFile(f.path)}
+                    className={`w-full truncate rounded px-2 py-2.5 text-left hover:bg-[#f2f4f7] ${
+                      active ? "bg-[#e8eefc] font-medium text-accent" : ""
+                    }`}
+                  >
+                    {f.name}
+                  </button>
+                </li>
+              );
+            })}
+            {workspace && workspace.files.filter((f) => f.name.endsWith(".md")).length === 0 && (
+              <p className="p-2 text-[#667085]">No markdown files yet. Save a document to see it here.</p>
+            )}
             {!workspace && <p className="p-2 text-[#667085]">Open a folder to browse files.</p>}
           </ul>
         )}

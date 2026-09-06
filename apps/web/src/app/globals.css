@@ -130,6 +130,108 @@ html.keyboard-open .mdword-app {
   margin-top: 0;
 }
 
+/* Tailwind preflight sets list-style: none — restore markers (Firefox needs !important + list-item). */
+.ProseMirror ul,
+.ProseMirror ul.md-list-bullet {
+  list-style-type: disc !important;
+  list-style-position: outside !important;
+  padding-left: 1.6em !important;
+  margin: 0.45em 0;
+}
+
+.ProseMirror ol,
+.ProseMirror ol.md-list-ordered {
+  list-style-type: decimal !important;
+  list-style-position: outside !important;
+  padding-left: 1.6em !important;
+  margin: 0.45em 0;
+}
+
+.ProseMirror ul ul,
+.ProseMirror ol ul {
+  list-style-type: circle !important;
+}
+
+.ProseMirror ol ol,
+.ProseMirror ul ol {
+  list-style-type: lower-alpha !important;
+}
+
+.ProseMirror li,
+.ProseMirror li.md-list-item {
+  display: list-item !important;
+  margin: 0.12em 0;
+}
+
+.ProseMirror li > p {
+  margin: 0;
+}
+
+.ProseMirror li::marker {
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none !important;
+  padding-left: 0.2em !important;
+}
+
+.ProseMirror li[data-type="taskItem"] {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 0.4em;
+}
+
+.ProseMirror blockquote,
+.ProseMirror .md-quote {
+  border-left: 3px solid #1d4ed8;
+  padding: 0.2em 0 0.2em 0.95em;
+  margin: 0.7em 0;
+  color: #344054;
+  font-style: italic;
+}
+
+.ProseMirror blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.ProseMirror a,
+.ProseMirror a.md-link {
+  color: #1d4ed8;
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
+  cursor: pointer;
+}
+
+.ProseMirror a:hover {
+  color: #1e40af;
+}
+
+.ProseMirror code {
+  font-family: Consolas, "Liberation Mono", ui-monospace, monospace;
+  font-size: 0.9em;
+  background: #f2f4f7;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
+.ProseMirror pre.md-code,
+.ProseMirror pre {
+  background: #f2f4f7;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 0.7em 0;
+}
+
+.ProseMirror hr,
+.ProseMirror .md-hr {
+  border: 0;
+  border-top: 1px solid #d0d5dd;
+  margin: 1em 0;
+}
+
 .ProseMirror img {
   max-width: 100%;
   height: auto;

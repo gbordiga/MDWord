@@ -48,4 +48,5 @@ export async function loadWorkspace(
 }
 
 export { searchIndex, backlinksTo, resolveWikiTarget, brokenLinks };
+export { applySavedDocument, isInsideWorkspace, upsertWorkspaceFile } from "./files";
 export type { IndexedDocument, WorkspaceIndex };

@@ -43,16 +43,19 @@ const TABS: { id: RibbonTab; label: string }[] = [
 function Btn({
   onClick,
   children,
-  title
+  title,
+  testId
 }: {
   onClick: () => void;
   children: React.ReactNode;
   title: string;
+  testId?: string;
 }) {
   return (
     <button
       type="button"
       title={title}
+      data-testid={testId}
       onClick={onClick}
       className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-[13px] text-[#1c1f24] hover:bg-[#eef2f6]"
     >
@@ -95,14 +98,14 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             <Btn title="Export HTML" onClick={() => void actions.exportHtml()}>Export HTML</Btn>
           </>
         )}
-        {ribbon === "home" && editor && (
+        {ribbon === "home" && (
           <>
             <select
               aria-label="Style"
               data-testid="ribbon-style"
               className="h-8 rounded-md border border-[#e4e7ec] bg-white px-2 text-[13px]"
               value={currentBlockStyle(editor)}
-              onChange={(e) => applyBlockStyle(editor, e.target.value)}
+              onChange={(e) => editor && applyBlockStyle(editor, e.target.value)}
             >
               <option value="p">Body</option>
               <option value="1">Heading 1</option>
@@ -110,31 +113,31 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
               <option value="3">Heading 3</option>
               <option value="4">Heading 4</option>
             </select>
-            <Btn title="Bold" onClick={() => editor.chain().focus().toggleBold().run()}><Bold size={16} /></Btn>
-            <Btn title="Italic" onClick={() => editor.chain().focus().toggleItalic().run()}><Italic size={16} /></Btn>
-            <Btn title="Strikethrough" onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough size={16} /></Btn>
-            <Btn title="Code" onClick={() => editor.chain().focus().toggleCode().run()}><Code size={16} /></Btn>
-            <Btn title="Bullet list" onClick={() => editor.chain().focus().toggleBulletList().run()}><List size={16} /></Btn>
-            <Btn title="Numbered list" onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered size={16} /></Btn>
-            <Btn title="Quote" onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote size={16} /></Btn>
-            <Btn title="Link" onClick={() => promptLink(editor)}>
+            <Btn title="Bold" onClick={() => editor?.chain().focus().toggleBold().run()}><Bold size={16} /></Btn>
+            <Btn title="Italic" onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic size={16} /></Btn>
+            <Btn title="Strikethrough" onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough size={16} /></Btn>
+            <Btn title="Code" onClick={() => editor?.chain().focus().toggleCode().run()}><Code size={16} /></Btn>
+            <Btn title="Bullet list" testId="fmt-bullet" onClick={() => editor?.chain().focus().toggleBulletList().run()}><List size={16} /></Btn>
+            <Btn title="Numbered list" testId="fmt-ordered" onClick={() => editor?.chain().focus().toggleOrderedList().run()}><ListOrdered size={16} /></Btn>
+            <Btn title="Quote" testId="fmt-quote" onClick={() => editor?.chain().focus().toggleBlockquote().run()}><Quote size={16} /></Btn>
+            <Btn title="Link" testId="fmt-link" onClick={() => editor && promptLink(editor)}>
               <LinkIcon size={16} />
             </Btn>
           </>
         )}
-        {ribbon === "insert" && editor && (
+        {ribbon === "insert" && (
           <>
-            <Btn title="Table" onClick={() => insertTable(editor)}><TableIcon size={16} /> Table</Btn>
-            <Btn title="Image" onClick={() => promptImage(editor)}>
+            <Btn title="Table" onClick={() => editor && insertTable(editor)}><TableIcon size={16} /> Table</Btn>
+            <Btn title="Image" onClick={() => editor && promptImage(editor)}>
               <ImageIcon size={16} /> Image
             </Btn>
-            <Btn title="Callout" onClick={() => insertCallout(editor)}>Callout</Btn>
-            <Btn title="Code block" onClick={() => editor.chain().focus().toggleCodeBlock().run()}>Code</Btn>
-            <Btn title="Page break" onClick={() => insertPageBreak(editor)}><Minus size={16} /> Page break</Btn>
-            <Btn title="Wikilink" onClick={() => promptWikilink(editor)}>
+            <Btn title="Callout" onClick={() => editor && insertCallout(editor)}>Callout</Btn>
+            <Btn title="Code block" onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>Code</Btn>
+            <Btn title="Page break" onClick={() => editor && insertPageBreak(editor)}><Minus size={16} /> Page break</Btn>
+            <Btn title="Wikilink" onClick={() => editor && promptWikilink(editor)}>
               Wikilink
             </Btn>
-            <Btn title="Horizontal rule" onClick={() => editor.chain().focus().setHorizontalRule().run()}>Rule</Btn>
+            <Btn title="Horizontal rule" onClick={() => editor?.chain().focus().setHorizontalRule().run()}>Rule</Btn>
           </>
         )}
         {ribbon === "layout" && (
