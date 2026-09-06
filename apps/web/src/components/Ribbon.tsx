@@ -39,7 +39,7 @@ import {
   RectangleVertical
 } from "lucide-react";
 import { useApp, type RibbonTab } from "@/lib/store";
-import { BUILT_IN_TEMPLATES } from "@mdword/layout-engine";
+import { BUILT_IN_TEMPLATES, MARGIN_PRESETS, matchMarginPreset } from "@mdword/layout-engine";
 import { applyBlockStyle, currentBlockStyle, insertCallout, insertPageBreak, insertTable } from "@/lib/editorCommands";
 import { useEditorTick } from "@/hooks/useEditorTick";
 import { useEditorUi } from "@/lib/editorUi";
@@ -107,6 +107,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
   const tocEnabled = Boolean(actions.model.resolvedMdoc.toc?.enabled);
   const tocDepth = actions.model.resolvedMdoc.toc?.depth ?? 3;
   const landscape = actions.model.resolvedMdoc.page?.orientation === "landscape";
+  const marginPreset = matchMarginPreset(actions.model.resolvedMdoc.margins);
 
   return (
     <div className="hidden border-b border-[#e4e7ec] bg-white lg:block">
@@ -300,6 +301,26 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
               {landscape ? <RectangleHorizontal size={16} /> : <RectangleVertical size={16} />}
               {landscape ? "Landscape" : "Portrait"}
             </Btn>
+            <Divider />
+            <select
+              aria-label="Margins"
+              data-testid="ribbon-margins"
+              className="h-8 rounded-md border border-[#e4e7ec] bg-white px-2 text-[13px]"
+              value={marginPreset}
+              onChange={(e) => {
+                const preset = MARGIN_PRESETS.find((p) => p.id === e.target.value);
+                if (preset) {
+                  actions.patchMdoc({ ...actions.model.mdoc, margins: preset.margins });
+                }
+              }}
+            >
+              {MARGIN_PRESETS.map((p) => (
+                <option key={p.id} value={p.id} title={p.description}>
+                  {p.name} margins
+                </option>
+              ))}
+              {marginPreset === "custom" ? <option value="custom">Custom margins</option> : null}
+            </select>
             <Divider />
             <select
               aria-label="Template"

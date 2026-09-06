@@ -4,6 +4,7 @@ import { cn } from "@mdword/ui";
 import { BUILT_IN_TEMPLATES } from "@mdword/layout-engine";
 import { documentDate, documentTitle, documentTitleKey } from "@mdword/shared";
 import { useApp } from "@/lib/store";
+import { MarginEditor } from "./MarginEditor";
 
 const fieldClass =
   "mt-1 w-full rounded-md border border-[#e4e7ec] px-3 py-2 text-[16px] lg:px-2 lg:py-1 lg:text-[13px]";
@@ -23,7 +24,6 @@ export function PropertiesPanel({ className }: { className?: string }) {
   const patchMdoc = useApp((s) => s.patchMdoc);
   const mdoc = model.mdoc;
   const titleKey = documentTitleKey(model.frontmatter);
-  const margins = model.resolvedMdoc.margins ?? {};
   const pageSize =
     typeof model.resolvedMdoc.page?.size === "string" ? model.resolvedMdoc.page.size : "A4";
   const templateId = mdoc.template ?? "normal";
@@ -131,21 +131,11 @@ export function PropertiesPanel({ className }: { className?: string }) {
           {template.description}
         </p>
       ) : null}
-      {(["top", "right", "bottom", "left"] as const).map((side) => (
-        <label key={side} className="mb-2 block capitalize">
-          {side}
-          <input
-            className={fieldClass}
-            value={String(mdoc.margins?.[side] ?? margins[side] ?? "")}
-            onChange={(e) =>
-              patchMdoc({
-                ...mdoc,
-                margins: { ...mdoc.margins, [side]: e.target.value }
-              })
-            }
-          />
-        </label>
-      ))}
+      <MarginEditor
+        mdoc={mdoc}
+        resolved={model.resolvedMdoc}
+        onChange={(margins) => patchMdoc({ ...mdoc, margins })}
+      />
       <h2 className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
         Header and footer
       </h2>

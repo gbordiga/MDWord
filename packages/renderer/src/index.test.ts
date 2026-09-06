@@ -99,8 +99,40 @@ describe("running header and footer", () => {
     expect(html).toMatch(/<p class="doc-date">2026-01-01<\/p>/);
     expect(html).toContain('class="print-running print-running-header"');
     expect(html).toContain("print-running-footer");
+    expect(html).toContain('class="print-root"');
     expect(html).not.toMatch(/@top-left/);
     expect(html).not.toMatch(/@bottom-right/);
+    expect(html).not.toMatch(/position:\s*fixed/);
+    expect(html).not.toContain("print-page");
+  });
+
+  it("puts page numbers in @page boxes and strips tokens from HTML bars", () => {
+    const html = renderPrintDocument({
+      ast: { type: "root", children: [] },
+      mdoc: {
+        version: 1,
+        header: { left: "{{title}}", right: "{{page}} / {{pages}}" },
+        footer: { right: "{{date}}" }
+      },
+      title: "Audit",
+      date: "2026-01-01",
+      runningInBody: true,
+      pagedScriptUrl: "https://example.test/paged.polyfill.min.js"
+    });
+    expect(html).toContain('class="print-running print-running-header"');
+    expect(html).toContain("Audit");
+    expect(html).not.toContain("print-page");
+    const headerBar = html.match(/class="print-running print-running-header">[\s\S]*?<\/div>/)?.[0] ?? "";
+    expect(headerBar).toContain("Audit");
+    expect(headerBar).not.toContain("{{page}}");
+    expect(html).toContain("<!-- header-right:{{page}} / {{pages}} -->");
+    expect(html).toMatch(/@top-right/);
+    expect(html).toMatch(/counter\(page\)/);
+    expect(html).toMatch(/counter\(pages\)/);
+    expect(html).not.toMatch(/@top-left/);
+    expect(html).not.toMatch(/@bottom-right/);
+    expect(html).toContain("https://example.test/paged.polyfill.min.js");
+    expect(html).toContain("pagedReady");
     expect(html).not.toMatch(/position:\s*fixed/);
   });
 });

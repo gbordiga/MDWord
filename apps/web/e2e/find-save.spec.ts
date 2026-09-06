@@ -64,9 +64,13 @@ test("PDF export writes title and date into the print document", async ({ page }
   expect(html).toContain('class="doc-date"');
   expect(html).toContain("2026-03-15");
   expect(html).toContain('class="print-running print-running-header"');
+  expect(html).toContain('class="print-root"');
   expect(html).not.toMatch(/@top-left/);
-  expect(html).not.toMatch(/@bottom-right/);
+  expect(html).toMatch(/@top-right/);
+  expect(html).toMatch(/counter\(page\)/);
+  expect(html).not.toContain("print-page");
   expect(html).not.toMatch(/position:\s*fixed/);
+  expect(html).toContain("paged.polyfill.min.js");
 });
 
 test("typing a draft shows autosave progress", async ({ page }) => {

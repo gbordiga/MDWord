@@ -231,6 +231,7 @@ export const webHost: HostApi = {
         window.setTimeout(resolve, 500);
       });
       const win = iframe.contentWindow;
+      if (win) await waitForPagedPrint(win);
       const cleanup = () => iframe.remove();
       win?.addEventListener("afterprint", cleanup);
       window.setTimeout(cleanup, 120_000);
@@ -251,3 +252,20 @@ export const webHost: HostApi = {
 };
 
 let folderHandle: DirHandle | null = null;
+
+function waitForPagedPrint(win: Window): Promise<void> {
+  const doc = win.document;
+  if (!doc.querySelector('script[src*="paged"]')) return Promise.resolve();
+  if (doc.documentElement.dataset.pagedReady === "1") return Promise.resolve();
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const tick = () => {
+      if (doc.documentElement.dataset.pagedReady === "1" || Date.now() - started > 6000) {
+        resolve();
+        return;
+      }
+      win.setTimeout(tick, 40);
+    };
+    tick();
+  });
+}

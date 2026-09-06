@@ -33,6 +33,15 @@ function yieldPaint(): Promise<void> {
   });
 }
 
+/** Safari/iOS already honor @page margin boxes; Chromium needs the Paged.js polyfill. */
+function webPagedScriptUrl(platform: string): string | undefined {
+  if (typeof window === "undefined" || platform !== "web") return undefined;
+  const ua = navigator.userAgent;
+  if (/CriOS|FxiOS|EdgiOS/i.test(ua)) return undefined;
+  if (/Safari/i.test(ua) && !/Chrome|Chromium|Edg|OPR/i.test(ua)) return undefined;
+  return `${window.location.origin}/paged.polyfill.min.js`;
+}
+
 interface AppState {
   model: DocumentModel;
   path: string | null;
@@ -277,6 +286,7 @@ export const useApp = create<AppState>((set, get) => {
     await yieldPaint();
     try {
       const { model, path } = get();
+      const host = getHost();
       const html = renderPrintDocument({
         ast: model.ast,
         mdoc: model.resolvedMdoc,
@@ -284,9 +294,10 @@ export const useApp = create<AppState>((set, get) => {
         subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
         date: documentDate(model.frontmatter),
         filename: path ?? "document.md",
-        runningInBody: getHost().platform === "web"
+        runningInBody: host.platform === "web",
+        pagedScriptUrl: webPagedScriptUrl(host.platform)
       });
-      await getHost().export.pdf(html, {});
+      await host.export.pdf(html, {});
     } finally {
       set({ busy: null });
     }
