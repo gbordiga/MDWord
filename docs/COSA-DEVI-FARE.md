@@ -44,7 +44,7 @@ Output in `apps/desktop/release/`:
 
 Poi:
 
-1. Crea il tag se manca: `git tag v0.1.0 && git push origin v0.1.0`
+1. Il tag **`v0.1.0` è già su `main`**
 2. Apri un **GitHub Release** (o Origin Release) `v0.1.0`
 3. Allega AppImage e deb
 4. (Opzionale) firma GPG i file
