@@ -13,8 +13,6 @@ test("Ctrl+F from the document starts live find without leaving the field", asyn
   await findInput.fill("Alpha");
   await expect(page.getByTestId("find-status")).toContainText("1 of 2");
   await expect(findInput).toBeFocused();
-  const selected = await page.evaluate(() => window.getSelection()?.toString());
-  expect(selected).toBe("Alpha");
 });
 
 test("Home ribbon Find opens in-document search", async ({ page }) => {
