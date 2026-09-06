@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "MDWord desktop shell",
+  "desktopName": "MDWord",
   "author": "Giacomo Bordiga <gbordiga@gmail.com>",
   "homepage": "https://github.com/gbordiga/MDWord",
   "main": "dist/main/index.js",

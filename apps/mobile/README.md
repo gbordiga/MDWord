@@ -9,7 +9,7 @@ Same editor as the website (`apps/web` static export), wrapped with [Capacitor](
 - Status bar, keyboard resize, splash
 - Document type for Markdown files
 
-Store listing, signing, and Apple/Google accounts still happen on your machine.
+Store listing, signing, and Apple/Google accounts still happen on your machine. Step-by-step in Italian: [`docs/COSA-DEVI-FARE.md`](../../docs/COSA-DEVI-FARE.md).
 
 ## One-time machine setup
 
