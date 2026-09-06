@@ -11,7 +11,7 @@ import type { Mdoc } from "@mdword/layout-engine";
 import { parseDocument } from "yaml";
 import { getHost } from "./host";
 import { untitledDocument } from "./untitled";
-import { loadWorkspace, applySavedDocument, type WorkspaceState } from "@mdword/workspace";
+import { loadWorkspace, applySavedDocument, resolveWikiTarget, type WorkspaceState } from "@mdword/workspace";
 import { astToTiptap, tiptapToAst, type TiptapNode } from "@mdword/editor";
 import { renderPrintDocument } from "@mdword/renderer";
 
@@ -47,6 +47,7 @@ interface AppState {
   saveFileAs: () => Promise<void>;
   openFolder: () => Promise<void>;
   openWorkspaceFile: (filePath: string) => Promise<void>;
+  openWorkspaceFileByTitle: (title: string) => Promise<boolean>;
   refreshWorkspace: () => Promise<void>;
   exportPdf: () => Promise<void>;
   exportHtml: () => Promise<void>;
@@ -187,6 +188,14 @@ export const useApp = create<AppState>((set, get) => {
     } catch {
       /* file handle may be missing on web until the folder is re-listed */
     }
+  },
+  openWorkspaceFileByTitle: async (title) => {
+    const { workspace, path } = get();
+    if (!workspace) return false;
+    const resolved = resolveWikiTarget(workspace.index, path ?? "", title);
+    if (!resolved) return false;
+    await get().openWorkspaceFile(resolved);
+    return true;
   },
   refreshWorkspace: () => reloadWorkspace(),
   exportPdf: async () => {

@@ -196,6 +196,11 @@ html.keyboard-open .mdword-app {
   margin-bottom: 0;
 }
 
+.ProseMirror u {
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
+}
+
 .ProseMirror a,
 .ProseMirror a.md-link {
   color: #1d4ed8;
@@ -285,6 +290,7 @@ html.keyboard-open .mdword-app {
   background: #e8eefc;
   border-radius: 4px;
   padding: 0 4px;
+  cursor: pointer;
 }
 
 .wikilink.broken {

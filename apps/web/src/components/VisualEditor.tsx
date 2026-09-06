@@ -5,6 +5,7 @@ import { editorExtensions, astToTiptap } from "@mdword/editor";
 import { pageMetrics, resolveVariables } from "@mdword/layout-engine";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useApp } from "@/lib/store";
+import { getHost } from "@/lib/host";
 
 function useFitScale(widthPx: number) {
   const ref = useRef<HTMLDivElement>(null);
@@ -64,6 +65,30 @@ export function VisualEditor({
       editorRef.current = null;
     };
   }, [editor, onEditor]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const dom = editor.view.dom;
+    const onClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      const wiki = target.closest<HTMLElement>(".md-wikilink, [data-wiki-link]");
+      if (wiki) {
+        event.preventDefault();
+        const name = (wiki.getAttribute("data-target") || wiki.textContent || "").trim();
+        if (name) void useApp.getState().openWorkspaceFileByTitle(name);
+        return;
+      }
+      const anchor = target.closest<HTMLAnchorElement>("a.md-link, a[href]");
+      if (anchor && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        const href = anchor.getAttribute("href");
+        if (href) void getHost().shell.openExternal(href);
+      }
+    };
+    dom.addEventListener("click", onClick);
+    return () => dom.removeEventListener("click", onClick);
+  }, [editor]);
 
   const lastGen = useRef(syncGeneration);
   useEffect(() => {

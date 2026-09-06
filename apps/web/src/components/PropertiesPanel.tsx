@@ -165,7 +165,7 @@ export function PropertiesPanel({ className }: { className?: string }) {
             })
           }
         />
-        Table of contents
+        Include table of contents in PDF/HTML export
       </label>
       {model.diagnostics.length > 0 && (
         <div className="mt-4 rounded-md bg-[#fffbeb] p-2 text-[12px] text-[#92400e]">

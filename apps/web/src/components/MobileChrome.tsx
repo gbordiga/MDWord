@@ -22,20 +22,20 @@ import {
   Save,
   Search,
   Strikethrough,
-  Table as TableIcon
+  Table as TableIcon,
+  Underline as UnderlineIcon
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useApp } from "@/lib/store";
 import {
   applyBlockStyle,
   currentBlockStyle,
   insertCallout,
   insertPageBreak,
-  insertTable,
-  promptImage,
-  promptLink,
-  promptWikilink
+  insertTable
 } from "@/lib/editorCommands";
+import { useEditorTick } from "@/hooks/useEditorTick";
+import { useEditorUi } from "@/lib/editorUi";
 import { LeftSidebar } from "./LeftSidebar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { Sheet } from "./Sheet";
@@ -68,21 +68,6 @@ function IconBtn({
       {children}
     </button>
   );
-}
-
-function useEditorTick(editor: Editor | null): number {
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    if (!editor) return;
-    const bump = () => setTick((n) => n + 1);
-    editor.on("selectionUpdate", bump);
-    editor.on("transaction", bump);
-    return () => {
-      editor.off("selectionUpdate", bump);
-      editor.off("transaction", bump);
-    };
-  }, [editor]);
-  return tick;
 }
 
 export function MobileTopBar() {
@@ -120,6 +105,7 @@ export function MobileTopBar() {
 export function MobileFormatBar({ editor }: { editor: Editor | null }) {
   useEditorTick(editor);
   const view = useApp((s) => s.view);
+  const { openLink } = useEditorUi();
   if (view === "source") return null;
 
   return (
@@ -153,6 +139,13 @@ export function MobileFormatBar({ editor }: { editor: Editor | null }) {
         onClick={() => editor?.chain().focus().toggleItalic().run()}
       >
         <Italic size={18} />
+      </IconBtn>
+      <IconBtn
+        title="Underline"
+        pressed={editor?.isActive("underline")}
+        onClick={() => editor?.chain().focus().toggleUnderline().run()}
+      >
+        <UnderlineIcon size={18} />
       </IconBtn>
       <IconBtn
         title="Strikethrough"
@@ -192,7 +185,7 @@ export function MobileFormatBar({ editor }: { editor: Editor | null }) {
       >
         <Quote size={18} />
       </IconBtn>
-      <IconBtn title="Link" testId="fmt-link" onClick={() => editor && promptLink(editor)}>
+      <IconBtn title="Link" testId="fmt-link" pressed={editor?.isActive("link")} onClick={openLink}>
         <LinkIcon size={18} />
       </IconBtn>
     </div>
@@ -306,6 +299,7 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
   const setMobileSheet = useApp((s) => s.setMobileSheet);
   const close = () => setMobileSheet(null);
   const actions = useApp();
+  const { openImage, openWikilink, confirmIfDirty } = useEditorUi();
 
   const run = (fn: () => void) => {
     fn();
@@ -325,7 +319,7 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
           <InsertItem label="Table" onClick={() => editor && run(() => insertTable(editor))}>
             <TableIcon size={18} />
           </InsertItem>
-          <InsertItem label="Image" onClick={() => editor && run(() => promptImage(editor))}>
+          <InsertItem label="Image" onClick={() => run(openImage)}>
             <ImageIcon size={18} />
           </InsertItem>
           <InsertItem label="Callout" onClick={() => editor && run(() => insertCallout(editor))}>
@@ -337,7 +331,7 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
           <InsertItem label="Page break" onClick={() => editor && run(() => insertPageBreak(editor))}>
             <Minus size={18} />
           </InsertItem>
-          <InsertItem label="Wikilink" onClick={() => editor && run(() => promptWikilink(editor))}>
+          <InsertItem label="Wikilink" onClick={() => run(openWikilink)}>
             <LinkIcon size={18} />
           </InsertItem>
           <InsertItem
@@ -350,10 +344,10 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
       </Sheet>
       <Sheet open={sheet === "more"} onClose={close} side="bottom" title="More" testId="sheet-more">
         <div className="py-1">
-          <MoreItem label="New document" onClick={() => run(actions.newDocument)}>
+          <MoreItem label="New document" onClick={() => run(() => confirmIfDirty(actions.newDocument))}>
             <FilePlus size={18} />
           </MoreItem>
-          <MoreItem label="Open" onClick={() => run(() => void actions.openFile())}>
+          <MoreItem label="Open" onClick={() => run(() => confirmIfDirty(() => void actions.openFile()))}>
             <FolderOpen size={18} />
           </MoreItem>
           <MoreItem label="Save as" onClick={() => run(() => void actions.saveFileAs())}>
@@ -378,6 +372,9 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
           </MoreItem>
           <MoreItem label="Split view" onClick={() => run(() => actions.setView("split"))}>
             <Files size={18} />
+          </MoreItem>
+          <MoreItem label="Find in document" onClick={() => run(() => actions.setFind(true))}>
+            <Search size={18} />
           </MoreItem>
           <div className="my-1 h-px bg-[#e4e7ec]" />
           <div className="flex items-center justify-between px-4 py-2">

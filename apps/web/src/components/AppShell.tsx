@@ -9,14 +9,39 @@ import { VisualEditor } from "./VisualEditor";
 import { SourcePane } from "./SourcePane";
 import { CommandPalette } from "./CommandPalette";
 import { MobileFormatBar, MobileSheets, MobileTabBar, MobileTopBar } from "./MobileChrome";
+import { FindBar } from "./FindBar";
+import { EditorContextBar } from "./EditorContextBar";
+import { LinkBubble } from "./LinkBubble";
+import { LinkDialog } from "./LinkDialog";
+import { ImageDialog } from "./ImageDialog";
+import { WikilinkDialog } from "./WikilinkDialog";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { useApp } from "@/lib/store";
 import { getHost } from "@/lib/host";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
-import { insertTable, promptImage, promptWikilink } from "@/lib/editorCommands";
+import { insertTable } from "@/lib/editorCommands";
+import { EditorUiProvider, useEditorUi } from "@/lib/editorUi";
 
 export function AppShell() {
   const editorRef = useRef<Editor | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
+
+  return (
+    <EditorUiProvider editor={editor}>
+      <AppShellInner editorRef={editorRef} editor={editor} setEditor={setEditor} />
+    </EditorUiProvider>
+  );
+}
+
+function AppShellInner({
+  editorRef,
+  editor,
+  setEditor
+}: {
+  editorRef: { current: Editor | null };
+  editor: Editor | null;
+  setEditor: (editor: Editor | null) => void;
+}) {
   const view = useApp((s) => s.view);
   const leftOpen = useApp((s) => s.leftOpen);
   const rightOpen = useApp((s) => s.rightOpen);
@@ -24,6 +49,8 @@ export function AppShell() {
   const path = useApp((s) => s.path);
   const diagnostics = useApp((s) => s.model.diagnostics);
   const { keyboardOpen } = useVisualViewport();
+  const { openLink, openImage, openWikilink, dialog, closeDialog, confirm, confirmIfDirty, closeConfirm } =
+    useEditorUi();
 
   useEffect(() => {
     const collapseChrome = () => {
@@ -56,23 +83,34 @@ export function AppShell() {
         e.preventDefault();
         useApp.getState().setFind(true);
       }
+      if (meta && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        confirmIfDirty(() => useApp.getState().newDocument());
+      }
+      if (meta && e.key.toLowerCase() === "o") {
+        e.preventDefault();
+        confirmIfDirty(() => void useApp.getState().openFile());
+      }
       if (meta && e.key.toLowerCase() === "b") {
         editorRef.current?.chain().focus().toggleBold().run();
       }
       if (meta && e.key.toLowerCase() === "i") {
         editorRef.current?.chain().focus().toggleItalic().run();
       }
+      if (meta && e.key.toLowerCase() === "u") {
+        e.preventDefault();
+        editorRef.current?.chain().focus().toggleUnderline().run();
+      }
       if (meta && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        const href = window.prompt("URL");
-        if (href) editorRef.current?.chain().focus().setLink({ href }).run();
+        openLink();
       }
       if (meta && e.key === "1") editorRef.current?.chain().focus().toggleHeading({ level: 1 }).run();
       if (meta && e.key === "2") editorRef.current?.chain().focus().toggleHeading({ level: 2 }).run();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [confirmIfDirty, openLink]);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -88,10 +126,10 @@ export function AppShell() {
 
   const insert = (kind: string) => {
     const ed = editorRef.current;
-    if (!ed) return;
-    if (kind === "table") insertTable(ed);
-    if (kind === "figure") promptImage(ed);
-    if (kind === "wikilink") promptWikilink(ed);
+    if (kind === "table" && ed) insertTable(ed);
+    if (kind === "figure") openImage();
+    if (kind === "wikilink") openWikilink();
+    if (kind === "link") openLink();
   };
 
   return (
@@ -102,6 +140,8 @@ export function AppShell() {
       <MobileTopBar />
       <Ribbon editor={editor} />
       <MobileFormatBar editor={editor} />
+      <FindBar />
+      <EditorContextBar />
       <div className="flex min-h-0 min-w-0 flex-1">
         {leftOpen && <LeftSidebar className="max-lg:hidden" />}
         <div
@@ -135,6 +175,11 @@ export function AppShell() {
       <MobileTabBar keyboardOpen={keyboardOpen} />
       <MobileSheets editor={editor} />
       <CommandPalette onInsert={insert} />
+      <LinkBubble />
+      <LinkDialog open={dialog === "link"} editor={editor} onClose={closeDialog} />
+      <ImageDialog open={dialog === "image"} editor={editor} onClose={closeDialog} />
+      <WikilinkDialog open={dialog === "wikilink"} editor={editor} onClose={closeDialog} />
+      <ConfirmDialog confirm={confirm} onClose={closeConfirm} />
     </div>
   );
 }
