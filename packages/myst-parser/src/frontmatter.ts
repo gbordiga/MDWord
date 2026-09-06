@@ -67,10 +67,14 @@ export function extractFrontmatter(source: string): FrontmatterExtraction {
 }
 
 export function yamlToPlain(doc: YamlDocument | null): Record<string, unknown> {
-  if (!doc || doc.errors.length) return {};
-  const js = doc.toJS({ maxAliasCount: 100 });
-  if (js && typeof js === "object" && !Array.isArray(js)) {
-    return js as Record<string, unknown>;
+  if (!doc) return {};
+  try {
+    const js = doc.toJS({ maxAliasCount: 100 });
+    if (js && typeof js === "object" && !Array.isArray(js)) {
+      return js as Record<string, unknown>;
+    }
+  } catch {
+    return {};
   }
   return {};
 }

@@ -1,5 +1,6 @@
 import type { GenericNode } from "@mdword/shared";
 import { decodeWikiHref, WIKI_SCHEME } from "@mdword/shared";
+import { sanitizeTiptapDoc } from "./sanitize";
 
 export interface TiptapNode {
   type: string;
@@ -25,13 +26,17 @@ function withMarks(nodes: TiptapNode[], mark: { type: string; attrs?: Record<str
   });
 }
 
+const EMPTY_PARAGRAPH: TiptapNode = { type: "paragraph" };
+
 function inline(nodes: GenericNode[] | undefined): TiptapNode[] {
   const out: TiptapNode[] = [];
   for (const node of nodes ?? []) {
     switch (node.type) {
-      case "text":
-        out.push(textNode(String(node.value ?? "")));
+      case "text": {
+        const value = String(node.value ?? "");
+        if (value) out.push(textNode(value));
         break;
+      }
       case "strong":
         out.push(...withMarks(inline(node.children), { type: "bold" }));
         break;
@@ -42,9 +47,11 @@ function inline(nodes: GenericNode[] | undefined): TiptapNode[] {
       case "strikethrough":
         out.push(...withMarks(inline(node.children), { type: "strike" }));
         break;
-      case "inlineCode":
-        out.push(textNode(String(node.value ?? ""), [{ type: "code" }]));
+      case "inlineCode": {
+        const value = String(node.value ?? "");
+        if (value) out.push(textNode(value, [{ type: "code" }]));
         break;
+      }
       case "break":
         out.push({ type: "hardBreak" });
         break;
@@ -52,16 +59,18 @@ function inline(nodes: GenericNode[] | undefined): TiptapNode[] {
         const url = String(node.url ?? "");
         if (url.startsWith(WIKI_SCHEME)) {
           const wiki = decodeWikiHref(url);
+          const target = String(wiki?.target ?? "").replace(/\\+$/g, "").trim();
           const label = inline(node.children)
             .map((n) => n.text)
             .filter(Boolean)
             .join("");
+          if (!target && !label) break;
           out.push({
             type: "wikiLink",
             attrs: {
-              target: wiki?.target ?? "",
+              target: target || label,
               section: wiki?.section ?? null,
-              label: label || wiki?.target
+              label: label || target
             }
           });
         } else {
@@ -69,18 +78,17 @@ function inline(nodes: GenericNode[] | undefined): TiptapNode[] {
         }
         break;
       }
-      case "image":
-        out.push({
-          type: "image",
-          attrs: { src: node.url, alt: node.alt ?? "" }
-        });
+      case "image": {
+        const src = String(node.url ?? "").trim();
+        if (src) out.push({ type: "image", attrs: { src, alt: node.alt ?? "" } });
         break;
+      }
       default:
         if (node.children) out.push(...inline(node.children));
         else if (node.value) out.push(textNode(String(node.value)));
     }
   }
-  return out.length ? out : [textNode("")];
+  return out;
 }
 
 function block(node: GenericNode): TiptapNode | TiptapNode[] {
@@ -123,9 +131,7 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
           type: "tableRow",
           content: (row.children ?? []).map((cell) => ({
             type: rowIndex === 0 || cell.header ? "tableHeader" : "tableCell",
-            content: cell.children?.length
-              ? blocks(cell.children)
-              : [{ type: "paragraph", content: inline(cell.children) }]
+            content: cell.children?.length ? blocks(cell.children) : [EMPTY_PARAGRAPH]
           }))
         }))
       };
@@ -145,7 +151,9 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
           attrs: { kind: name },
           content: blocks(node.children).length
             ? blocks(node.children)
-            : [{ type: "paragraph", content: [textNode(String(node.value ?? ""))] }]
+            : node.value
+              ? [{ type: "paragraph", content: [textNode(String(node.value))] }]
+              : [EMPTY_PARAGRAPH]
         };
       }
       if (name === "figure") {
@@ -166,7 +174,8 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
       };
     default:
       if (node.children) return blocks(node.children);
-      return { type: "paragraph", content: [textNode(String(node.value ?? ""))] };
+      if (node.value) return { type: "paragraph", content: [textNode(String(node.value))] };
+      return EMPTY_PARAGRAPH;
   }
 }
 
@@ -194,9 +203,13 @@ function blocks(nodes: GenericNode[] | undefined): TiptapNode[] {
     if (Array.isArray(rendered)) out.push(...rendered);
     else out.push(rendered);
   }
-  return out.length ? out : [{ type: "paragraph" }];
+  return out.length ? out : [EMPTY_PARAGRAPH];
 }
 
 export function astToTiptap(ast: GenericNode): TiptapNode {
-  return { type: "doc", content: blocks(ast.children) };
+  try {
+    return sanitizeTiptapDoc({ type: "doc", content: blocks(ast.children) });
+  } catch {
+    return { type: "doc", content: [EMPTY_PARAGRAPH] };
+  }
 }

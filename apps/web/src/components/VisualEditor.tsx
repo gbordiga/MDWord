@@ -1,11 +1,63 @@
 "use client";
 
+import { Component, useEffect, useRef, useState, type CSSProperties, type ErrorInfo, type ReactNode } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
-import { editorExtensions, astToTiptap } from "@mdword/editor";
+import { editorExtensions, astToTiptap, type TiptapNode } from "@mdword/editor";
 import { pageMetrics, resolveVariables } from "@mdword/layout-engine";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { documentTitle } from "@mdword/shared";
 import { useApp } from "@/lib/store";
 import { getHost } from "@/lib/host";
+
+function tiptapContentFromAst(ast: Parameters<typeof astToTiptap>[0]): TiptapNode {
+  try {
+    return astToTiptap(ast);
+  } catch {
+    return { type: "doc", content: [{ type: "paragraph" }] };
+  }
+}
+
+class VisualEditorBoundary extends Component<
+  { resetKey: number; onOpenSource: () => void; children: ReactNode },
+  { error: Error | null }
+> {
+  override state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  override componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("Visual editor failed to render", error, info.componentStack);
+  }
+
+  override componentDidUpdate(prevProps: { resetKey: number }) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
+      this.setState({ error: null });
+    }
+  }
+
+  override render() {
+    if (this.state.error) {
+      return (
+        <div
+          className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-[#d8dee6] px-6 text-center"
+          data-testid="visual-editor-error"
+        >
+          <p className="text-[15px] font-medium text-[#1c1f24]">This document could not be shown in visual mode.</p>
+          <p className="max-w-md text-[13px] text-[#667085]">{this.state.error.message}</p>
+          <button
+            type="button"
+            className="rounded-md bg-[#2f6fed] px-3 py-2 text-[13px] text-white"
+            onClick={this.props.onOpenSource}
+          >
+            Open as source
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function useFitScale(widthPx: number) {
   const ref = useRef<HTMLDivElement>(null);
@@ -37,6 +89,24 @@ export function VisualEditor({
   editorRef: { current: Editor | null };
   onEditor?: (editor: Editor | null) => void;
 }) {
+  const syncGeneration = useApp((s) => s.syncGeneration);
+  return (
+    <VisualEditorBoundary
+      resetKey={syncGeneration}
+      onOpenSource={() => useApp.getState().setView("source")}
+    >
+      <VisualEditorCanvas editorRef={editorRef} onEditor={onEditor} />
+    </VisualEditorBoundary>
+  );
+}
+
+function VisualEditorCanvas({
+  editorRef,
+  onEditor
+}: {
+  editorRef: { current: Editor | null };
+  onEditor?: (editor: Editor | null) => void;
+}) {
   const model = useApp((s) => s.model);
   const zoom = useApp((s) => s.zoom);
   const applyTiptap = useApp((s) => s.applyTiptap);
@@ -44,7 +114,7 @@ export function VisualEditor({
 
   const editor = useEditor({
     extensions: editorExtensions(),
-    content: astToTiptap(model.ast),
+    content: tiptapContentFromAst(model.ast),
     immediatelyRender: false,
     editorProps: {
       attributes: {
@@ -95,7 +165,12 @@ export function VisualEditor({
     if (!editor) return;
     if (lastGen.current === syncGeneration) return;
     lastGen.current = syncGeneration;
-    editor.commands.setContent(astToTiptap(model.ast));
+    try {
+      editor.commands.setContent(tiptapContentFromAst(model.ast));
+    } catch (error) {
+      console.error("Visual editor could not load document content", error);
+      editor.commands.setContent({ type: "doc", content: [{ type: "paragraph" }] });
+    }
   }, [editor, syncGeneration, model.ast]);
 
   const metrics = pageMetrics(model.resolvedMdoc);
@@ -106,8 +181,8 @@ export function VisualEditor({
   const header = model.resolvedMdoc.header ?? {};
   const footer = model.resolvedMdoc.footer ?? {};
   const vars = {
-    title: String(model.frontmatter.title ?? ""),
-    subtitle: String(model.frontmatter.subtitle ?? ""),
+    title: documentTitle(model.frontmatter, ""),
+    subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
     author: Array.isArray(model.frontmatter.authors)
       ? String((model.frontmatter.authors as { name?: string }[])[0]?.name ?? "")
       : String(model.frontmatter.author ?? ""),
@@ -119,8 +194,8 @@ export function VisualEditor({
 
   const pages = 3;
   const typo = model.resolvedMdoc.typography ?? {};
-  const titleText = String(model.frontmatter.title ?? "");
-  const subtitleText = String(model.frontmatter.subtitle ?? "");
+  const titleText = documentTitle(model.frontmatter, "");
+  const subtitleText = String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? "");
 
   return (
     <div

@@ -5,18 +5,23 @@ export interface WikiLinkParts {
   raw: string;
 }
 
+/** Accepts `[[target|label]]` and GFM-table `[[target\|label]]`. */
 const WIKI_RE =
-  /\[\[([^\]|#\n]+?)(?:#([^\]|\n]+?))?(?:\|([^\]]+?))?\]\]/g;
+  /\[\[([^\]|#\n]+?)(?:#([^\]|\n]+?))?(?:\\?\|([^\]]+?))?\]\]/g;
+
+function cleanWikiPart(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const cleaned = value.replace(/\\+$/g, "").trim();
+  return cleaned || undefined;
+}
 
 export function parseWikiLinkInner(raw: string): WikiLinkParts | null {
-  const match = /^\[\[([^\]|#\n]+?)(?:#([^\]|\n]+?))?(?:\|([^\]]+?))?\]\]$/.exec(
-    raw
-  );
+  const match = new RegExp(`^${WIKI_RE.source}$`).exec(raw);
   if (!match) return null;
   return {
-    target: match[1]!.trim(),
-    section: match[2]?.trim() || undefined,
-    label: match[3]?.trim() || undefined,
+    target: cleanWikiPart(match[1]) ?? "",
+    section: cleanWikiPart(match[2]),
+    label: cleanWikiPart(match[3]),
     raw
   };
 }
@@ -33,9 +38,9 @@ export function extractWikiLinks(source: string): WikiLinkParts[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(source))) {
     out.push({
-      target: m[1]!.trim(),
-      section: m[2]?.trim() || undefined,
-      label: m[3]?.trim() || undefined,
+      target: cleanWikiPart(m[1]) ?? "",
+      section: cleanWikiPart(m[2]),
+      label: cleanWikiPart(m[3]),
       raw: m[0]
     });
   }
@@ -82,22 +87,23 @@ export function rewriteWikiLinksToMarkdown(source: string): string {
   const { masked, fences } = maskFences(source);
   const rewritten = masked.replace(WIKI_RE, (raw, target, section, label) => {
     const parts: WikiLinkParts = {
-      target: String(target).trim(),
-      section: section ? String(section).trim() : undefined,
-      label: label ? String(label).trim() : undefined,
+      target: cleanWikiPart(String(target)) ?? "",
+      section: cleanWikiPart(section ? String(section) : undefined),
+      label: cleanWikiPart(label ? String(label) : undefined),
       raw
     };
+    if (!parts.target) return raw;
     const text =
       parts.label ||
       (parts.section ? `${parts.target}#${parts.section}` : parts.target);
-    return `[${text}](${encodeWikiHref(parts)})`;
+    return `[${text}](<${encodeWikiHref(parts)}>)`;
   });
   return unmaskFences(rewritten, fences);
 }
 
 export function rewriteMarkdownToWikiLinks(markdown: string): string {
   return markdown.replace(
-    /\[([^\]]+)\]\(\s*(mdoc-wiki:[^)\s]+)\s*\)/g,
+    /\[([^\]]+)\]\(\s*<?(mdoc-wiki:[^)\s>]+)>?\s*\)/g,
     (_all, text: string, href: string) => {
       const decoded = decodeWikiHref(href);
       if (!decoded) return _all;

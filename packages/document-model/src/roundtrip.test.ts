@@ -48,4 +48,10 @@ describe("round-trip fixtures", () => {
     expect(closed).toBeTruthy();
     expect(serialized.slice(closed![0].length).startsWith("---")).toBe(false);
   });
+
+  it("never throws on unreadable source", () => {
+    expect(() => openDocument("\u0000")).not.toThrow();
+    const model = openDocument("---\n: :\n---\n# Still here\n");
+    expect(model.ast.type).toBe("root");
+  });
 });
