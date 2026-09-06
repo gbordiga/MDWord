@@ -62,10 +62,8 @@ export function documentDate(
   if (typeof raw === "number") return isoDay(new Date(raw));
   if (typeof raw === "string") {
     const trimmed = raw.trim();
-    const day = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+    const day = trimmed.match(/^(\d{4}-\d{2}-\d{2})(?:$|T)/);
     if (day) return day[1] ?? "";
-    const parsed = Date.parse(trimmed);
-    if (!Number.isNaN(parsed)) return isoDay(new Date(parsed));
     return trimmed;
   }
   return "";

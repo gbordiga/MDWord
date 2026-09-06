@@ -32,5 +32,7 @@ describe("document dates", () => {
     expect(documentDate({ date: new Date("2026-03-15T00:00:00.000Z") })).toBe("2026-03-15");
     expect(documentDate({ data: "2026-09-06" })).toBe("2026-09-06");
     expect(documentDate({})).toBe("");
+    expect(documentDate({ date: "2026" })).toBe("2026");
+    expect(documentDate({ date: "2026-03" })).toBe("2026-03");
   });
 });
