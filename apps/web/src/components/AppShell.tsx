@@ -96,7 +96,7 @@ export function AppShell() {
 
   return (
     <div
-      className="mdword-app flex flex-col overflow-hidden"
+      className="mdword-app flex h-dvh min-h-0 w-full flex-col overflow-hidden"
       data-mdword-root
     >
       <MobileTopBar />

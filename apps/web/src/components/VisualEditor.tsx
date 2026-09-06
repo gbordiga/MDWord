@@ -93,6 +93,9 @@ export function VisualEditor({
   };
 
   const pages = 3;
+  const typo = model.resolvedMdoc.typography ?? {};
+  const titleText = String(model.frontmatter.title ?? "");
+  const subtitleText = String(model.frontmatter.subtitle ?? "");
 
   return (
     <div
@@ -109,6 +112,13 @@ export function VisualEditor({
             "--page-min-h": `${pageMinHeight}px`,
             "--page-scale": String(scale),
             "--user-zoom": String(zoom),
+            "--md-h1-size": String(typo["heading-1"]?.["font-size"] ?? "20pt"),
+            "--md-h1-weight": String(typo["heading-1"]?.weight ?? 700),
+            "--md-h2-size": String(typo["heading-2"]?.["font-size"] ?? "16pt"),
+            "--md-h2-weight": String(typo["heading-2"]?.weight ?? 650),
+            "--md-h3-size": String(typo["heading-3"]?.["font-size"] ?? "14pt"),
+            "--md-h3-weight": String(typo["heading-3"]?.weight ?? 650),
+            "--md-h4-size": String(typo["heading-4"]?.["font-size"] ?? "12pt"),
             width: metrics.widthPx * scale,
             minHeight: pageMinHeight * scale
           } as CSSProperties
@@ -135,6 +145,14 @@ export function VisualEditor({
               paddingLeft: metrics.margins.left
             }}
           >
+            {titleText ? (
+              <div className="md-doc-masthead">
+                <div className="md-doc-title" data-testid="doc-title">
+                  {titleText}
+                </div>
+                {subtitleText ? <p className="md-doc-subtitle">{subtitleText}</p> : null}
+              </div>
+            ) : null}
             <EditorContent editor={editor} />
           </div>
           <div className="page-overlay pointer-events-none" aria-hidden>

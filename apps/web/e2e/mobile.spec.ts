@@ -34,6 +34,7 @@ test("opens properties in a sheet and edits the title", async ({ page }) => {
   await page.getByTestId("sheet-properties").getByRole("button", { name: "Close" }).click();
   await expect(page.getByTestId("sheet-properties")).toBeHidden();
   await expect(page.getByTestId("mobile-top-bar")).toContainText("Documento mobile");
+  await expect(page.getByTestId("doc-title")).toHaveText("Documento mobile");
 });
 
 test("switches to source from the more menu", async ({ page }) => {
@@ -53,4 +54,46 @@ test("applies heading 1 from the mobile format bar", async ({ page }) => {
   await page.keyboard.type("Titolo mobile");
   await page.getByTestId("mobile-style").selectOption("1");
   await expect(prose.locator("h1")).toContainText("Titolo mobile");
+});
+
+test("keeps the tab bar pinned to the bottom of the viewport", async ({ page }) => {
+  await page.goto("/");
+  const tab = page.getByTestId("mobile-tab-bar");
+  await expect(tab).toBeVisible();
+  const pos = await tab.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { bottom: r.bottom, top: r.top, vh: window.innerHeight };
+  });
+  expect(pos.bottom).toBeGreaterThan(pos.vh - 8);
+  expect(pos.top).toBeGreaterThan(pos.vh * 0.7);
+});
+
+test("title, headings and body have distinct visual size", async ({ page }) => {
+  await page.goto("/");
+  const prose = page.locator(".ProseMirror");
+  await expect(prose).toBeVisible({ timeout: 20_000 });
+
+  await expect(page.getByTestId("doc-title")).toBeVisible();
+  const titleSize = await page.getByTestId("doc-title").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+
+  await prose.click();
+  await page.keyboard.type("Heading one");
+  await page.getByTestId("mobile-style").selectOption("1");
+  const h1Size = await prose.locator("h1").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  const h1Weight = await prose.locator("h1").evaluate((el) => getComputedStyle(el).fontWeight);
+
+  await page.keyboard.press("Enter");
+  await page.getByTestId("mobile-style").selectOption("2");
+  await page.keyboard.type("Heading two");
+  const h2Size = await prose.locator("h2").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+
+  await page.keyboard.press("Enter");
+  await page.getByTestId("mobile-style").selectOption("p");
+  await page.keyboard.type("Body text");
+  const pSize = await prose.locator("p").last().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+
+  expect(titleSize).toBeGreaterThan(h1Size);
+  expect(h1Size).toBeGreaterThan(h2Size);
+  expect(h2Size).toBeGreaterThan(pSize);
+  expect(Number(h1Weight)).toBeGreaterThanOrEqual(600);
 });

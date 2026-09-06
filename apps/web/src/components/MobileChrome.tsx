@@ -230,7 +230,7 @@ export function MobileTabBar({ keyboardOpen }: { keyboardOpen: boolean }) {
     <nav
       data-testid="mobile-tab-bar"
       aria-label="Primary"
-      className="flex shrink-0 border-t border-[#e4e7ec] bg-white pb-[env(safe-area-inset-bottom)] lg:hidden"
+      className="mt-auto flex shrink-0 border-t border-[#e4e7ec] bg-white pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
       <Tab
         label="Document"

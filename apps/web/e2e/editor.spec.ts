@@ -30,4 +30,10 @@ test("applies heading 1 from the Home ribbon", async ({ page }) => {
   await page.getByRole("button", { name: "Home" }).click();
   await page.getByTestId("ribbon-style").selectOption("1");
   await expect(prose.locator("h1")).toContainText("Titolo");
+  const h1Size = await prose.locator("h1").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  await page.keyboard.press("Enter");
+  await page.getByTestId("ribbon-style").selectOption("p");
+  await page.keyboard.type("Corpo");
+  const pSize = await prose.locator("p").last().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(h1Size).toBeGreaterThan(pSize);
 });

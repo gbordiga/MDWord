@@ -2,7 +2,7 @@ import type { Editor } from "@tiptap/react";
 
 export function applyBlockStyle(editor: Editor, value: string): void {
   if (value === "p") editor.chain().focus().setParagraph().run();
-  else editor.chain().focus().toggleHeading({ level: Number(value) as 1 | 2 | 3 | 4 }).run();
+  else editor.chain().focus().setHeading({ level: Number(value) as 1 | 2 | 3 | 4 }).run();
 }
 
 export function currentBlockStyle(editor: Editor | null): string {

@@ -4,16 +4,20 @@ import { useEffect, useState } from "react";
 
 function applyViewportVars(): { height: number; keyboardOpen: boolean } {
   const vv = window.visualViewport;
-  const height = vv?.height ?? window.innerHeight;
-  const offsetTop = vv?.offsetTop ?? 0;
-  document.documentElement.style.setProperty("--app-height", `${height}px`);
-  document.documentElement.style.setProperty("--app-offset-top", `${offsetTop}px`);
-  const keyboardOpen = window.innerHeight - height > 80;
+  const vvHeight = vv?.height ?? window.innerHeight;
+  const keyboardOpen = window.innerHeight - vvHeight > 120;
+  if (keyboardOpen && vv) {
+    document.documentElement.style.setProperty("--app-height", `${vv.height}px`);
+    document.documentElement.style.setProperty("--app-offset-top", `${vv.offsetTop}px`);
+  } else {
+    document.documentElement.style.setProperty("--app-height", "100dvh");
+    document.documentElement.style.setProperty("--app-offset-top", "0px");
+  }
   document.documentElement.classList.toggle("keyboard-open", keyboardOpen);
-  return { height, keyboardOpen };
+  return { height: keyboardOpen ? vvHeight : window.innerHeight, keyboardOpen };
 }
 
-/** Keeps the shell inside the visual viewport (iOS URL bar + keyboard). */
+/** Shrinks the shell only when the software keyboard is open. */
 export function useVisualViewport(): { height: number; keyboardOpen: boolean } {
   const [state, setState] = useState({
     height: typeof window === "undefined" ? 800 : window.innerHeight,
