@@ -10,6 +10,7 @@ import {
   List,
   ListOrdered,
   Link as LinkIcon,
+  Link2,
   Table as TableIcon,
   Image as ImageIcon,
   Quote,
@@ -17,18 +18,29 @@ import {
   Search,
   Files,
   ListTree,
-  GitBranch
+  GitBranch,
+  FilePlus,
+  FolderOpen,
+  Save,
+  SaveAll,
+  Folder,
+  FileDown,
+  FileCode,
+  StickyNote,
+  SquareCode,
+  FileText,
+  Columns2,
+  ZoomIn,
+  ZoomOut,
+  PanelLeft,
+  PanelRight,
+  Scissors,
+  RectangleHorizontal,
+  RectangleVertical
 } from "lucide-react";
 import { useApp, type RibbonTab } from "@/lib/store";
 import { BUILT_IN_TEMPLATES } from "@mdword/layout-engine";
-import {
-  applyBlockStyle,
-  currentBlockStyle,
-  insertCallout,
-  insertPageBreak,
-  insertTable,
-  insertTableOfContents
-} from "@/lib/editorCommands";
+import { applyBlockStyle, currentBlockStyle, insertCallout, insertPageBreak, insertTable } from "@/lib/editorCommands";
 import { useEditorTick } from "@/hooks/useEditorTick";
 import { useEditorUi } from "@/lib/editorUi";
 import { Spinner } from "./Spinner";
@@ -78,6 +90,10 @@ function Btn({
   );
 }
 
+function Divider() {
+  return <span className="mx-1.5 h-5 w-px shrink-0 self-center bg-[#98a2b3]" aria-hidden />;
+}
+
 export function Ribbon({ editor }: { editor: Editor | null }) {
   useEditorTick(editor);
   const ribbon = useApp((s) => s.ribbon);
@@ -86,6 +102,11 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
   const busy = useApp((s) => s.busy);
   const { openLink, openImage, openWikilink, confirmIfDirty } = useEditorUi();
   const fileBusy = Boolean(busy);
+  const templateId = actions.model.mdoc.template ?? "normal";
+  const template = BUILT_IN_TEMPLATES.find((t) => t.id === templateId);
+  const tocEnabled = Boolean(actions.model.resolvedMdoc.toc?.enabled);
+  const tocDepth = actions.model.resolvedMdoc.toc?.depth ?? 3;
+  const landscape = actions.model.resolvedMdoc.page?.orientation === "landscape";
 
   return (
     <div className="hidden border-b border-[#e4e7ec] bg-white lg:block">
@@ -108,25 +129,28 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
         {ribbon === "file" && (
           <>
             <Btn title="New" onClick={() => confirmIfDirty(actions.newDocument)} disabled={fileBusy}>
-              New
+              <FilePlus size={16} /> New
             </Btn>
             <Btn title="Open" onClick={() => confirmIfDirty(() => void actions.openFile())} disabled={fileBusy}>
-              Open
+              <FolderOpen size={16} /> Open
             </Btn>
+            <Divider />
             <Btn title="Save" onClick={() => void actions.saveFile()} busy={busy?.kind === "save"} disabled={fileBusy && busy?.kind !== "save"}>
-              Save
+              <Save size={16} /> Save
             </Btn>
             <Btn title="Save as" onClick={() => void actions.saveFileAs()} disabled={fileBusy}>
-              Save as
+              <SaveAll size={16} /> Save as
             </Btn>
+            <Divider />
             <Btn title="Open folder" onClick={() => void actions.openFolder()} busy={busy?.kind === "folder"} disabled={fileBusy}>
-              Open folder
+              <Folder size={16} /> Open folder
             </Btn>
+            <Divider />
             <Btn title="Export PDF" onClick={() => void actions.exportPdf()} busy={busy?.kind === "export"} disabled={fileBusy}>
-              Export PDF
+              <FileDown size={16} /> Export PDF
             </Btn>
             <Btn title="Export HTML" onClick={() => void actions.exportHtml()} disabled={fileBusy}>
-              Export HTML
+              <FileCode size={16} /> Export HTML
             </Btn>
           </>
         )}
@@ -145,6 +169,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
               <option value="3">Heading 3</option>
               <option value="4">Heading 4</option>
             </select>
+            <Divider />
             <Btn
               title="Bold"
               pressed={editor?.isActive("bold")}
@@ -180,6 +205,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             >
               <Code size={16} />
             </Btn>
+            <Divider />
             <Btn
               title="Bullet list"
               testId="fmt-bullet"
@@ -196,6 +222,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             >
               <ListOrdered size={16} />
             </Btn>
+            <Divider />
             <Btn
               title="Quote"
               testId="fmt-quote"
@@ -204,12 +231,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             >
               <Quote size={16} />
             </Btn>
-            <Btn
-              title="Link"
-              testId="fmt-link"
-              pressed={editor?.isActive("link")}
-              onClick={openLink}
-            >
+            <Btn title="Link" testId="fmt-link" pressed={editor?.isActive("link")} onClick={openLink}>
               <LinkIcon size={16} />
             </Btn>
           </>
@@ -222,26 +244,30 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             <Btn title="Image" onClick={openImage}>
               <ImageIcon size={16} /> Image
             </Btn>
+            <Divider />
             <Btn title="Callout" testId="insert-callout" onClick={() => editor && insertCallout(editor)}>
-              Callout
+              <StickyNote size={16} /> Callout
             </Btn>
             <Btn title="Code block" onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>
-              Code
+              <SquareCode size={16} /> Code
             </Btn>
+            <Divider />
             <Btn title="Page break" onClick={() => editor && insertPageBreak(editor)}>
-              <Minus size={16} /> Page break
+              <Scissors size={16} /> Page break
             </Btn>
+            <Divider />
             <Btn title="Wikilink" onClick={openWikilink}>
-              Wikilink
+              <Link2 size={16} /> Wikilink
             </Btn>
             <Btn title="Horizontal rule" onClick={() => editor?.chain().focus().setHorizontalRule().run()}>
-              Rule
+              <Minus size={16} /> Rule
             </Btn>
           </>
         )}
         {ribbon === "layout" && (
           <>
             <select
+              aria-label="Page size"
               className="h-8 rounded-md border border-[#e4e7ec] bg-white px-2 text-[13px]"
               value={typeof actions.model.resolvedMdoc.page?.size === "string" ? actions.model.resolvedMdoc.page.size : "A4"}
               onChange={(e) =>
@@ -262,51 +288,91 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
                   ...actions.model.mdoc,
                   page: {
                     ...actions.model.mdoc.page,
-                    orientation:
-                      actions.model.resolvedMdoc.page?.orientation === "landscape"
-                        ? "portrait"
-                        : "landscape"
+                    orientation: landscape ? "portrait" : "landscape"
                   }
                 })
               }
             >
-              {actions.model.resolvedMdoc.page?.orientation === "landscape" ? "Landscape" : "Portrait"}
+              {landscape ? <RectangleHorizontal size={16} /> : <RectangleVertical size={16} />}
+              {landscape ? "Landscape" : "Portrait"}
             </Btn>
+            <Divider />
             <select
-              className="h-8 rounded-md border border-[#e4e7ec] bg-white px-2 text-[13px]"
-              value={actions.model.mdoc.template ?? "normal"}
+              aria-label="Template"
+              data-testid="ribbon-template"
+              className="h-8 max-w-[14rem] rounded-md border border-[#e4e7ec] bg-white px-2 text-[13px]"
+              value={templateId}
               onChange={(e) => actions.patchMdoc({ ...actions.model.mdoc, template: e.target.value })}
             >
               {BUILT_IN_TEMPLATES.map((t) => (
-                <option key={t.id} value={t.id}>
+                <option key={t.id} value={t.id} title={t.description}>
                   {t.name}
                 </option>
               ))}
             </select>
+            {template ? (
+              <span
+                className="max-w-md truncate px-1 text-[11px] text-[#667085]"
+                data-testid="template-hint"
+                title={template.description}
+              >
+                {template.description}
+              </span>
+            ) : null}
           </>
         )}
         {ribbon === "references" && (
           <>
             <Btn
-              title="Insert table of contents"
+              title="Show a live table of contents generated from headings"
               testId="insert-toc"
-              onClick={() => editor && insertTableOfContents(editor)}
+              pressed={tocEnabled}
+              onClick={() =>
+                actions.patchMdoc({
+                  ...actions.model.mdoc,
+                  toc: { enabled: !tocEnabled, depth: tocDepth }
+                })
+              }
             >
-              TOC
+              <ListTree size={16} /> Table of contents
             </Btn>
+            {tocEnabled ? (
+              <select
+                aria-label="Table of contents depth"
+                data-testid="toc-depth"
+                className="h-8 rounded-md border border-[#e4e7ec] bg-white px-2 text-[13px]"
+                value={tocDepth}
+                onChange={(e) =>
+                  actions.patchMdoc({
+                    ...actions.model.mdoc,
+                    toc: { enabled: true, depth: Number(e.target.value) }
+                  })
+                }
+              >
+                {[1, 2, 3, 4, 5, 6].map((d) => (
+                  <option key={d} value={d}>
+                    Heading depth {d}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+            <span className="px-1 text-[11px] text-[#667085]">
+              Updates automatically from headings. Not inserted into the document body.
+            </span>
           </>
         )}
         {ribbon === "view" && (
           <>
             <Btn title="Document" pressed={actions.view === "document"} onClick={() => actions.setView("document")}>
-              Document
+              <FileText size={16} /> Document
             </Btn>
             <Btn title="Source" pressed={actions.view === "source"} onClick={() => actions.setView("source")}>
-              Source
+              <Code size={16} /> Source
             </Btn>
             <Btn title="Split" pressed={actions.view === "split"} onClick={() => actions.setView("split")}>
-              Split
+              <Columns2 size={16} /> Split
             </Btn>
+            <Divider />
             <Btn title="Outline" onClick={() => actions.setLeft("outline")}>
               <ListTree size={16} />
             </Btn>
@@ -319,21 +385,24 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             <Btn title="Backlinks" onClick={() => actions.setLeft("backlinks")}>
               <GitBranch size={16} />
             </Btn>
+            <Divider />
             <Btn title="Find" testId="open-find" onClick={() => actions.setFind(true)}>
-              Find
+              <Search size={16} /> Find
             </Btn>
+            <Divider />
             <Btn title="Zoom out" onClick={() => actions.setZoom(actions.zoom - 0.1)}>
-              -
+              <ZoomOut size={16} />
             </Btn>
             <span className="px-1 text-[12px] text-[#667085]">{Math.round(actions.zoom * 100)}%</span>
             <Btn title="Zoom in" onClick={() => actions.setZoom(actions.zoom + 0.1)}>
-              +
+              <ZoomIn size={16} />
             </Btn>
+            <Divider />
             <Btn title="Toggle left sidebar" onClick={actions.toggleLeft}>
-              Sidebar
+              <PanelLeft size={16} /> Sidebar
             </Btn>
             <Btn title="Toggle properties" onClick={actions.toggleRight}>
-              Properties
+              <PanelRight size={16} /> Properties
             </Btn>
           </>
         )}

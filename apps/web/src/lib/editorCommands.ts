@@ -87,37 +87,6 @@ export function insertPageBreak(editor: Editor): void {
   editor.chain().focus().insertContent({ type: "pageBreak" }).run();
 }
 
-export function insertTableOfContents(editor: Editor): void {
-  const items: { type: string; content: unknown[] }[] = [];
-  editor.state.doc.descendants((node) => {
-    if (node.type.name === "heading") {
-      const text = node.textContent.trim();
-      if (!text) return;
-      items.push({
-        type: "listItem",
-        content: [{ type: "paragraph", content: [{ type: "text", text }] }]
-      });
-    }
-  });
-  editor
-    .chain()
-    .focus()
-    .insertContent([
-      {
-        type: "heading",
-        attrs: { level: 2 },
-        content: [{ type: "text", text: "Contents" }]
-      },
-      items.length
-        ? { type: "bulletList", content: items }
-        : {
-            type: "paragraph",
-            content: [{ type: "text", text: "No headings in this document yet." }]
-          }
-    ])
-    .run();
-}
-
 function textChunks(editor: Editor): { pos: number; text: string }[] {
   const chunks: { pos: number; text: string }[] = [];
   editor.state.doc.descendants((node, pos) => {

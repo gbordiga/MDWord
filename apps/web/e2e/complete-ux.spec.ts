@@ -70,7 +70,7 @@ test("new document asks to discard unsaved changes", async ({ page }) => {
   await expect(prose).not.toContainText("Unsaved draft text");
 });
 
-test("inserting a TOC writes a contents list", async ({ page }) => {
+test("table of contents is a live frontmatter option", async ({ page }) => {
   await page.goto("/");
   const prose = page.locator(".ProseMirror");
   await expect(prose).toBeVisible({ timeout: 20_000 });
@@ -79,7 +79,11 @@ test("inserting a TOC writes a contents list", async ({ page }) => {
   await page.getByRole("button", { name: "Home" }).click();
   await page.getByTestId("ribbon-style").selectOption("1");
   await page.getByRole("button", { name: "References" }).click();
+  await expect(page.getByTestId("insert-toc")).toContainText("Table of contents");
   await page.getByTestId("insert-toc").click();
-  await expect(prose.locator("h2")).toContainText("Contents");
-  await expect(prose.locator("ul")).toContainText("Chapter");
+  const toc = page.getByTestId("document-toc");
+  await expect(toc).toBeVisible();
+  await expect(toc).toContainText("Contents");
+  await expect(toc).toContainText("Chapter");
+  await expect(prose.locator("h2")).toHaveCount(0);
 });

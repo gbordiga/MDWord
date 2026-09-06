@@ -25,19 +25,22 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
   {
     id: "normal",
     name: "Normal",
-    description: "Clean default document",
+    description:
+      "Plain document: no table of contents, unnumbered headings, 11pt body and 20pt titles.",
     mdoc: { version: 1 }
   },
   {
     id: "report",
     name: "Report",
-    description: "Numbered headings, TOC, headers",
+    description:
+      "Formal report: live table of contents, numbered headings, title in the header, date in the footer, 11pt body and 18pt titles.",
     mdoc: report
   },
   {
     id: "technical-report",
     name: "Technical Report",
-    description: "Dense technical layout",
+    description:
+      "Same structure as Report (TOC, numbered headings, running header/footer), with a denser 10pt body and 16pt titles.",
     mdoc: {
       ...report,
       typography: {
@@ -49,7 +52,7 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
   {
     id: "letter",
     name: "Letter",
-    description: "Correspondence",
+    description: "Correspondence with even 25mm margins and no table of contents.",
     mdoc: {
       version: 1,
       page: { size: "A4", orientation: "portrait" },
@@ -62,7 +65,7 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
   {
     id: "meeting-minutes",
     name: "Meeting Minutes",
-    description: "Agenda and notes",
+    description: "Agenda and notes with title and date in the header.",
     mdoc: {
       version: 1,
       header: { left: "{{title}}", center: "", right: "{{date}}" },
@@ -73,7 +76,7 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
   {
     id: "procedure",
     name: "Procedure",
-    description: "Controlled procedure",
+    description: "Controlled procedure with a PROCEDURE label in the header.",
     mdoc: {
       ...report,
       header: { left: "{{title}}", center: "PROCEDURE", right: "{{page}} / {{pages}}" }
@@ -82,7 +85,7 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
   {
     id: "manual",
     name: "Manual",
-    description: "Long-form manual",
+    description: "Long-form manual with a four-level table of contents.",
     mdoc: {
       ...report,
       toc: { enabled: true, depth: 4 },

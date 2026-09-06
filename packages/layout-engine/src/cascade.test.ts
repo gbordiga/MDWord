@@ -5,6 +5,8 @@ import {
   parseMdoc,
   pageMetrics,
   resolveVariables,
+  resolveRunningForPrint,
+  resolveRunningForPreview,
   getTemplate,
   embedTemplate
 } from "./index";
@@ -48,6 +50,14 @@ describe("variables", () => {
         pages: 10
       })
     ).toBe("Audit — 2 / 10 ");
+  });
+
+  it("keeps page tokens for print and uses an ellipsis in preview", () => {
+    const ctx = { title: "Audit", date: "2026-01-01", page: 1, pages: 1 };
+    expect(resolveRunningForPrint("{{title}} · {{page}} / {{pages}}", ctx)).toBe(
+      "Audit · {{page}} / {{pages}}"
+    );
+    expect(resolveRunningForPreview("{{page}} / {{pages}}", ctx)).toBe("1 / …");
   });
 });
 

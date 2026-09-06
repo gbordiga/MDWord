@@ -11,8 +11,10 @@ import {
   Image as ImageIcon,
   Italic,
   Link as LinkIcon,
+  Link2,
   List,
   ListOrdered,
+  ListTree,
   Menu,
   Minus,
   MoreHorizontal,
@@ -21,9 +23,12 @@ import {
   Quote,
   Save,
   Search,
+  SquareCode,
+  StickyNote,
   Strikethrough,
   Table as TableIcon,
-  Underline as UnderlineIcon
+  Underline as UnderlineIcon,
+  Scissors
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { displayDocumentTitle } from "@mdword/shared";
@@ -326,22 +331,38 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
             <ImageIcon size={18} />
           </InsertItem>
           <InsertItem label="Callout" onClick={() => editor && run(() => insertCallout(editor))}>
-            <Quote size={18} />
+            <StickyNote size={18} />
           </InsertItem>
           <InsertItem label="Code block" onClick={() => editor && run(() => editor.chain().focus().toggleCodeBlock().run())}>
-            <Code size={18} />
+            <SquareCode size={18} />
           </InsertItem>
           <InsertItem label="Page break" onClick={() => editor && run(() => insertPageBreak(editor))}>
-            <Minus size={18} />
+            <Scissors size={18} />
           </InsertItem>
           <InsertItem label="Wikilink" onClick={() => run(openWikilink)}>
-            <LinkIcon size={18} />
+            <Link2 size={18} />
           </InsertItem>
           <InsertItem
             label="Horizontal rule"
             onClick={() => editor && run(() => editor.chain().focus().setHorizontalRule().run())}
           >
             <Minus size={18} />
+          </InsertItem>
+          <InsertItem
+            label="Table of contents"
+            onClick={() =>
+              run(() =>
+                actions.patchMdoc({
+                  ...actions.model.mdoc,
+                  toc: {
+                    enabled: !actions.model.resolvedMdoc.toc?.enabled,
+                    depth: actions.model.resolvedMdoc.toc?.depth ?? 3
+                  }
+                })
+              )
+            }
+          >
+            <ListTree size={18} />
           </InsertItem>
         </div>
       </Sheet>

@@ -3,11 +3,14 @@
 import { Component, useEffect, useRef, useState, type CSSProperties, type ErrorInfo, type ReactNode } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { editorExtensions, astToTiptap, type TiptapNode } from "@mdword/editor";
-import { pageMetrics, resolveVariables } from "@mdword/layout-engine";
+import { pageMetrics, resolveRunningForPreview } from "@mdword/layout-engine";
 import { documentTitle } from "@mdword/shared";
 import { useApp } from "@/lib/store";
 import { getHost } from "@/lib/host";
 import { Spinner } from "./Spinner";
+import { DocumentToc } from "./DocumentToc";
+import { collectEditorHeadings, jumpToHeading } from "@/lib/toc";
+import { useEditorTick } from "@/hooks/useEditorTick";
 
 function tiptapContentFromAst(ast: Parameters<typeof astToTiptap>[0]): TiptapNode {
   try {
@@ -127,6 +130,7 @@ function VisualEditorCanvas({
       applyTiptap(ed.getJSON() as never);
     }
   });
+  useEditorTick(editor);
 
   editorRef.current = editor;
   useEffect(() => {
@@ -191,9 +195,12 @@ function VisualEditorCanvas({
       : String(model.frontmatter.author ?? ""),
     date: String(model.frontmatter.date ?? ""),
     filename: "",
-    page: 1,
-    pages: 1
+    page: 1
   };
+  const tocEnabled = Boolean(model.resolvedMdoc.toc?.enabled);
+  const tocDepth = model.resolvedMdoc.toc?.depth ?? 3;
+  const numberedHeadings = Boolean(model.resolvedMdoc.numbering?.headings);
+  const tocItems = editor ? collectEditorHeadings(editor, tocDepth) : [];
 
   const pages = 3;
   const typo = model.resolvedMdoc.typography ?? {};
@@ -256,7 +263,14 @@ function VisualEditorCanvas({
                 {subtitleText ? <p className="md-doc-subtitle">{subtitleText}</p> : null}
               </div>
             ) : null}
-            <EditorContent editor={editor} />
+            {tocEnabled ? (
+              <DocumentToc
+                items={tocItems}
+                numbered={numberedHeadings}
+                onJump={(index) => editor && jumpToHeading(editor, index, tocDepth)}
+              />
+            ) : null}
+            <EditorContent editor={editor} className={numberedHeadings ? "md-numbered-headings" : undefined} />
           </div>
           <div className="page-overlay pointer-events-none" aria-hidden>
             {Array.from({ length: pages }).map((_, i) => (
@@ -269,23 +283,20 @@ function VisualEditorCanvas({
             <div
               className="absolute left-0 right-0 top-0 flex justify-between px-8 text-[10px] text-[#667085]"
               style={{ height: metrics.margins.top, alignItems: "center" }}
+              data-testid="page-header"
             >
-              <span>{resolveVariables(header.left ?? "", vars)}</span>
-              <span>{resolveVariables(header.center ?? "", vars)}</span>
-              <span>
-                {resolveVariables(header.right ?? "", { ...vars, page: "1", pages: "1" }).replace(
-                  "1 / 1",
-                  "1 / …"
-                )}
-              </span>
+              <span data-testid="page-header-left">{resolveRunningForPreview(header.left ?? "", vars)}</span>
+              <span data-testid="page-header-center">{resolveRunningForPreview(header.center ?? "", vars)}</span>
+              <span data-testid="page-header-right">{resolveRunningForPreview(header.right ?? "", vars)}</span>
             </div>
             <div
               className="absolute left-0 right-0 bottom-0 flex justify-between px-8 text-[10px] text-[#667085]"
               style={{ height: metrics.margins.bottom, alignItems: "center" }}
+              data-testid="page-footer"
             >
-              <span>{resolveVariables(footer.left ?? "", vars)}</span>
-              <span>{resolveVariables(footer.center ?? "", vars)}</span>
-              <span>{resolveVariables(footer.right ?? "", vars)}</span>
+              <span data-testid="page-footer-left">{resolveRunningForPreview(footer.left ?? "", vars)}</span>
+              <span data-testid="page-footer-center">{resolveRunningForPreview(footer.center ?? "", vars)}</span>
+              <span data-testid="page-footer-right">{resolveRunningForPreview(footer.right ?? "", vars)}</span>
             </div>
           </div>
         </div>

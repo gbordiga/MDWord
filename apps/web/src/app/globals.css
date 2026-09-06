@@ -322,6 +322,120 @@ html.keyboard-open .mdword-app {
   margin-top: 6px;
 }
 
+.md-toc {
+  border-bottom: 1px solid #d0d5dd;
+  margin: 0 0 1.1em;
+  padding-bottom: 0.85em;
+}
+
+.md-toc-title {
+  font-size: 14pt;
+  font-weight: 650;
+  margin: 0 0 0.4em;
+  color: #111827;
+}
+
+.md-toc-list {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0;
+}
+
+.md-toc-list li {
+  display: block !important;
+  margin: 0.12em 0;
+}
+
+.md-toc-d2 { padding-left: 1.1em; }
+.md-toc-d3 { padding-left: 2.2em; }
+.md-toc-d4 { padding-left: 3.3em; }
+.md-toc-d5 { padding-left: 4.4em; }
+.md-toc-d6 { padding-left: 5.5em; }
+
+.md-toc-link {
+  display: inline-flex;
+  gap: 0.45em;
+  align-items: baseline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #1d4ed8;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.md-toc-link:hover {
+  text-decoration: underline;
+}
+
+.md-toc-num {
+  color: #667085;
+  font-variant-numeric: tabular-nums;
+  min-width: 1.6em;
+}
+
+.md-toc-empty {
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.md-numbered-headings {
+  counter-reset: md-h1;
+}
+
+.md-numbered-headings .ProseMirror h1,
+.md-numbered-headings h1.md-prose,
+.md-numbered-headings .ProseMirror h1 {
+  counter-increment: md-h1;
+  counter-reset: md-h2;
+}
+
+.md-numbered-headings .ProseMirror h1::before {
+  content: counter(md-h1) ". ";
+}
+
+.md-numbered-headings .ProseMirror h1:has(> br:only-child),
+.md-numbered-headings .ProseMirror h2:has(> br:only-child),
+.md-numbered-headings .ProseMirror h3:has(> br:only-child),
+.md-numbered-headings .ProseMirror h4:has(> br:only-child) {
+  counter-increment: none;
+}
+
+.md-numbered-headings .ProseMirror h1:has(> br:only-child)::before,
+.md-numbered-headings .ProseMirror h2:has(> br:only-child)::before,
+.md-numbered-headings .ProseMirror h3:has(> br:only-child)::before,
+.md-numbered-headings .ProseMirror h4:has(> br:only-child)::before {
+  content: none;
+}
+
+.md-numbered-headings .ProseMirror h2 {
+  counter-increment: md-h2;
+  counter-reset: md-h3;
+}
+
+.md-numbered-headings .ProseMirror h2::before {
+  content: counter(md-h1) "." counter(md-h2) " ";
+}
+
+.md-numbered-headings .ProseMirror h3 {
+  counter-increment: md-h3;
+  counter-reset: md-h4;
+}
+
+.md-numbered-headings .ProseMirror h3::before {
+  content: counter(md-h1) "." counter(md-h2) "." counter(md-h3) " ";
+}
+
+.md-numbered-headings .ProseMirror h4 {
+  counter-increment: md-h4;
+}
+
+.md-numbered-headings .ProseMirror h4::before {
+  content: counter(md-h1) "." counter(md-h2) "." counter(md-h3) "." counter(md-h4) " ";
+}
+
 .cm-editor {
   height: 100%;
   min-height: 0;

@@ -1,11 +1,11 @@
 import sanitizeHtml from "sanitize-html";
 import type { GenericNode } from "@mdword/shared";
 import { decodeWikiHref, WIKI_SCHEME } from "@mdword/shared";
-import {
-  pageMetrics,
-  resolveVariables,
-  type Mdoc
-} from "@mdword/layout-engine";
+import { pageMetrics, type Mdoc } from "@mdword/layout-engine";
+import { collectTocItems, renderTocHtml } from "./toc";
+import { pageMarginCss, resolvedRunningComments } from "./running";
+
+export { collectTocItems, renderTocHtml, type TocItem } from "./toc";
 
 function escape(text: string): string {
   return text
@@ -123,6 +123,7 @@ export function astToHtml(ast: GenericNode): string {
       "section",
       "header",
       "footer",
+      "nav",
       "table",
       "thead",
       "tbody",
@@ -136,13 +137,31 @@ export function astToHtml(ast: GenericNode): string {
       img: ["src", "alt", "title"],
       aside: ["class"],
       div: ["class"],
+      nav: ["class", "data-toc"],
+      li: ["class"],
+      p: ["class"],
       pre: ["class", "data-directive"],
       td: ["align", "colspan", "rowspan"],
       th: ["align", "colspan", "rowspan"]
     },
     allowedSchemes: ["http", "https", "mailto"],
+    allowedSchemesByTag: {
+      img: ["http", "https", "data"]
+    },
     allowProtocolRelative: false
   });
+}
+
+function headingNumberCss(): string {
+  return `
+    .doc-body { counter-reset: h1; }
+    .doc-body h1 { counter-increment: h1; counter-reset: h2; }
+    .doc-body h1::before { content: counter(h1) ". "; }
+    .doc-body h2 { counter-increment: h2; counter-reset: h3; }
+    .doc-body h2::before { content: counter(h1) "." counter(h2) " "; }
+    .doc-body h3 { counter-increment: h3; counter-reset: h4; }
+    .doc-body h3::before { content: counter(h1) "." counter(h2) "." counter(h3) " "; }
+  `;
 }
 
 export function renderPrintDocument(options: {
@@ -165,15 +184,17 @@ export function renderPrintDocument(options: {
     subtitle: options.subtitle ?? "",
     author: options.author ?? "",
     date: options.date ?? "",
-    filename: options.filename ?? "",
-    page: "",
-    pages: ""
+    filename: options.filename ?? ""
   };
   const header = options.mdoc.header ?? {};
   const footer = options.mdoc.footer ?? {};
+  const numbered = Boolean(options.mdoc.numbering?.headings);
+  const tocEnabled = Boolean(options.mdoc.toc?.enabled);
+  const tocDepth = options.mdoc.toc?.depth ?? 3;
+  const tocHtml = tocEnabled ? renderTocHtml(collectTocItems(options.ast, tocDepth), numbered) : "";
   const bodyHtml = astToHtml(options.ast);
   return `<!DOCTYPE html>
-<html lang="${"it"}">
+<html lang="it">
 <head>
   <meta charset="utf-8" />
   <title>${escape(options.title ?? "Document")}</title>
@@ -181,6 +202,7 @@ export function renderPrintDocument(options: {
     @page {
       size: ${metrics.widthMm}mm ${metrics.heightMm}mm;
       margin: ${options.mdoc.margins?.top ?? "20mm"} ${options.mdoc.margins?.right ?? "20mm"} ${options.mdoc.margins?.bottom ?? "20mm"} ${options.mdoc.margins?.left ?? "25mm"};
+      ${pageMarginCss(header, footer)}
     }
     html, body {
       font-family: ${bodyFont};
@@ -202,18 +224,24 @@ export function renderPrintDocument(options: {
     li { display: list-item; }
     blockquote { border-left: 3px solid #1d4ed8; padding-left: 1em; margin: 0.7em 0; color: #344054; font-style: italic; }
     a { color: #1d4ed8; text-decoration: underline; }
+    .toc { border-bottom: 1px solid #d0d5dd; margin: 0 0 1.2em; padding-bottom: 0.8em; }
+    .toc h2 { font-size: 14pt; margin: 0 0 0.4em; }
+    .toc ol { list-style: none; padding: 0; margin: 0; }
+    .toc-d2 { margin-left: 1.2em; }
+    .toc-d3 { margin-left: 2.4em; }
+    .toc-d4 { margin-left: 3.6em; }
+    .toc-empty { color: #667085; }
+    ${numbered ? headingNumberCss() : ""}
   </style>
 </head>
 <body>
+  ${tocHtml}
+  <div class="doc-body">
   ${bodyHtml}
+  </div>
 </body>
 </html>
-<!-- header-left:${escape(resolveVariables(header.left ?? "", vars))} -->
-<!-- header-center:${escape(resolveVariables(header.center ?? "", vars))} -->
-<!-- header-right:${escape(resolveVariables(header.right ?? "", vars))} -->
-<!-- footer-left:${escape(resolveVariables(footer.left ?? "", vars))} -->
-<!-- footer-center:${escape(resolveVariables(footer.center ?? "", vars))} -->
-<!-- footer-right:${escape(resolveVariables(footer.right ?? "", vars))} -->`;
+${resolvedRunningComments(options.mdoc, vars)}`;
 }
 
 export function headerFooterFromHtml(html: string): {
