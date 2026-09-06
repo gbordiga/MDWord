@@ -91,7 +91,7 @@ function Btn({
 }
 
 function Divider() {
-  return <span className="mx-1 h-6 w-px shrink-0 self-center bg-[#d0d5dd]" aria-hidden />;
+  return <span className="mx-1.5 h-5 w-px shrink-0 self-center bg-[#98a2b3]" aria-hidden />;
 }
 
 export function Ribbon({ editor }: { editor: Editor | null }) {
