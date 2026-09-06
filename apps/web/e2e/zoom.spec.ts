@@ -24,8 +24,7 @@ test("ctrl+wheel zooms the document and prevents the default", async ({ page }) 
 test("page overlay has no fake pagination hairlines", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId("page-overlay")).toBeVisible();
   await expect(page.getByTestId("page-overlay").locator(":scope > *")).toHaveCount(2);
-  await expect(page.getByTestId("page-header")).toBeVisible();
-  await expect(page.getByTestId("page-footer")).toBeVisible();
+  await expect(page.getByTestId("page-header-right")).toContainText("1 /");
+  await expect(page.getByTestId("page-footer-right")).toBeVisible();
 });
