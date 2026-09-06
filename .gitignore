@@ -24,3 +24,7 @@ recovery
 *.exe
 *.blockmap
 .pnpm-store
+.vercel/*
+!.vercel/project.json
+.env*
+!.env.example

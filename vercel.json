@@ -1,6 +1,5 @@
 {
-  "installCommand": "pnpm install",
-  "buildCommand": "pnpm build:web",
-  "outputDirectory": "apps/web/out",
-  "framework": null
+  "installCommand": "pnpm install --filter @mdword/web...",
+  "buildCommand": "pnpm --filter @mdword/web build",
+  "outputDirectory": "apps/web/out"
 }
