@@ -8,6 +8,15 @@ import { useApp } from "@/lib/store";
 const fieldClass =
   "mt-1 w-full rounded-md border border-[#e4e7ec] px-3 py-2 text-[16px] lg:px-2 lg:py-1 lg:text-[13px]";
 
+const RUNNING_FIELDS = [
+  { group: "header", field: "left", label: "Header left" },
+  { group: "header", field: "center", label: "Header center" },
+  { group: "header", field: "right", label: "Header right" },
+  { group: "footer", field: "left", label: "Footer left" },
+  { group: "footer", field: "center", label: "Footer center" },
+  { group: "footer", field: "right", label: "Footer right" }
+] as const;
+
 export function PropertiesPanel({ className }: { className?: string }) {
   const model = useApp((s) => s.model);
   const patchFrontmatter = useApp((s) => s.patchFrontmatter);
@@ -17,6 +26,10 @@ export function PropertiesPanel({ className }: { className?: string }) {
   const margins = model.resolvedMdoc.margins ?? {};
   const pageSize =
     typeof model.resolvedMdoc.page?.size === "string" ? model.resolvedMdoc.page.size : "A4";
+  const templateId = mdoc.template ?? "normal";
+  const template = BUILT_IN_TEMPLATES.find((t) => t.id === templateId);
+  const tocEnabled = Boolean(model.resolvedMdoc.toc?.enabled);
+  const tocDepth = model.resolvedMdoc.toc?.depth ?? 3;
 
   return (
     <aside
@@ -100,8 +113,9 @@ export function PropertiesPanel({ className }: { className?: string }) {
       <label className="mb-2 block">
         Template
         <select
+          data-testid="prop-template"
           className={fieldClass}
-          value={mdoc.template ?? "normal"}
+          value={templateId}
           onChange={(e) => patchMdoc({ ...mdoc, template: e.target.value })}
         >
           {BUILT_IN_TEMPLATES.map((t) => (
@@ -111,6 +125,11 @@ export function PropertiesPanel({ className }: { className?: string }) {
           ))}
         </select>
       </label>
+      {template ? (
+        <p className="mb-3 text-[12px] leading-snug text-[#667085]" data-testid="prop-template-hint">
+          {template.description}
+        </p>
+      ) : null}
       {(["top", "right", "bottom", "left"] as const).map((side) => (
         <label key={side} className="mb-2 block capitalize">
           {side}
@@ -126,51 +145,73 @@ export function PropertiesPanel({ className }: { className?: string }) {
           />
         </label>
       ))}
-      <label className="mb-2 block">
-        Header left
-        <input
-          className={fieldClass}
-          value={mdoc.header?.left ?? model.resolvedMdoc.header?.left ?? ""}
-          onChange={(e) =>
-            patchMdoc({ ...mdoc, header: { ...mdoc.header, left: e.target.value } })
-          }
-        />
-      </label>
-      <label className="mb-2 block">
-        Header right
-        <input
-          className={fieldClass}
-          value={mdoc.header?.right ?? model.resolvedMdoc.header?.right ?? ""}
-          onChange={(e) =>
-            patchMdoc({ ...mdoc, header: { ...mdoc.header, right: e.target.value } })
-          }
-        />
-      </label>
-      <label className="mb-2 block">
-        Footer right
-        <input
-          className={fieldClass}
-          value={mdoc.footer?.right ?? model.resolvedMdoc.footer?.right ?? ""}
-          onChange={(e) =>
-            patchMdoc({ ...mdoc, footer: { ...mdoc.footer, right: e.target.value } })
-          }
-        />
-      </label>
+      <h2 className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+        Header and footer
+      </h2>
+      <p className="mb-2 text-[12px] text-[#667085]">
+        Same fields are used on the page and in PDF/HTML export. Use {"{{page}}"} and {"{{pages}}"} for page
+        numbers.
+      </p>
+      {RUNNING_FIELDS.map(({ group, field, label }) => (
+        <label key={`${group}-${field}`} className="mb-2 block">
+          {label}
+          <input
+            data-testid={`prop-${group}-${field}`}
+            className={fieldClass}
+            value={mdoc[group]?.[field] ?? model.resolvedMdoc[group]?.[field] ?? ""}
+            onChange={(e) =>
+              patchMdoc({
+                ...mdoc,
+                [group]: {
+                  ...model.resolvedMdoc[group],
+                  ...mdoc[group],
+                  [field]: e.target.value
+                }
+              })
+            }
+          />
+        </label>
+      ))}
+      <h2 className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">
+        Table of contents
+      </h2>
       <label className="mb-3 mt-2 flex min-h-11 items-center gap-2">
         <input
           type="checkbox"
-          checked={Boolean(model.resolvedMdoc.toc?.enabled)}
+          data-testid="prop-toc"
+          checked={tocEnabled}
           onChange={() =>
             patchMdoc({
               ...mdoc,
-              toc: { enabled: !model.resolvedMdoc.toc?.enabled, depth: 3 }
+              toc: { enabled: !tocEnabled, depth: tocDepth }
             })
           }
         />
-        Include table of contents in PDF/HTML export
+        Show a live table of contents (updates from headings)
       </label>
+      {tocEnabled ? (
+        <label className="mb-3 block">
+          Heading depth
+          <select
+            className={fieldClass}
+            value={tocDepth}
+            onChange={(e) =>
+              patchMdoc({
+                ...mdoc,
+                toc: { enabled: true, depth: Number(e.target.value) }
+              })
+            }
+          >
+            {[1, 2, 3, 4, 5, 6].map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       {model.diagnostics.length > 0 && (
-        <div className="mt-4 rounded-md bg-[#fffbeb] p-2 text-[12px] text-[#92400e]">
+        <div className="mt-4 rounded-md bg-[#fffbeb] p-2 text-[12px] text-[#92400e]" data-testid="diagnostics">
           {model.diagnostics.slice(0, 6).map((d, i) => (
             <div key={i}>{d.message}</div>
           ))}

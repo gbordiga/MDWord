@@ -19,6 +19,10 @@ export interface ParseResult {
   diagnostics: Diagnostic[];
 }
 
+function isKnownPageBreakMessage(message: string): boolean {
+  return /unknown directive:\s*page-break/i.test(message);
+}
+
 function collectUnknown(ast: GenericNode, diagnostics: Diagnostic[]): void {
   const walk = (node: GenericNode) => {
     if (node.type === "mystDirective" && typeof node.name === "string") {
@@ -111,6 +115,7 @@ export function parseMarkdown(source: string): ParseResult {
   }
 
   for (const msg of vfile.messages) {
+    if (isKnownPageBreakMessage(msg.message)) continue;
     diagnostics.push({
       severity: msg.fatal ? "error" : "warning",
       message: msg.message,

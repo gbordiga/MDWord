@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { Dialog, DialogButton, DialogField, dialogInputClass } from "./Dialog";
 import { insertImage } from "@/lib/editorCommands";
+
+const MAX_BYTES = 8 * 1024 * 1024;
 
 export function ImageDialog({
   open,
@@ -16,11 +18,15 @@ export function ImageDialog({
 }) {
   const [src, setSrc] = useState("");
   const [alt, setAlt] = useState("");
+  const [error, setError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     setSrc("");
     setAlt("");
+    setError("");
+    if (fileRef.current) fileRef.current.value = "";
   }, [open]);
 
   const canInsert = Boolean(src.trim());
@@ -28,6 +34,31 @@ export function ImageDialog({
   const insert = () => {
     if (!editor || !canInsert) return;
     if (insertImage(editor, src, alt)) onClose();
+  };
+
+  const onPickFile = (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Choose an image file (PNG, JPEG, GIF, or WebP).");
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      setError("Choose an image smaller than 8 MB.");
+      return;
+    }
+    setError("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      if (!result.startsWith("data:image/")) {
+        setError("Could not read that image.");
+        return;
+      }
+      setSrc(result);
+      if (!alt.trim()) setAlt(file.name.replace(/\.[^.]+$/, ""));
+    };
+    reader.onerror = () => setError("Could not read that image.");
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -45,13 +76,29 @@ export function ImageDialog({
         </>
       }
     >
+      <DialogField label="Choose a local image">
+        <input
+          ref={fileRef}
+          data-testid="image-file"
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp,image/*"
+          className="w-full text-[13px] file:mr-3 file:rounded-md file:border-0 file:bg-[#eef2f6] file:px-3 file:py-2 file:text-[13px] file:font-medium file:text-[#1c1f24]"
+          onChange={(e) => onPickFile(e.target.files?.[0])}
+        />
+      </DialogField>
+      {src.startsWith("data:image/") ? (
+        <img src={src} alt="" className="mb-3 max-h-32 rounded-md border border-[#e4e7ec]" />
+      ) : null}
       <DialogField label="Image path or URL">
         <input
           data-testid="image-src"
           className={dialogInputClass}
-          placeholder="https:// or ./images/photo.png"
-          value={src}
-          onChange={(e) => setSrc(e.target.value)}
+          placeholder="https://, ./images/photo.png, or choose a file above"
+          value={src.startsWith("data:") ? "" : src}
+          onChange={(e) => {
+            setSrc(e.target.value);
+            setError("");
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -69,6 +116,13 @@ export function ImageDialog({
           onChange={(e) => setAlt(e.target.value)}
         />
       </DialogField>
+      {error ? (
+        <p className="mb-2 text-[12px] text-[#b42318]" role="alert">
+          {error}
+        </p>
+      ) : (
+        <p className="text-[12px] text-[#667085]">Local files are embedded in the document so they travel with the Markdown.</p>
+      )}
     </Dialog>
   );
 }

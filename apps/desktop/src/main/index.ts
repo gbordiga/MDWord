@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import { existsSync, mkdirSync, createWriteStream } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
+import { headerFooterFromHtml } from "@mdword/renderer";
 
 const isDev = !app.isPackaged;
 
@@ -249,9 +250,7 @@ function registerIpc(): void {
     const pdf = await win.webContents.printToPDF({
       printBackground: true,
       displayHeaderFooter: true,
-      headerTemplate: '<div style="font-size:9px;width:100%;padding:0 12px;"><span class="title"></span></div>',
-      footerTemplate:
-        '<div style="font-size:9px;width:100%;padding:0 12px;text-align:right;"><span class="pageNumber"></span> / <span class="totalPages"></span></div>'
+      ...headerFooterFromHtml(parsed.html)
     });
     win.close();
     const save = await dialog.showSaveDialog({

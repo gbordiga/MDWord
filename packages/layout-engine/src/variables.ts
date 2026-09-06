@@ -18,3 +18,13 @@ export function resolveVariables(template: string, ctx: VariableContext): string
     return value === undefined || value === null ? "" : String(value);
   });
 }
+
+/** Resolve metadata tokens but keep {{page}} / {{pages}} for print engines. */
+export function resolveRunningForPrint(template: string, ctx: VariableContext): string {
+  return resolveVariables(template, { ...ctx, page: "{{page}}", pages: "{{pages}}" });
+}
+
+/** Screen preview: page 1 of an unknown total. */
+export function resolveRunningForPreview(template: string, ctx: VariableContext): string {
+  return resolveVariables(template, { ...ctx, page: ctx.page ?? "1", pages: "…" });
+}
