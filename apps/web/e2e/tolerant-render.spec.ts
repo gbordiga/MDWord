@@ -1,22 +1,28 @@
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 
-const fixture = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../../fixtures/real-world/ipr001.md"
-);
+const fixture = [
+  path.resolve(process.cwd(), "fixtures/real-world/ipr001.md"),
+  path.resolve(process.cwd(), "../../fixtures/real-world/ipr001.md")
+].find((candidate) => existsSync(candidate));
 
 test("opens a process document with empty table cells and Italian titolo", async ({ page }) => {
+  await page.addInitScript(() => {
+    Reflect.deleteProperty(window, "showOpenFilePicker");
+  });
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
 
   const [chooser] = await Promise.all([
     page.waitForEvent("filechooser"),
     page.getByRole("button", { name: "File", exact: true }).click().then(async () => {
-      await page.getByTitle("Open").click();
+      await page.getByRole("button", { name: "Open", exact: true }).click();
     })
   ]);
+  if (!fixture) {
+    throw new Error("IPR001 fixture not found");
+  }
   await chooser.setFiles(fixture);
 
   const prose = page.locator(".ProseMirror");
