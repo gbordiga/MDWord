@@ -174,6 +174,8 @@ export function renderPrintDocument(options: {
   filename?: string;
   /** Repeat header/footer in the HTML body (needed for browser print, which ignores Chromium templates). */
   runningInBody?: boolean;
+  /** Same-origin Paged.js polyfill so @page boxes and page counters work in Chromium. */
+  pagedScriptUrl?: string;
 }): string {
   const metrics = pageMetrics(options.mdoc);
   const bodyFont =
@@ -204,7 +206,13 @@ export function renderPrintDocument(options: {
 </header>`
       : "";
   const bars = options.runningInBody ? runningBarsHtml(header, footer, vars) : { header: "", footer: "" };
-  const pageBoxes = options.runningInBody ? "" : pageMarginCss(header, footer);
+  const pageBoxes = options.runningInBody
+    ? pageMarginCss(header, footer, vars, { pageTokensOnly: true })
+    : pageMarginCss(header, footer, vars);
+  const pagedScript = options.pagedScriptUrl
+    ? `<script>window.PagedConfig={auto:true,after:function(){document.documentElement.dataset.pagedReady="1";}};<\/script>
+  <script src="${escape(options.pagedScriptUrl)}" onerror="document.documentElement.dataset.pagedReady='1'"><\/script>`
+    : "";
   return `<!DOCTYPE html>
 <html lang="it">
 <head>
@@ -249,24 +257,41 @@ export function renderPrintDocument(options: {
     .doc-date { font-size: 10pt; color: #667085; margin: 0; }
     ${
       options.runningInBody
-        ? `.print-running { display: flex; justify-content: space-between; font-size: 9pt; color: #444; }
-    .print-running-header { border-bottom: 1px solid #d0d5dd; padding-bottom: 6px; margin-bottom: 12px; }
-    .print-running-footer { border-top: 1px solid #d0d5dd; padding-top: 6px; margin-top: 16px; }
-    .print-page::after { content: counter(page); }
-    .print-pages::after { content: counter(pages); }`
+        ? `.print-root { width: 100%; border-collapse: collapse; }
+    .print-root > thead { display: table-header-group; }
+    .print-root > tfoot { display: table-footer-group; }
+    .print-root > thead th, .print-root > tbody td, .print-root > tfoot td { border: 0; padding: 0; background: transparent; }
+    .print-running { display: flex; justify-content: space-between; font-size: 9pt; color: #444; }
+    .print-running-header { border-bottom: 1px solid #d0d5dd; padding-bottom: 6px; margin-bottom: 8px; }
+    .print-running-footer { border-top: 1px solid #d0d5dd; padding-top: 6px; margin-top: 8px; }`
         : ""
     }
     ${numbered ? headingNumberCss() : ""}
   </style>
+  ${pagedScript}
 </head>
 <body>
-  ${bars.header}
+  ${
+    options.runningInBody
+      ? `<table class="print-root">
+  <thead><tr><th>${bars.header}</th></tr></thead>
+  <tfoot><tr><td>${bars.footer}</td></tr></tfoot>
+  <tbody><tr><td>
   ${masthead}
   ${tocHtml}
   <div class="doc-body">
   ${bodyHtml}
   </div>
-  ${bars.footer}
+  </td></tr></tbody>
+</table>`
+      : `${bars.header}
+  ${masthead}
+  ${tocHtml}
+  <div class="doc-body">
+  ${bodyHtml}
+  </div>
+  ${bars.footer}`
+  }
 </body>
 </html>
 ${resolvedRunningComments(options.mdoc, vars)}`;

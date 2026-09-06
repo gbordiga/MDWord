@@ -9,6 +9,7 @@ import { useApp } from "@/lib/store";
 import { getHost } from "@/lib/host";
 import { Spinner } from "./Spinner";
 import { DocumentToc } from "./DocumentToc";
+import { MarginGuides } from "./MarginGuides";
 import { collectEditorHeadings, jumpToHeading } from "@/lib/toc";
 import { useEditorTick } from "@/hooks/useEditorTick";
 
@@ -112,6 +113,7 @@ function VisualEditorCanvas({
   onEditor?: (editor: Editor | null) => void;
 }) {
   const model = useApp((s) => s.model);
+  const patchMdoc = useApp((s) => s.patchMdoc);
   const zoom = useApp((s) => s.zoom);
   const applyTiptap = useApp((s) => s.applyTiptap);
   const syncGeneration = useApp((s) => s.syncGeneration);
@@ -279,6 +281,11 @@ function VisualEditorCanvas({
             ) : null}
             <EditorContent editor={editor} className={numberedHeadings ? "md-numbered-headings" : undefined} />
           </div>
+          <MarginGuides
+            metrics={metrics}
+            scale={scale}
+            onChange={(margins) => patchMdoc({ ...model.mdoc, margins })}
+          />
           <div className="page-overlay pointer-events-none" aria-hidden data-testid="page-overlay">
             <div
               className="absolute left-0 right-0 top-0 flex justify-between px-8 text-[10px] text-[#667085]"

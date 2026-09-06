@@ -3,9 +3,23 @@ import { resolveRunningForPrint } from "@mdword/layout-engine";
 
 type Running = { left?: string; center?: string; right?: string };
 
-function cssContentValue(template: string): string | null {
+export type RunningVars = {
+  title?: string;
+  subtitle?: string;
+  author?: string;
+  date?: string;
+  filename?: string;
+};
+
+function hasPageToken(template: string): boolean {
+  return /\{\{\s*pages?\s*\}\}/.test(template);
+}
+
+/** Resolve metadata, then turn remaining page tokens into CSS counter() expressions. */
+export function cssContentValue(template: string, vars?: RunningVars): string | null {
   if (!template) return null;
-  const parts = template.split(/(\{\{page\}\}|\{\{pages\}\})/g).filter((part) => part.length > 0);
+  const resolved = vars ? resolveRunningForPrint(template, vars) : template;
+  const parts = resolved.split(/(\{\{page\}\}|\{\{pages\}\})/g).filter((part) => part.length > 0);
   if (!parts.length) return null;
   return parts
     .map((part) => {
@@ -16,10 +30,17 @@ function cssContentValue(template: string): string | null {
     .join(" ");
 }
 
-export function pageMarginCss(header: Running, footer: Running): string {
+export function pageMarginCss(
+  header: Running,
+  footer: Running,
+  vars?: RunningVars,
+  options?: { pageTokensOnly?: boolean }
+): string {
   const rules: string[] = [];
   const box = (name: string, template: string | undefined) => {
-    const expr = cssContentValue(template ?? "");
+    const raw = template ?? "";
+    if (options?.pageTokensOnly && !hasPageToken(raw)) return;
+    const expr = cssContentValue(raw, vars);
     if (!expr) return;
     rules.push(`@${name} { content: ${expr}; font-size: 9pt; color: #444; }`);
   };
@@ -32,24 +53,21 @@ export function pageMarginCss(header: Running, footer: Running): string {
   return rules.join("\n      ");
 }
 
+function withoutPageTokens(template: string, vars: RunningVars): string {
+  return resolveRunningForPrint(template, vars)
+    .replace(/\{\{\s*pages?\s*\}\}/g, "")
+    .replace(/\s*\/\s*$/g, "")
+    .replace(/^\s*\/\s*/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 export function runningBarsHtml(
   header: Running,
   footer: Running,
-  vars: {
-    title?: string;
-    subtitle?: string;
-    author?: string;
-    date?: string;
-    filename?: string;
-  }
+  vars: RunningVars
 ): { header: string; footer: string } {
-  const resolve = (template: string) => resolveRunningForPrint(template, vars);
-  const cell = (template: string) => {
-    const html = escapeHtml(resolve(template))
-      .replace(/\{\{page\}\}/g, '<span class="print-page"></span>')
-      .replace(/\{\{pages\}\}/g, '<span class="print-pages"></span>');
-    return `<span>${html}</span>`;
-  };
+  const cell = (template: string) => `<span>${escapeHtml(withoutPageTokens(template, vars))}</span>`;
   return {
     header: `<div class="print-running print-running-header">${cell(header.left ?? "")}${cell(header.center ?? "")}${cell(header.right ?? "")}</div>`,
     footer: `<div class="print-running print-running-footer">${cell(footer.left ?? "")}${cell(footer.center ?? "")}${cell(footer.right ?? "")}</div>`
@@ -60,16 +78,7 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export function resolvedRunningComments(
-  mdoc: Mdoc,
-  vars: {
-    title?: string;
-    subtitle?: string;
-    author?: string;
-    date?: string;
-    filename?: string;
-  }
-): string {
+export function resolvedRunningComments(mdoc: Mdoc, vars: RunningVars): string {
   const header = mdoc.header ?? {};
   const footer = mdoc.footer ?? {};
   const resolve = (template: string) => resolveRunningForPrint(template, vars);
