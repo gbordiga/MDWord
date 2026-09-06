@@ -294,7 +294,7 @@ export const useApp = create<AppState>((set, get) => {
         subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
         date: documentDate(model.frontmatter),
         filename: path ?? "document.md",
-        runningInBody: host.platform === "web",
+        runningInBody: false,
         pagedScriptUrl: webPagedScriptUrl(host.platform)
       });
       await host.export.pdf(html, {});
@@ -314,7 +314,8 @@ export const useApp = create<AppState>((set, get) => {
         subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
         date: documentDate(model.frontmatter),
         filename: path ?? "document.md",
-        runningInBody: true
+        runningInBody: false,
+        pagedScriptUrl: webPagedScriptUrl(getHost().platform)
       });
       set({ busy: null });
       await getHost().files.saveAs(html, (path ?? "document").replace(/\.md$/, "") + ".html");
