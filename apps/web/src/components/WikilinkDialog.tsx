@@ -15,8 +15,8 @@ export function WikilinkDialog({
   editor: Editor | null;
   onClose: () => void;
 }) {
-  const files = useApp((s) => s.workspace?.files ?? []);
-  const documents = useApp((s) => s.workspace?.index.documents ?? []);
+  const files = useApp((s) => s.workspace?.files);
+  const documents = useApp((s) => s.workspace?.index.documents);
   const [target, setTarget] = useState("");
   const [label, setLabel] = useState("");
 
@@ -28,12 +28,12 @@ export function WikilinkDialog({
 
   const options = useMemo(() => {
     const q = target.trim().toLowerCase();
-    const fromIndex = documents.map((d) => ({
+    const fromIndex = (documents ?? []).map((d) => ({
       path: d.path,
       title: d.title,
       name: d.path.split(/[/\\]/).pop() ?? d.path
     }));
-    const fromFiles = files
+    const fromFiles = (files ?? [])
       .filter((f) => /\.(md|markdown)$/i.test(f.name))
       .map((f) => ({ path: f.path, title: f.name.replace(/\.md$/i, ""), name: f.name }));
     const seen = new Set<string>();
