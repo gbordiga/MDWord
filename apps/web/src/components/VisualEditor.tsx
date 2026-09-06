@@ -202,7 +202,6 @@ function VisualEditorCanvas({
   const numberedHeadings = Boolean(model.resolvedMdoc.numbering?.headings);
   const tocItems = editor ? collectEditorHeadings(editor, tocDepth) : [];
 
-  const pages = 3;
   const typo = model.resolvedMdoc.typography ?? {};
   const titleText = documentTitle(model.frontmatter, "");
   const subtitleText = String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? "");
@@ -272,14 +271,7 @@ function VisualEditorCanvas({
             ) : null}
             <EditorContent editor={editor} className={numberedHeadings ? "md-numbered-headings" : undefined} />
           </div>
-          <div className="page-overlay pointer-events-none" aria-hidden>
-            {Array.from({ length: pages }).map((_, i) => (
-              <div
-                key={i}
-                className="absolute left-0 right-0 border-b border-[#d0d5dd]"
-                style={{ top: (i + 1) * metrics.heightPx, height: 0 }}
-              />
-            ))}
+          <div className="page-overlay pointer-events-none" aria-hidden data-testid="page-overlay">
             <div
               className="absolute left-0 right-0 top-0 flex justify-between px-8 text-[10px] text-[#667085]"
               style={{ height: metrics.margins.top, alignItems: "center" }}

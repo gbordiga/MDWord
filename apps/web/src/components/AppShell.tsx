@@ -21,6 +21,7 @@ import { Spinner } from "./Spinner";
 import { useApp } from "@/lib/store";
 import { getHost } from "@/lib/host";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
+import { useCtrlWheelZoom } from "@/hooks/useCtrlWheelZoom";
 import { insertTable } from "@/lib/editorCommands";
 import { EditorUiProvider, useEditorUi } from "@/lib/editorUi";
 
@@ -54,6 +55,7 @@ function AppShellInner({
   const { keyboardOpen } = useVisualViewport();
   const { openLink, openImage, openWikilink, dialog, closeDialog, confirm, confirmIfDirty, closeConfirm } =
     useEditorUi();
+  useCtrlWheelZoom();
 
   useEffect(() => {
     const collapseChrome = () => {
