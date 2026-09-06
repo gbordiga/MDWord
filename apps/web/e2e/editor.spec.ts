@@ -11,6 +11,14 @@ test("loads the editor and shows an A4 page", async ({ page }) => {
   await expect(prose).toContainText("Hello MDWord");
 });
 
+test("boot splash hides after the editor is ready", async ({ page }) => {
+  await page.goto("/");
+  const prose = page.locator(".ProseMirror");
+  await expect(prose).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("app-boot")).toBeHidden();
+  await expect(page.getByTestId("editor-loading")).toHaveCount(0);
+});
+
 test("switches to source mode and keeps markdown", async ({ page }) => {
   await page.goto("/");
   const prose = page.locator(".ProseMirror");

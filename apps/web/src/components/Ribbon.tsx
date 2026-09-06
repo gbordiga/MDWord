@@ -31,6 +31,7 @@ import {
 } from "@/lib/editorCommands";
 import { useEditorTick } from "@/hooks/useEditorTick";
 import { useEditorUi } from "@/lib/editorUi";
+import { Spinner } from "./Spinner";
 
 const TABS: { id: RibbonTab; label: string }[] = [
   { id: "file", label: "File" },
@@ -46,13 +47,17 @@ function Btn({
   children,
   title,
   testId,
-  pressed
+  pressed,
+  disabled,
+  busy
 }: {
   onClick: () => void;
   children: React.ReactNode;
   title: string;
   testId?: string;
   pressed?: boolean;
+  disabled?: boolean;
+  busy?: boolean;
 }) {
   return (
     <button
@@ -61,11 +66,13 @@ function Btn({
       aria-label={title}
       aria-pressed={pressed}
       data-testid={testId}
+      disabled={disabled || busy}
       onClick={onClick}
-      className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-[13px] text-[#1c1f24] hover:bg-[#eef2f6] ${
+      className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-[13px] text-[#1c1f24] hover:bg-[#eef2f6] disabled:cursor-not-allowed disabled:opacity-50 ${
         pressed ? "bg-[#e8eefc] text-accent" : ""
       }`}
     >
+      {busy ? <Spinner size={14} /> : null}
       {children}
     </button>
   );
@@ -76,7 +83,9 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
   const ribbon = useApp((s) => s.ribbon);
   const setRibbon = useApp((s) => s.setRibbon);
   const actions = useApp();
+  const busy = useApp((s) => s.busy);
   const { openLink, openImage, openWikilink, confirmIfDirty } = useEditorUi();
+  const fileBusy = Boolean(busy);
 
   return (
     <div className="hidden border-b border-[#e4e7ec] bg-white lg:block">
@@ -98,25 +107,25 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
       <div className="flex flex-wrap items-center gap-1 bg-[#f8fafc] px-2 py-1.5">
         {ribbon === "file" && (
           <>
-            <Btn title="New" onClick={() => confirmIfDirty(actions.newDocument)}>
+            <Btn title="New" onClick={() => confirmIfDirty(actions.newDocument)} disabled={fileBusy}>
               New
             </Btn>
-            <Btn title="Open" onClick={() => confirmIfDirty(() => void actions.openFile())}>
+            <Btn title="Open" onClick={() => confirmIfDirty(() => void actions.openFile())} disabled={fileBusy}>
               Open
             </Btn>
-            <Btn title="Save" onClick={() => void actions.saveFile()}>
+            <Btn title="Save" onClick={() => void actions.saveFile()} busy={busy?.kind === "save"} disabled={fileBusy && busy?.kind !== "save"}>
               Save
             </Btn>
-            <Btn title="Save as" onClick={() => void actions.saveFileAs()}>
+            <Btn title="Save as" onClick={() => void actions.saveFileAs()} disabled={fileBusy}>
               Save as
             </Btn>
-            <Btn title="Open folder" onClick={() => void actions.openFolder()}>
+            <Btn title="Open folder" onClick={() => void actions.openFolder()} busy={busy?.kind === "folder"} disabled={fileBusy}>
               Open folder
             </Btn>
-            <Btn title="Export PDF" onClick={() => void actions.exportPdf()}>
+            <Btn title="Export PDF" onClick={() => void actions.exportPdf()} busy={busy?.kind === "export"} disabled={fileBusy}>
               Export PDF
             </Btn>
-            <Btn title="Export HTML" onClick={() => void actions.exportHtml()}>
+            <Btn title="Export HTML" onClick={() => void actions.exportHtml()} disabled={fileBusy}>
               Export HTML
             </Btn>
           </>

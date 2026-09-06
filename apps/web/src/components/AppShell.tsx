@@ -16,6 +16,8 @@ import { LinkDialog } from "./LinkDialog";
 import { ImageDialog } from "./ImageDialog";
 import { WikilinkDialog } from "./WikilinkDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { BusyOverlay } from "./BusyOverlay";
+import { Spinner } from "./Spinner";
 import { useApp } from "@/lib/store";
 import { getHost } from "@/lib/host";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
@@ -48,6 +50,7 @@ function AppShellInner({
   const dirty = useApp((s) => s.dirty);
   const path = useApp((s) => s.path);
   const diagnostics = useApp((s) => s.model.diagnostics);
+  const busy = useApp((s) => s.busy);
   const { keyboardOpen } = useVisualViewport();
   const { openLink, openImage, openWikilink, dialog, closeDialog, confirm, confirmIfDirty, closeConfirm } =
     useEditorUi();
@@ -124,6 +127,16 @@ function AppShellInner({
     return () => window.clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    document.documentElement.classList.add("mdword-ready");
+  }, []);
+
+  useEffect(() => {
+    if (!busy) return;
+    const timeout = window.setTimeout(() => useApp.getState().finishBusy(), 30000);
+    return () => window.clearTimeout(timeout);
+  }, [busy]);
+
   const insert = (kind: string) => {
     const ed = editorRef.current;
     if (kind === "table" && ed) insertTable(ed);
@@ -134,15 +147,16 @@ function AppShellInner({
 
   return (
     <div
-      className="mdword-app flex h-dvh min-h-0 w-full flex-col overflow-hidden"
+      className="mdword-app relative flex h-dvh min-h-0 w-full flex-col overflow-hidden"
       data-mdword-root
+      aria-busy={Boolean(busy)}
     >
       <MobileTopBar />
       <Ribbon editor={editor} />
       <MobileFormatBar editor={editor} />
       <FindBar />
       <EditorContextBar />
-      <div className="flex min-h-0 min-w-0 flex-1">
+      <div className="relative flex min-h-0 min-w-0 flex-1">
         {leftOpen && <LeftSidebar className="max-lg:hidden" />}
         <div
           className={`flex min-h-0 min-w-0 flex-1 ${
@@ -163,13 +177,23 @@ function AppShellInner({
           )}
         </div>
         {rightOpen && <PropertiesPanel className="max-lg:hidden" />}
+        {busy?.blocking ? <BusyOverlay label={busy.label} /> : null}
       </div>
       <footer className="hidden h-7 shrink-0 items-center justify-between border-t border-[#e4e7ec] bg-white px-3 text-[11px] text-[#667085] lg:flex">
         <span>
           {path ?? "Untitled"} {dirty ? "•" : ""}
         </span>
-        <span>
-          {view} · {diagnostics.length ? `${diagnostics.length} diagnostics` : "Ready"}
+        <span className="inline-flex items-center gap-1.5">
+          {busy ? (
+            <>
+              <Spinner size={12} />
+              <span data-testid="app-busy-label">{busy.label}</span>
+            </>
+          ) : (
+            <>
+              {view} · {diagnostics.length ? `${diagnostics.length} diagnostics` : "Ready"}
+            </>
+          )}
         </span>
       </footer>
       <MobileTabBar keyboardOpen={keyboardOpen} />

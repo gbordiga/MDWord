@@ -18,6 +18,20 @@ import { renderPrintDocument } from "@mdword/renderer";
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view";
 export type LeftPanel = "files" | "outline" | "search" | "backlinks";
 export type MobileSheet = "workspace" | "insert" | "properties" | "more" | null;
+export type BusyKind = "open" | "save" | "folder" | "export" | "workspace";
+
+export interface BusyState {
+  kind: BusyKind;
+  label: string;
+  blocking: boolean;
+}
+
+function yieldPaint(): Promise<void> {
+  if (typeof requestAnimationFrame !== "function") return Promise.resolve();
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
 
 interface AppState {
   model: DocumentModel;
@@ -36,6 +50,7 @@ interface AppState {
   workspace: WorkspaceState | null;
   externalDialog: { path: string; incoming: string } | null;
   syncGeneration: number;
+  busy: BusyState | null;
   applySource: (source: string) => void;
   applyTiptap: (doc: TiptapNode) => void;
   setView: (view: ViewMode) => void;
@@ -59,6 +74,7 @@ interface AppState {
   setMobileSheet: (sheet: MobileSheet) => void;
   setPalette: (open: boolean) => void;
   setFind: (open: boolean, query?: string) => void;
+  finishBusy: (kinds?: BusyKind[]) => void;
 }
 
 function modelFrom(source: string, workspaceMdoc?: Mdoc): DocumentModel {
@@ -83,6 +99,8 @@ export const useApp = create<AppState>((set, get) => {
     }
   };
 
+  const beginBusy = (busy: BusyState) => set({ busy });
+
   return {
   model: modelFrom(untitledDocument()),
   path: null,
@@ -100,6 +118,12 @@ export const useApp = create<AppState>((set, get) => {
   workspace: null,
   externalDialog: null,
   syncGeneration: 0,
+  busy: null,
+  finishBusy: (kinds) => {
+    const busy = get().busy;
+    if (!busy) return;
+    if (!kinds || kinds.includes(busy.kind)) set({ busy: null });
+  },
   applySource: (source) => {
     const model = modelFrom(source, get().workspace?.workspaceMdoc);
     set({ model, dirty: true, syncGeneration: get().syncGeneration + 1 });
@@ -135,12 +159,21 @@ export const useApp = create<AppState>((set, get) => {
     const host = getHost();
     const result = await host.files.open();
     if (!result) return;
-    set({
-      model: modelFrom(result.content, get().workspace?.workspaceMdoc),
-      path: result.path,
-      dirty: false,
-      syncGeneration: get().syncGeneration + 1
-    });
+    beginBusy({ kind: "open", label: "Opening document…", blocking: true });
+    await yieldPaint();
+    try {
+      const model = modelFrom(result.content, get().workspace?.workspaceMdoc);
+      set({
+        model,
+        path: result.path,
+        dirty: false,
+        syncGeneration: get().syncGeneration + 1
+      });
+      if (get().view === "source") set({ busy: null });
+    } catch (error) {
+      console.error("Could not open document", error);
+      set({ busy: null });
+    }
   },
   saveFile: async () => {
     const host = getHost();
@@ -148,37 +181,62 @@ export const useApp = create<AppState>((set, get) => {
     const content = saveDocument(model);
     if (!path) {
       const next = await host.files.saveAs(content, "document.md");
-      if (next) {
+      if (!next) return;
+      beginBusy({ kind: "save", label: "Saving…", blocking: false });
+      try {
         set({ path: next, dirty: false, model: { ...model, source: content } });
         rememberSavedFile(next, content);
         await reloadWorkspace();
+      } finally {
+        set({ busy: null });
       }
       return;
     }
-    await host.files.save({ path, content });
-    set({ dirty: false, model: { ...model, source: content } });
-    rememberSavedFile(path, content);
-    await reloadWorkspace();
+    beginBusy({ kind: "save", label: "Saving…", blocking: false });
+    await yieldPaint();
+    try {
+      await host.files.save({ path, content });
+      set({ dirty: false, model: { ...model, source: content } });
+      rememberSavedFile(path, content);
+      await reloadWorkspace();
+    } catch (error) {
+      console.error("Could not save document", error);
+    } finally {
+      set({ busy: null });
+    }
   },
   saveFileAs: async () => {
     const host = getHost();
     const content = saveDocument(get().model);
     const next = await host.files.saveAs(content, get().path ?? "document.md");
-    if (next) {
+    if (!next) return;
+    beginBusy({ kind: "save", label: "Saving…", blocking: false });
+    try {
       set({ path: next, dirty: false });
       rememberSavedFile(next, content);
       await reloadWorkspace();
+    } finally {
+      set({ busy: null });
     }
   },
   openFolder: async () => {
     const host = getHost();
     const root = await host.files.openFolder();
     if (!root) return;
-    const workspace = await loadWorkspace(host, root);
-    set({ workspace });
+    beginBusy({ kind: "folder", label: "Indexing workspace…", blocking: true });
+    await yieldPaint();
+    try {
+      const workspace = await loadWorkspace(host, root);
+      set({ workspace, busy: null });
+    } catch (error) {
+      console.error("Could not open folder", error);
+      set({ busy: null });
+    }
   },
   openWorkspaceFile: async (filePath) => {
     const host = getHost();
+    beginBusy({ kind: "workspace", label: "Opening document…", blocking: true });
+    await yieldPaint();
     try {
       const result = await host.files.openPath(filePath);
       set({
@@ -188,8 +246,9 @@ export const useApp = create<AppState>((set, get) => {
         syncGeneration: get().syncGeneration + 1,
         mobileSheet: null
       });
+      if (get().view === "source") set({ busy: null });
     } catch {
-      /* file handle may be missing on web until the folder is re-listed */
+      set({ busy: null });
     }
   },
   openWorkspaceFileByTitle: async (title) => {
@@ -202,25 +261,39 @@ export const useApp = create<AppState>((set, get) => {
   },
   refreshWorkspace: () => reloadWorkspace(),
   exportPdf: async () => {
-    const { model, path } = get();
-    const html = renderPrintDocument({
-      ast: model.ast,
-      mdoc: model.resolvedMdoc,
-      title: displayDocumentTitle(model.frontmatter, path),
-      date: String(model.frontmatter.date ?? ""),
-      filename: path ?? "document.md"
-    });
-    await getHost().export.pdf(html, {});
+    beginBusy({ kind: "export", label: "Preparing PDF…", blocking: true });
+    await yieldPaint();
+    try {
+      const { model, path } = get();
+      const html = renderPrintDocument({
+        ast: model.ast,
+        mdoc: model.resolvedMdoc,
+        title: displayDocumentTitle(model.frontmatter, path),
+        date: String(model.frontmatter.date ?? ""),
+        filename: path ?? "document.md"
+      });
+      await getHost().export.pdf(html, {});
+    } finally {
+      set({ busy: null });
+    }
   },
   exportHtml: async () => {
-    const { model, path } = get();
-    const html = renderPrintDocument({
-      ast: model.ast,
-      mdoc: model.resolvedMdoc,
-      title: displayDocumentTitle(model.frontmatter, path),
-      filename: path ?? "document.md"
-    });
-    await getHost().files.saveAs(html, (path ?? "document").replace(/\.md$/, "") + ".html");
+    beginBusy({ kind: "export", label: "Preparing HTML…", blocking: true });
+    await yieldPaint();
+    try {
+      const { model, path } = get();
+      const html = renderPrintDocument({
+        ast: model.ast,
+        mdoc: model.resolvedMdoc,
+        title: displayDocumentTitle(model.frontmatter, path),
+        filename: path ?? "document.md"
+      });
+      set({ busy: null });
+      await getHost().files.saveAs(html, (path ?? "document").replace(/\.md$/, "") + ".html");
+    } catch (error) {
+      console.error("Could not export HTML", error);
+      set({ busy: null });
+    }
   },
   patchMdoc: (mdoc) => {
     const current = get().model;

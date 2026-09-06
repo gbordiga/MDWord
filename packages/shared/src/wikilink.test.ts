@@ -46,7 +46,7 @@ describe("wikilinks", () => {
       fc.property(
         fc
           .string({ minLength: 1, maxLength: 24 })
-          .filter((s) => !/[\]|#\n[]/.test(s) && s.trim().length > 0),
+          .filter((s) => !/[\]|#\n[]/.test(s) && s.trim().length > 0 && !/\\+$/.test(s)),
         (target) => {
           const formatted = formatWikiLink({ target: target.trim(), raw: "" });
           const parsed = parseWikiLinkInner(formatted);

@@ -37,6 +37,7 @@ import {
 } from "@/lib/editorCommands";
 import { useEditorTick } from "@/hooks/useEditorTick";
 import { useEditorUi } from "@/lib/editorUi";
+import { Spinner } from "./Spinner";
 import { LeftSidebar } from "./LeftSidebar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { Sheet } from "./Sheet";
@@ -77,6 +78,7 @@ export function MobileTopBar() {
   const title = useApp((s) => displayDocumentTitle(s.model.frontmatter, s.path));
   const setMobileSheet = useApp((s) => s.setMobileSheet);
   const saveFile = useApp((s) => s.saveFile);
+  const saving = useApp((s) => s.busy?.kind === "save");
 
   return (
     <header
@@ -94,7 +96,7 @@ export function MobileTopBar() {
         <div className="truncate text-[11px] text-[#667085]">{path ?? "Unsaved"}</div>
       </div>
       <IconBtn title="Save" onClick={() => void saveFile()}>
-        <Save size={20} />
+        {saving ? <Spinner size={18} /> : <Save size={20} />}
       </IconBtn>
       <IconBtn title="More" onClick={() => setMobileSheet("more")}>
         <MoreHorizontal size={22} />
