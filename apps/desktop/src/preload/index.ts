@@ -15,7 +15,8 @@ const api = {
     exists: (path: string) => ipcRenderer.invoke("files.exists", path),
     rename: (from: string, to: string) => ipcRenderer.invoke("files.rename", { from, to }),
     copyIntoAssets: (sourcePath: string, workspaceRoot: string) =>
-      ipcRenderer.invoke("files.copyIntoAssets", { sourcePath, workspaceRoot })
+      ipcRenderer.invoke("files.copyIntoAssets", { sourcePath, workspaceRoot }),
+    canWrite: async () => true
   },
   app: {
     getPreferences: () => ipcRenderer.invoke("app.getPreferences"),

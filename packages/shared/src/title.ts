@@ -37,3 +37,36 @@ export function displayDocumentTitle(
 ): string {
   return documentTitle(frontmatter, titleFromPath(path));
 }
+
+const DATE_KEYS = ["date", "data"] as const;
+
+function isoDay(value: Date): string {
+  if (Number.isNaN(value.getTime())) return "";
+  return value.toISOString().slice(0, 10);
+}
+
+/** Normalize YAML timestamps and Italian `data` into `YYYY-MM-DD`. */
+export function documentDate(
+  frontmatter: Record<string, unknown> | null | undefined
+): string {
+  if (!frontmatter) return "";
+  let raw: unknown;
+  for (const key of DATE_KEYS) {
+    if (frontmatter[key] != null && frontmatter[key] !== "") {
+      raw = frontmatter[key];
+      break;
+    }
+  }
+  if (raw == null || raw === "") return "";
+  if (raw instanceof Date) return isoDay(raw);
+  if (typeof raw === "number") return isoDay(new Date(raw));
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    const day = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (day) return day[1] ?? "";
+    const parsed = Date.parse(trimmed);
+    if (!Number.isNaN(parsed)) return isoDay(new Date(parsed));
+    return trimmed;
+  }
+  return "";
+}

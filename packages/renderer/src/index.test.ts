@@ -82,4 +82,20 @@ describe("running header and footer", () => {
     expect(templates.headerTemplate).toContain('class="pageNumber"');
     expect(templates.footerTemplate).toContain("2026-01-01");
   });
+
+  it("writes title and date into the document body", () => {
+    const html = renderPrintDocument({
+      ast: { type: "root", children: [] },
+      mdoc: { version: 1, header: { left: "{{title}}" }, footer: { right: "{{date}}" } },
+      title: "Audit",
+      date: "2026-01-01",
+      runningInBody: true
+    });
+    expect(html).toContain('class="doc-title"');
+    expect(html).toContain("Audit");
+    expect(html).toContain('class="doc-date"');
+    expect(html).toMatch(/<p class="doc-date">2026-01-01<\/p>/);
+    expect(html).toContain("print-running-header");
+    expect(html).toContain("print-running-footer");
+  });
 });

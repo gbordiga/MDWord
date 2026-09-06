@@ -3,7 +3,7 @@ import type { GenericNode } from "@mdword/shared";
 import { decodeWikiHref, WIKI_SCHEME } from "@mdword/shared";
 import { pageMetrics, type Mdoc } from "@mdword/layout-engine";
 import { collectTocItems, renderTocHtml } from "./toc";
-import { pageMarginCss, resolvedRunningComments } from "./running";
+import { pageMarginCss, resolvedRunningComments, runningBarsHtml } from "./running";
 
 export { collectTocItems, renderTocHtml, type TocItem } from "./toc";
 
@@ -172,6 +172,8 @@ export function renderPrintDocument(options: {
   author?: string;
   date?: string;
   filename?: string;
+  /** Repeat header/footer in the HTML body (needed for browser print, which ignores Chromium templates). */
+  runningInBody?: boolean;
 }): string {
   const metrics = pageMetrics(options.mdoc);
   const bodyFont =
@@ -193,6 +195,15 @@ export function renderPrintDocument(options: {
   const tocDepth = options.mdoc.toc?.depth ?? 3;
   const tocHtml = tocEnabled ? renderTocHtml(collectTocItems(options.ast, tocDepth), numbered) : "";
   const bodyHtml = astToHtml(options.ast);
+  const masthead =
+    options.title || options.subtitle || options.date
+      ? `<header class="doc-masthead">
+  ${options.title ? `<div class="doc-title">${escape(options.title)}</div>` : ""}
+  ${options.subtitle ? `<p class="doc-subtitle">${escape(options.subtitle)}</p>` : ""}
+  ${options.date ? `<p class="doc-date">${escape(options.date)}</p>` : ""}
+</header>`
+      : "";
+  const bars = options.runningInBody ? runningBarsHtml(header, footer, vars) : { header: "", footer: "" };
   return `<!DOCTYPE html>
 <html lang="it">
 <head>
@@ -231,14 +242,31 @@ export function renderPrintDocument(options: {
     .toc-d3 { margin-left: 2.4em; }
     .toc-d4 { margin-left: 3.6em; }
     .toc-empty { color: #667085; }
+    .doc-masthead { margin: 0 0 1.1em; }
+    .doc-title { font-size: 22pt; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 0.2em; }
+    .doc-subtitle { font-size: 12pt; color: #4b5563; margin: 0 0 0.35em; }
+    .doc-date { font-size: 10pt; color: #667085; margin: 0; }
+    .print-running { display: flex; justify-content: space-between; font-size: 9pt; color: #444; }
+    .print-running-header { border-bottom: 1px solid #d0d5dd; padding-bottom: 6px; margin-bottom: 12px; }
+    .print-running-footer { border-top: 1px solid #d0d5dd; padding-top: 6px; margin-top: 16px; }
+    .print-page::after { content: counter(page); }
+    .print-pages::after { content: counter(pages); }
+    @media print {
+      .print-running-header { position: fixed; top: 0; left: 0; right: 0; margin: 0; padding: 4px 0; background: #fff; }
+      .print-running-footer { position: fixed; bottom: 0; left: 0; right: 0; margin: 0; padding: 4px 0; background: #fff; }
+      .doc-body { padding-top: 8px; padding-bottom: 8px; }
+    }
     ${numbered ? headingNumberCss() : ""}
   </style>
 </head>
 <body>
+  ${bars.header}
+  ${masthead}
   ${tocHtml}
   <div class="doc-body">
   ${bodyHtml}
   </div>
+  ${bars.footer}
 </body>
 </html>
 ${resolvedRunningComments(options.mdoc, vars)}`;

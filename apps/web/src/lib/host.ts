@@ -182,6 +182,9 @@ export const webHost: HostApi = {
     },
     async copyIntoAssets() {
       throw new Error("Copy into assets is available in the desktop app");
+    },
+    async canWrite(path: string) {
+      return fileHandles.has(path);
     }
   },
   app: {
@@ -215,6 +218,7 @@ export const webHost: HostApi = {
   },
   export: {
     async pdf(html) {
+      (window as Window & { __MDWORD_LAST_EXPORT_HTML__?: string }).__MDWORD_LAST_EXPORT_HTML__ = html;
       const iframe = document.createElement("iframe");
       iframe.style.position = "fixed";
       iframe.style.right = "100%";
@@ -223,7 +227,9 @@ export const webHost: HostApi = {
       doc.open();
       doc.write(html);
       doc.close();
-      iframe.contentWindow?.print();
+      if (!navigator.webdriver) {
+        iframe.contentWindow?.print();
+      }
       setTimeout(() => iframe.remove(), 2000);
       return new Uint8Array();
     },

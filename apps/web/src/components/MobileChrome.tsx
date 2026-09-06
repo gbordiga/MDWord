@@ -84,6 +84,17 @@ export function MobileTopBar() {
   const setMobileSheet = useApp((s) => s.setMobileSheet);
   const saveFile = useApp((s) => s.saveFile);
   const saving = useApp((s) => s.busy?.kind === "save");
+  const lastDraftAt = useApp((s) => s.lastDraftAt);
+  const lastSavedAt = useApp((s) => s.lastSavedAt);
+  const saveHint = saving
+    ? "Saving…"
+    : dirty && !path && lastDraftAt
+      ? "Draft saved locally"
+      : dirty
+        ? "Unsaved"
+        : lastSavedAt
+          ? "Saved"
+          : (path ?? "Unsaved");
 
   return (
     <header
@@ -98,7 +109,9 @@ export function MobileTopBar() {
           {title}
           {dirty ? <span className="ml-1 text-accent">•</span> : null}
         </div>
-        <div className="truncate text-[11px] text-[#667085]">{path ?? "Unsaved"}</div>
+        <div className="truncate text-[11px] text-[#667085]" data-testid="mobile-save-status">
+          {saveHint}
+        </div>
       </div>
       <IconBtn title="Save" onClick={() => void saveFile()}>
         {saving ? <Spinner size={18} /> : <Save size={20} />}
