@@ -69,6 +69,8 @@ export interface HostApi {
     exists(path: string): Promise<boolean>;
     rename(from: string, to: string): Promise<void>;
     copyIntoAssets(sourcePath: string, workspaceRoot: string): Promise<string>;
+    /** True when save() can write without prompting or downloading. */
+    canWrite(path: string): Promise<boolean>;
     watch?(
       path: string,
       onChange: (info: { path: string; kind: "change" | "delete" }) => void

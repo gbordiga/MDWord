@@ -234,6 +234,10 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             <Btn title="Link" testId="fmt-link" pressed={editor?.isActive("link")} onClick={openLink}>
               <LinkIcon size={16} />
             </Btn>
+            <Divider />
+            <Btn title="Find in document" testId="open-find-home" onClick={() => actions.setFind(true)}>
+              <Search size={16} /> Find
+            </Btn>
           </>
         )}
         {ribbon === "insert" && (
@@ -379,14 +383,14 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             <Btn title="Files" onClick={() => actions.setLeft("files")}>
               <Files size={16} />
             </Btn>
-            <Btn title="Search" onClick={() => actions.setLeft("search")}>
+            <Btn title="Search files" onClick={() => actions.setLeft("search")}>
               <Search size={16} />
             </Btn>
             <Btn title="Backlinks" onClick={() => actions.setLeft("backlinks")}>
               <GitBranch size={16} />
             </Btn>
             <Divider />
-            <Btn title="Find" testId="open-find" onClick={() => actions.setFind(true)}>
+            <Btn title="Find in document" testId="open-find" onClick={() => actions.setFind(true)}>
               <Search size={16} /> Find
             </Btn>
             <Divider />

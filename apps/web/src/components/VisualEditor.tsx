@@ -4,7 +4,7 @@ import { Component, useEffect, useRef, useState, type CSSProperties, type ErrorI
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { editorExtensions, astToTiptap, type TiptapNode } from "@mdword/editor";
 import { pageMetrics, resolveRunningForPreview } from "@mdword/layout-engine";
-import { documentTitle } from "@mdword/shared";
+import { documentDate, documentTitle } from "@mdword/shared";
 import { useApp } from "@/lib/store";
 import { getHost } from "@/lib/host";
 import { Spinner } from "./Spinner";
@@ -193,7 +193,7 @@ function VisualEditorCanvas({
     author: Array.isArray(model.frontmatter.authors)
       ? String((model.frontmatter.authors as { name?: string }[])[0]?.name ?? "")
       : String(model.frontmatter.author ?? ""),
-    date: String(model.frontmatter.date ?? ""),
+    date: documentDate(model.frontmatter),
     filename: "",
     page: 1
   };
@@ -205,6 +205,7 @@ function VisualEditorCanvas({
   const typo = model.resolvedMdoc.typography ?? {};
   const titleText = documentTitle(model.frontmatter, "");
   const subtitleText = String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? "");
+  const dateText = documentDate(model.frontmatter);
 
   return (
     <div
@@ -254,12 +255,19 @@ function VisualEditorCanvas({
               paddingLeft: metrics.margins.left
             }}
           >
-            {titleText ? (
+            {titleText || subtitleText || dateText ? (
               <div className="md-doc-masthead">
-                <div className="md-doc-title" data-testid="doc-title">
-                  {titleText}
-                </div>
+                {titleText ? (
+                  <div className="md-doc-title" data-testid="doc-title">
+                    {titleText}
+                  </div>
+                ) : null}
                 {subtitleText ? <p className="md-doc-subtitle">{subtitleText}</p> : null}
+                {dateText ? (
+                  <p className="md-doc-date" data-testid="doc-date">
+                    {dateText}
+                  </p>
+                ) : null}
               </div>
             ) : null}
             {tocEnabled ? (

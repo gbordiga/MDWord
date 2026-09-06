@@ -9,10 +9,10 @@ test("find bar locates typed text", async ({ page }) => {
   await page.keyboard.press("ControlOrMeta+F");
   await expect(page.getByTestId("find-bar")).toBeVisible();
   await page.getByTestId("find-input").fill("Alpha");
+  await expect(page.getByTestId("find-status")).toContainText("1 of 2");
   await page.getByTestId("find-next").click();
-  await expect(page.getByTestId("find-status")).toContainText("of 2");
-  const selected = await page.evaluate(() => window.getSelection()?.toString());
-  expect(selected).toBe("Alpha");
+  await expect(page.getByTestId("find-status")).toContainText("2 of 2");
+  await expect(page.getByTestId("find-input")).toBeFocused();
 });
 
 test("outline jumps to a heading", async ({ page }) => {

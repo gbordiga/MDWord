@@ -98,15 +98,22 @@ function textChunks(editor: Editor): { pos: number; text: string }[] {
 export function findInDocument(
   editor: Editor,
   query: string,
-  direction: 1 | -1
+  direction: 1 | -1,
+  options?: { focus?: boolean; from?: "caret-end" | "caret-start" }
 ): { count: number; index: number } {
   const matches = collectSearchMatches(textChunks(editor), query);
   if (!matches.length) return { count: 0, index: -1 };
-  const from = direction === 1 ? editor.state.selection.to : editor.state.selection.from;
+  const from =
+    direction === 1
+      ? options?.from === "caret-start"
+        ? editor.state.selection.from
+        : editor.state.selection.to
+      : editor.state.selection.from;
   const index = nextMatchIndex(matches, from, direction);
   const match = matches[index];
   if (match) {
-    editor.chain().focus().setTextSelection({ from: match.from, to: match.to }).scrollIntoView().run();
+    const chain = options?.focus === false ? editor.chain() : editor.chain().focus();
+    chain.setTextSelection({ from: match.from, to: match.to }).scrollIntoView().run();
   }
   return { count: matches.length, index };
 }

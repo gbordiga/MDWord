@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   displayDocumentTitle,
+  documentDate,
   documentTitle,
   documentTitleKey,
   titleFromPath
@@ -22,5 +23,14 @@ describe("document titles", () => {
       "Direzione strategica"
     );
     expect(displayDocumentTitle({}, "notes/alpha.md")).toBe("alpha");
+  });
+});
+
+describe("document dates", () => {
+  it("keeps ISO calendar days and YAML Date objects", () => {
+    expect(documentDate({ date: "2026-03-15" })).toBe("2026-03-15");
+    expect(documentDate({ date: new Date("2026-03-15T00:00:00.000Z") })).toBe("2026-03-15");
+    expect(documentDate({ data: "2026-09-06" })).toBe("2026-09-06");
+    expect(documentDate({})).toBe("");
   });
 });

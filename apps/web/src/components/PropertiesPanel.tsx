@@ -2,7 +2,7 @@
 
 import { cn } from "@mdword/ui";
 import { BUILT_IN_TEMPLATES } from "@mdword/layout-engine";
-import { documentTitle, documentTitleKey } from "@mdword/shared";
+import { documentDate, documentTitle, documentTitleKey } from "@mdword/shared";
 import { useApp } from "@/lib/store";
 
 const fieldClass =
@@ -61,8 +61,9 @@ export function PropertiesPanel({ className }: { className?: string }) {
       <label className="mb-2 block">
         Date
         <input
+          data-testid="prop-date"
           className={fieldClass}
-          value={String(model.frontmatter.date ?? "")}
+          value={documentDate(model.frontmatter)}
           onChange={(e) => patchFrontmatter({ date: e.target.value })}
         />
       </label>

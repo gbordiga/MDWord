@@ -76,6 +76,12 @@ html.keyboard-open .mdword-app {
   font-size: var(--md-subtitle-size, 14pt);
   font-weight: 400;
   color: #4b5563;
+  margin: 0 0 0.35em;
+}
+
+.md-doc-date {
+  font-size: 10pt;
+  color: #667085;
   margin: 0 0 1em;
 }
 

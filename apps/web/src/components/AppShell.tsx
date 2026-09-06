@@ -22,7 +22,8 @@ import { useApp } from "@/lib/store";
 import { getHost } from "@/lib/host";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
 import { useCtrlWheelZoom } from "@/hooks/useCtrlWheelZoom";
-import { insertTable } from "@/lib/editorCommands";
+import { useAutosave } from "@/hooks/useAutosave";
+import { insertTable, selectionText } from "@/lib/editorCommands";
 import { EditorUiProvider, useEditorUi } from "@/lib/editorUi";
 
 export function AppShell() {
@@ -56,6 +57,7 @@ function AppShellInner({
   const { openLink, openImage, openWikilink, dialog, closeDialog, confirm, confirmIfDirty, closeConfirm } =
     useEditorUi();
   useCtrlWheelZoom();
+  useAutosave();
 
   useEffect(() => {
     const collapseChrome = () => {
@@ -86,7 +88,14 @@ function AppShellInner({
       }
       if (meta && e.key.toLowerCase() === "f") {
         e.preventDefault();
-        useApp.getState().setFind(true);
+        e.stopPropagation();
+        const selected = editorRef.current ? selectionText(editorRef.current).trim() : "";
+        useApp.getState().setFind(true, selected && selected.length <= 80 ? selected : undefined);
+        window.setTimeout(() => {
+          const input = document.querySelector<HTMLInputElement>('[data-testid="find-input"]');
+          input?.focus();
+          input?.select();
+        }, 0);
       }
       if (meta && e.key.toLowerCase() === "n") {
         e.preventDefault();
@@ -113,8 +122,8 @@ function AppShellInner({
       if (meta && e.key === "1") editorRef.current?.chain().focus().toggleHeading({ level: 1 }).run();
       if (meta && e.key === "2") editorRef.current?.chain().focus().toggleHeading({ level: 2 }).run();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [confirmIfDirty, openLink]);
 
   useEffect(() => {
@@ -182,11 +191,14 @@ function AppShellInner({
         {busy?.blocking ? <BusyOverlay label={busy.label} /> : null}
       </div>
       <footer className="hidden h-7 shrink-0 items-center justify-between border-t border-[#e4e7ec] bg-white px-3 text-[11px] text-[#667085] lg:flex">
-        <span>
-          {path ?? "Untitled"} {dirty ? "•" : ""}
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <span className="truncate">
+            {path ?? "Untitled"} {dirty ? "•" : ""}
+          </span>
+          <DesktopSaveStatus />
         </span>
         <span className="inline-flex items-center gap-1.5">
-          {busy ? (
+          {busy && busy.kind !== "save" ? (
             <>
               <Spinner size={12} />
               <span data-testid="app-busy-label">{busy.label}</span>
@@ -207,5 +219,38 @@ function AppShellInner({
       <WikilinkDialog open={dialog === "wikilink"} editor={editor} onClose={closeDialog} />
       <ConfirmDialog confirm={confirm} onClose={closeConfirm} />
     </div>
+  );
+}
+
+function DesktopSaveStatus() {
+  const busy = useApp((s) => s.busy);
+  const dirty = useApp((s) => s.dirty);
+  const path = useApp((s) => s.path);
+  const lastSavedAt = useApp((s) => s.lastSavedAt);
+  const lastDraftAt = useApp((s) => s.lastDraftAt);
+  const saving = busy?.kind === "save";
+  let text = "";
+  let state = "clean";
+  if (saving) {
+    text = "Saving…";
+    state = "saving";
+  } else if (dirty && !path && lastDraftAt) {
+    text = "Draft saved locally";
+    state = "draft";
+  } else if (dirty) {
+    text = "Unsaved";
+    state = "unsaved";
+  } else if (lastSavedAt) {
+    text = "Saved";
+    state = "saved";
+  }
+
+  if (!text) return null;
+
+  return (
+    <span data-testid="save-status" data-save-state={state} className="inline-flex items-center gap-1.5" aria-live="polite">
+      {saving ? <Spinner size={12} /> : null}
+      {text}
+    </span>
   );
 }

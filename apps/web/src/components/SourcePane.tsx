@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createSourceEditor, setSource } from "@mdword/source-editor";
 import { saveDocument } from "@mdword/document-model";
 import { useApp } from "@/lib/store";
+import { registerSourceView } from "@/lib/sourceView";
 import { Spinner } from "./Spinner";
 
 export function SourcePane() {
@@ -14,15 +15,17 @@ export function SourcePane() {
   const syncGeneration = useApp((s) => s.syncGeneration);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!parentRef.current || viewRef.current) return;
     viewRef.current = createSourceEditor({
       parent: parentRef.current,
       doc: saveDocument(model),
       onChange: (value) => applySource(value)
     });
+    registerSourceView(viewRef.current);
     setReady(true);
     return () => {
+      registerSourceView(null);
       viewRef.current?.destroy();
       viewRef.current = null;
     };

@@ -32,6 +32,34 @@ export function pageMarginCss(header: Running, footer: Running): string {
   return rules.join("\n      ");
 }
 
+export function runningBarsHtml(
+  header: Running,
+  footer: Running,
+  vars: {
+    title?: string;
+    subtitle?: string;
+    author?: string;
+    date?: string;
+    filename?: string;
+  }
+): { header: string; footer: string } {
+  const resolve = (template: string) => resolveRunningForPrint(template, vars);
+  const cell = (template: string) => {
+    const html = escapeHtml(resolve(template))
+      .replace(/\{\{page\}\}/g, '<span class="print-page"></span>')
+      .replace(/\{\{pages\}\}/g, '<span class="print-pages"></span>');
+    return `<span>${html}</span>`;
+  };
+  return {
+    header: `<div class="print-running print-running-header">${cell(header.left ?? "")}${cell(header.center ?? "")}${cell(header.right ?? "")}</div>`,
+    footer: `<div class="print-running print-running-footer">${cell(footer.left ?? "")}${cell(footer.center ?? "")}${cell(footer.right ?? "")}</div>`
+  };
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 export function resolvedRunningComments(
   mdoc: Mdoc,
   vars: {
@@ -45,14 +73,12 @@ export function resolvedRunningComments(
   const header = mdoc.header ?? {};
   const footer = mdoc.footer ?? {};
   const resolve = (template: string) => resolveRunningForPrint(template, vars);
-  const escape = (text: string) =>
-    text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   return [
-    `<!-- header-left:${escape(resolve(header.left ?? ""))} -->`,
-    `<!-- header-center:${escape(resolve(header.center ?? ""))} -->`,
-    `<!-- header-right:${escape(resolve(header.right ?? ""))} -->`,
-    `<!-- footer-left:${escape(resolve(footer.left ?? ""))} -->`,
-    `<!-- footer-center:${escape(resolve(footer.center ?? ""))} -->`,
-    `<!-- footer-right:${escape(resolve(footer.right ?? ""))} -->`
+    `<!-- header-left:${escapeHtml(resolve(header.left ?? ""))} -->`,
+    `<!-- header-center:${escapeHtml(resolve(header.center ?? ""))} -->`,
+    `<!-- header-right:${escapeHtml(resolve(header.right ?? ""))} -->`,
+    `<!-- footer-left:${escapeHtml(resolve(footer.left ?? ""))} -->`,
+    `<!-- footer-center:${escapeHtml(resolve(footer.center ?? ""))} -->`,
+    `<!-- footer-right:${escapeHtml(resolve(footer.right ?? ""))} -->`
   ].join("\n");
 }

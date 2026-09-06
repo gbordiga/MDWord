@@ -3,45 +3,76 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { findInDocument } from "@/lib/editorCommands";
+import { findInSource } from "@mdword/source-editor";
 import { useEditorUi } from "@/lib/editorUi";
 import { useApp } from "@/lib/store";
+import { getSourceView } from "@/lib/sourceView";
 
 export function FindBar() {
   const open = useApp((s) => s.findOpen);
   const query = useApp((s) => s.findQuery);
   const setFind = useApp((s) => s.setFind);
+  const view = useApp((s) => s.view);
   const { editor } = useEditorUi();
   const inputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState("");
 
   useEffect(() => {
-    if (open) inputRef.current?.focus();
+    if (!open) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
   }, [open]);
+
+  const run = (direction: 1 | -1, keepFocus = true, live = false) => {
+    const needle = query.trim();
+    if (!needle) {
+      setStatus("");
+      return;
+    }
+    const source = view !== "document" ? getSourceView() : null;
+    const visual = view !== "source" ? editor : null;
+    let result = { count: 0, index: -1 };
+    if (visual) {
+      result = findInDocument(visual, query, direction, {
+        focus: !keepFocus,
+        from: live ? "caret-start" : "caret-end"
+      });
+    } else if (source) {
+      result = findInSource(source, query, direction);
+    }
+    setStatus(result.count ? `${result.index + 1} of ${result.count}` : "No matches");
+    if (keepFocus) requestAnimationFrame(() => inputRef.current?.focus());
+  };
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
+        e.stopPropagation();
         setFind(false);
         editor?.commands.focus();
       }
+      if (e.key === "F3") {
+        e.preventDefault();
+        run(e.shiftKey ? -1 : 1);
+      }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, editor, setFind]);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [open, editor, query, view]);
 
-  if (!open) return null;
-
-  const run = (direction: 1 | -1) => {
-    if (!editor) return;
-    const result = findInDocument(editor, query, direction);
-    if (!query.trim()) {
+  useEffect(() => {
+    if (!open) {
       setStatus("");
       return;
     }
-    setStatus(result.count ? `${result.index + 1} of ${result.count}` : "No matches");
-  };
+    run(1, true, true);
+    // Search when the query or target editor changes, not on every key in the document.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, query, editor, view]);
+
+  if (!open) return null;
 
   return (
     <div
@@ -56,7 +87,6 @@ export function FindBar() {
         value={query}
         onChange={(e) => {
           setFind(true, e.target.value);
-          setStatus("");
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {

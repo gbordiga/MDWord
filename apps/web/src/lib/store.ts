@@ -6,7 +6,7 @@ import {
   saveDocument,
   type DocumentModel
 } from "@mdword/document-model";
-import { displayDocumentTitle, type ViewMode } from "@mdword/shared";
+import { displayDocumentTitle, documentDate, type ViewMode } from "@mdword/shared";
 import type { Mdoc } from "@mdword/layout-engine";
 import { parseDocument } from "yaml";
 import { getHost } from "./host";
@@ -50,6 +50,9 @@ interface AppState {
   workspace: WorkspaceState | null;
   externalDialog: { path: string; incoming: string } | null;
   syncGeneration: number;
+  editGeneration: number;
+  lastSavedAt: number | null;
+  lastDraftAt: number | null;
   busy: BusyState | null;
   applySource: (source: string) => void;
   applyTiptap: (doc: TiptapNode) => void;
@@ -75,6 +78,7 @@ interface AppState {
   setPalette: (open: boolean) => void;
   setFind: (open: boolean, query?: string) => void;
   finishBusy: (kinds?: BusyKind[]) => void;
+  autosave: () => Promise<void>;
 }
 
 function modelFrom(source: string, workspaceMdoc?: Mdoc): DocumentModel {
@@ -118,6 +122,9 @@ export const useApp = create<AppState>((set, get) => {
   workspace: null,
   externalDialog: null,
   syncGeneration: 0,
+  editGeneration: 0,
+  lastSavedAt: null,
+  lastDraftAt: null,
   busy: null,
   finishBusy: (kinds) => {
     const busy = get().busy;
@@ -126,7 +133,7 @@ export const useApp = create<AppState>((set, get) => {
   },
   applySource: (source) => {
     const model = modelFrom(source, get().workspace?.workspaceMdoc);
-    set({ model, dirty: true, syncGeneration: get().syncGeneration + 1 });
+    set({ model, dirty: true, syncGeneration: get().syncGeneration + 1, editGeneration: get().editGeneration + 1 });
   },
   applyTiptap: (doc) => {
     try {
@@ -136,7 +143,8 @@ export const useApp = create<AppState>((set, get) => {
       const source = saveDocument(next);
       set({
         model: { ...openDocument(source, { workspaceMdoc: get().workspace?.workspaceMdoc }), ast },
-        dirty: true
+        dirty: true,
+        editGeneration: get().editGeneration + 1
       });
     } catch (error) {
       console.error("Could not apply visual edits", error);
@@ -153,6 +161,8 @@ export const useApp = create<AppState>((set, get) => {
       model: modelFrom(untitledDocument()),
       path: null,
       dirty: false,
+      lastSavedAt: null,
+      lastDraftAt: null,
       syncGeneration: get().syncGeneration + 1
     }),
   openFile: async () => {
@@ -167,6 +177,7 @@ export const useApp = create<AppState>((set, get) => {
         model,
         path: result.path,
         dirty: false,
+        lastSavedAt: Date.now(),
         syncGeneration: get().syncGeneration + 1
       });
       if (get().view === "source") set({ busy: null });
@@ -184,7 +195,7 @@ export const useApp = create<AppState>((set, get) => {
       if (!next) return;
       beginBusy({ kind: "save", label: "Saving…", blocking: false });
       try {
-        set({ path: next, dirty: false, model: { ...model, source: content } });
+        set({ path: next, dirty: false, model: { ...model, source: content }, lastSavedAt: Date.now() });
         rememberSavedFile(next, content);
         await reloadWorkspace();
       } finally {
@@ -196,7 +207,7 @@ export const useApp = create<AppState>((set, get) => {
     await yieldPaint();
     try {
       await host.files.save({ path, content });
-      set({ dirty: false, model: { ...model, source: content } });
+      set({ dirty: false, model: { ...model, source: content }, lastSavedAt: Date.now() });
       rememberSavedFile(path, content);
       await reloadWorkspace();
     } catch (error) {
@@ -212,7 +223,7 @@ export const useApp = create<AppState>((set, get) => {
     if (!next) return;
     beginBusy({ kind: "save", label: "Saving…", blocking: false });
     try {
-      set({ path: next, dirty: false });
+      set({ path: next, dirty: false, lastSavedAt: Date.now() });
       rememberSavedFile(next, content);
       await reloadWorkspace();
     } finally {
@@ -243,6 +254,7 @@ export const useApp = create<AppState>((set, get) => {
         model: modelFrom(result.content, get().workspace?.workspaceMdoc),
         path: result.path,
         dirty: false,
+        lastSavedAt: Date.now(),
         syncGeneration: get().syncGeneration + 1,
         mobileSheet: null
       });
@@ -269,8 +281,10 @@ export const useApp = create<AppState>((set, get) => {
         ast: model.ast,
         mdoc: model.resolvedMdoc,
         title: displayDocumentTitle(model.frontmatter, path),
-        date: String(model.frontmatter.date ?? ""),
-        filename: path ?? "document.md"
+        subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
+        date: documentDate(model.frontmatter),
+        filename: path ?? "document.md",
+        runningInBody: getHost().platform === "web"
       });
       await getHost().export.pdf(html, {});
     } finally {
@@ -286,7 +300,10 @@ export const useApp = create<AppState>((set, get) => {
         ast: model.ast,
         mdoc: model.resolvedMdoc,
         title: displayDocumentTitle(model.frontmatter, path),
-        filename: path ?? "document.md"
+        subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
+        date: documentDate(model.frontmatter),
+        filename: path ?? "document.md",
+        runningInBody: true
       });
       set({ busy: null });
       await getHost().files.saveAs(html, (path ?? "document").replace(/\.md$/, "") + ".html");
@@ -304,7 +321,7 @@ export const useApp = create<AppState>((set, get) => {
     const next = openDocument(saveDocument({ ...current, yamlCst: yaml, frontmatter }), {
       workspaceMdoc: get().workspace?.workspaceMdoc
     });
-    set({ model: next, dirty: true, syncGeneration: get().syncGeneration + 1 });
+    set({ model: next, dirty: true, syncGeneration: get().syncGeneration + 1, editGeneration: get().editGeneration + 1 });
   },
   patchFrontmatter: (patch) => {
     const current = get().model;
@@ -316,13 +333,41 @@ export const useApp = create<AppState>((set, get) => {
     const next = openDocument(saveDocument({ ...current, frontmatter, yamlCst: yaml }), {
       workspaceMdoc: get().workspace?.workspaceMdoc
     });
-    set({ model: next, dirty: true, syncGeneration: get().syncGeneration + 1 });
+    set({ model: next, dirty: true, syncGeneration: get().syncGeneration + 1, editGeneration: get().editGeneration + 1 });
   },
   setZoom: (zoom) => set({ zoom: Math.min(2, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
   toggleLeft: () => set({ leftOpen: !get().leftOpen }),
   toggleRight: () => set({ rightOpen: !get().rightOpen }),
   setMobileSheet: (mobileSheet) => set({ mobileSheet }),
   setPalette: (paletteOpen) => set({ paletteOpen }),
-  setFind: (findOpen, query) => set({ findOpen, findQuery: query ?? get().findQuery })
+  setFind: (findOpen, query) => set({ findOpen, findQuery: query ?? get().findQuery }),
+  autosave: async () => {
+    const state = get();
+    if (!state.dirty) return;
+    if (state.busy) return;
+    const host = getHost();
+    const content = saveDocument(state.model);
+    beginBusy({ kind: "save", label: "Saving…", blocking: false });
+    try {
+      await host.app.writeRecovery("current", content, {
+        path: state.path,
+        updatedMs: Date.now()
+      });
+      set({ lastDraftAt: Date.now() });
+      if (state.path && (await host.files.canWrite(state.path))) {
+        await host.files.save({ path: state.path, content });
+        rememberSavedFile(state.path, content);
+        set({
+          dirty: false,
+          model: { ...state.model, source: content },
+          lastSavedAt: Date.now()
+        });
+      }
+    } catch (error) {
+      console.error("Autosave failed", error);
+    } finally {
+      set({ busy: null });
+    }
+  }
   };
 });
