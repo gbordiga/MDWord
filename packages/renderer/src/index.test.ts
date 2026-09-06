@@ -116,23 +116,43 @@ describe("running header and footer", () => {
       },
       title: "Audit",
       date: "2026-01-01",
-      runningInBody: true,
-      pagedScriptUrl: "https://example.test/paged.polyfill.min.js"
+      runningInBody: true
     });
     expect(html).toContain('class="print-running print-running-header"');
-    expect(html).toContain("Audit");
-    expect(html).not.toContain("print-page");
     const headerBar = html.match(/class="print-running print-running-header">[\s\S]*?<\/div>/)?.[0] ?? "";
     expect(headerBar).toContain("Audit");
     expect(headerBar).not.toContain("{{page}}");
-    expect(html).toContain("<!-- header-right:{{page}} / {{pages}} -->");
     expect(html).toMatch(/@top-right/);
     expect(html).toMatch(/counter\(page\)/);
-    expect(html).toMatch(/counter\(pages\)/);
     expect(html).not.toMatch(/@top-left/);
-    expect(html).not.toMatch(/@bottom-right/);
+  });
+
+  it("uses @page boxes instead of a print table when Paged.js is loaded", () => {
+    const html = renderPrintDocument({
+      ast: { type: "root", children: [] },
+      mdoc: {
+        version: 1,
+        header: { left: "{{title}}", right: "{{page}} / {{pages}}" },
+        footer: { right: "{{date}}" }
+      },
+      title: "Audit",
+      date: "2026-01-01",
+      runningInBody: true,
+      pagedScriptUrl: "https://example.test/paged.polyfill.min.js"
+    });
+    expect(html).not.toContain("print-running-header");
+    expect(html).not.toContain("print-root");
+    expect(html).not.toContain("<thead>");
+    expect(html).toContain('class="doc-title"');
+    expect(html).toContain("Audit");
+    expect(html).toMatch(/@top-left/);
+    expect(html).toMatch(/@top-right/);
+    expect(html).toMatch(/@bottom-right/);
+    expect(html).toMatch(/counter\(page\)/);
+    expect(html).toMatch(/counter\(pages\)/);
     expect(html).toContain("https://example.test/paged.polyfill.min.js");
     expect(html).toContain("pagedReady");
+    expect(html).not.toContain("print-page");
     expect(html).not.toMatch(/position:\s*fixed/);
   });
 });

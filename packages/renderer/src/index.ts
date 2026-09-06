@@ -172,7 +172,12 @@ export function renderPrintDocument(options: {
   author?: string;
   date?: string;
   filename?: string;
-  /** Repeat header/footer in the HTML body (needed for browser print, which ignores Chromium templates). */
+  /**
+   * Repeat header/footer as a print table (thead/tfoot). Chromium's native print
+   * can repeat those rows, but Paged.js cannot fragment that table — combining
+   * the two leaves page 1 empty and the running bars only on the first page.
+   * Web Chromium should pass pagedScriptUrl instead and leave this false.
+   */
   runningInBody?: boolean;
   /** Same-origin Paged.js polyfill so @page boxes and page counters work in Chromium. */
   pagedScriptUrl?: string;
@@ -205,8 +210,9 @@ export function renderPrintDocument(options: {
   ${options.date ? `<p class="doc-date">${escape(options.date)}</p>` : ""}
 </header>`
       : "";
-  const bars = options.runningInBody ? runningBarsHtml(header, footer, vars) : { header: "", footer: "" };
-  const pageBoxes = options.runningInBody
+  const useBodyBars = Boolean(options.runningInBody) && !options.pagedScriptUrl;
+  const bars = useBodyBars ? runningBarsHtml(header, footer, vars) : { header: "", footer: "" };
+  const pageBoxes = useBodyBars
     ? pageMarginCss(header, footer, vars, { pageTokensOnly: true })
     : pageMarginCss(header, footer, vars);
   const pagedScript = options.pagedScriptUrl
@@ -256,7 +262,7 @@ export function renderPrintDocument(options: {
     .doc-subtitle { font-size: 12pt; color: #4b5563; margin: 0 0 0.35em; }
     .doc-date { font-size: 10pt; color: #667085; margin: 0; }
     ${
-      options.runningInBody
+      useBodyBars
         ? `.print-root { width: 100%; border-collapse: collapse; }
     .print-root > thead { display: table-header-group; }
     .print-root > tfoot { display: table-footer-group; }
@@ -272,7 +278,7 @@ export function renderPrintDocument(options: {
 </head>
 <body>
   ${
-    options.runningInBody
+    useBodyBars
       ? `<table class="print-root">
   <thead><tr><th>${bars.header}</th></tr></thead>
   <tfoot><tr><td>${bars.footer}</td></tr></tfoot>
