@@ -26,5 +26,14 @@ recovery
 .pnpm-store
 .vercel/*
 !.vercel/project.json
+apps/mobile/android/.gradle
+apps/mobile/android/build
+apps/mobile/android/app/build
+apps/mobile/android/local.properties
+apps/mobile/android/captures
+apps/mobile/android/app/src/main/assets/public
+apps/mobile/ios/App/Pods
+apps/mobile/ios/App/App/public
+apps/mobile/ios/DerivedData
 .env*
 !.env.example

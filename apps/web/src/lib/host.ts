@@ -4,6 +4,7 @@ import {
   type OpenDocumentResult,
   type UserPreferences
 } from "@mdword/shared";
+import { isNativeApp, openNativeUrl, shareNativeFile, writeNativeDocument } from "./native";
 
 const DB = "mdword";
 const PREFS = "preferences";
@@ -17,6 +18,7 @@ export function getHost(): HostApi {
   if (typeof window !== "undefined" && (window as Window & { mdword?: HostApi }).mdword) {
     return (window as Window & { mdword: HostApi }).mdword;
   }
+  if (isNativeApp()) return capacitorHost;
   return webHost;
 }
 
@@ -124,6 +126,11 @@ export const webHost: HostApi = {
         await writable.close();
         return;
       }
+      if (isNativeApp()) {
+        await writeNativeDocument(path || "document.md", content);
+        nativeWritten.add(path || "document.md");
+        return;
+      }
       download(path || "document.md", content);
     },
     async saveAs(content, suggestedName = "document.md") {
@@ -138,6 +145,13 @@ export const webHost: HostApi = {
         await writable.close();
         fileHandles.set(handle.name, handle);
         return handle.name;
+      }
+      if (isNativeApp()) {
+        const name = suggestedName || "document.md";
+        const uri = await writeNativeDocument(name, content);
+        nativeWritten.add(name);
+        await shareNativeFile("Save MDWord document", uri);
+        return name;
       }
       download(suggestedName, content);
       return suggestedName;
@@ -184,7 +198,7 @@ export const webHost: HostApi = {
       throw new Error("Copy into assets is available in the desktop app");
     },
     async canWrite(path: string) {
-      return fileHandles.has(path);
+      return fileHandles.has(path) || nativeWritten.has(path);
     }
   },
   app: {
@@ -212,7 +226,7 @@ export const webHost: HostApi = {
       return {
         appVersion: "0.1.0",
         platform: "web",
-        logs: ["telemetry=off", `electron=${isElectron()}`]
+        logs: ["telemetry=off", `electron=${isElectron()}`, `native=${isNativeApp()}`]
       };
     }
   },
@@ -246,12 +260,29 @@ export const webHost: HostApi = {
   shell: {
     async openExternal(url) {
       if (!/^https?:/i.test(url) && !url.startsWith("mailto:")) return;
+      if (isNativeApp()) {
+        await openNativeUrl(url);
+        return;
+      }
       window.open(url, "_blank", "noopener,noreferrer");
     }
   }
 };
 
 let folderHandle: DirHandle | null = null;
+const nativeWritten = new Set<string>();
+
+const capacitorHost: HostApi = {
+  ...webHost,
+  platform: "capacitor",
+  app: {
+    ...webHost.app,
+    async exportDiagnostics() {
+      const bundle = await webHost.app.exportDiagnostics();
+      return { ...bundle, platform: "capacitor" };
+    }
+  }
+};
 
 function waitForPagedPrint(win: Window): Promise<void> {
   const doc = win.document;

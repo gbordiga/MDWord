@@ -20,6 +20,7 @@ import { BusyOverlay } from "./BusyOverlay";
 import { Spinner } from "./Spinner";
 import { useApp } from "@/lib/store";
 import { getHost } from "@/lib/host";
+import { configureNativeChrome, hideNativeSplash } from "@/lib/native";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
 import { useCtrlWheelZoom } from "@/hooks/useCtrlWheelZoom";
 import { useAutosave } from "@/hooks/useAutosave";
@@ -140,6 +141,7 @@ function AppShellInner({
 
   useEffect(() => {
     document.documentElement.classList.add("mdword-ready");
+    void configureNativeChrome().then(() => hideNativeSplash());
   }, []);
 
   useEffect(() => {
