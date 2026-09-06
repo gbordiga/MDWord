@@ -97,7 +97,7 @@ describe("running header and footer", () => {
     expect(html).toContain("Audit");
     expect(html).toContain('class="doc-date"');
     expect(html).toMatch(/<p class="doc-date">2026-01-01<\/p>/);
-    expect(html).toContain("print-running-header");
+    expect(html).toContain('class="print-running print-running-header"');
     expect(html).toContain("print-running-footer");
     expect(html).not.toMatch(/@top-left/);
     expect(html).not.toMatch(/@bottom-right/);

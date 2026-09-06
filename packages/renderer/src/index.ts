@@ -247,11 +247,15 @@ export function renderPrintDocument(options: {
     .doc-title { font-size: 22pt; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 0.2em; }
     .doc-subtitle { font-size: 12pt; color: #4b5563; margin: 0 0 0.35em; }
     .doc-date { font-size: 10pt; color: #667085; margin: 0; }
-    .print-running { display: flex; justify-content: space-between; font-size: 9pt; color: #444; }
+    ${
+      options.runningInBody
+        ? `.print-running { display: flex; justify-content: space-between; font-size: 9pt; color: #444; }
     .print-running-header { border-bottom: 1px solid #d0d5dd; padding-bottom: 6px; margin-bottom: 12px; }
     .print-running-footer { border-top: 1px solid #d0d5dd; padding-top: 6px; margin-top: 16px; }
     .print-page::after { content: counter(page); }
-    .print-pages::after { content: counter(pages); }
+    .print-pages::after { content: counter(pages); }`
+        : ""
+    }
     ${numbered ? headingNumberCss() : ""}
   </style>
 </head>
