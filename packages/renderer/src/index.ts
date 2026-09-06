@@ -204,6 +204,7 @@ export function renderPrintDocument(options: {
 </header>`
       : "";
   const bars = options.runningInBody ? runningBarsHtml(header, footer, vars) : { header: "", footer: "" };
+  const pageBoxes = options.runningInBody ? "" : pageMarginCss(header, footer);
   return `<!DOCTYPE html>
 <html lang="it">
 <head>
@@ -213,7 +214,7 @@ export function renderPrintDocument(options: {
     @page {
       size: ${metrics.widthMm}mm ${metrics.heightMm}mm;
       margin: ${options.mdoc.margins?.top ?? "20mm"} ${options.mdoc.margins?.right ?? "20mm"} ${options.mdoc.margins?.bottom ?? "20mm"} ${options.mdoc.margins?.left ?? "25mm"};
-      ${pageMarginCss(header, footer)}
+      ${pageBoxes}
     }
     html, body {
       font-family: ${bodyFont};
@@ -251,11 +252,6 @@ export function renderPrintDocument(options: {
     .print-running-footer { border-top: 1px solid #d0d5dd; padding-top: 6px; margin-top: 16px; }
     .print-page::after { content: counter(page); }
     .print-pages::after { content: counter(pages); }
-    @media print {
-      .print-running-header { position: fixed; top: 0; left: 0; right: 0; margin: 0; padding: 4px 0; background: #fff; }
-      .print-running-footer { position: fixed; bottom: 0; left: 0; right: 0; margin: 0; padding: 4px 0; background: #fff; }
-      .doc-body { padding-top: 8px; padding-bottom: 8px; }
-    }
     ${numbered ? headingNumberCss() : ""}
   </style>
 </head>
