@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { astToTiptap } from "./astToTiptap";
 import { tiptapToAst } from "./tiptapToAst";
+import { collectEmptyTextPaths, tiptapDocFromJson } from "./schemaValid";
 
 describe("tiptap conversion", () => {
   it("maps headings, emphasis and lists", () => {
@@ -74,5 +75,59 @@ describe("tiptap conversion", () => {
       type: "link",
       url: "https://example.com"
     });
+  });
+
+  it("does not emit empty text nodes for empty table cells", () => {
+    const ast = {
+      type: "root",
+      children: [
+        {
+          type: "table",
+          children: [
+            {
+              type: "tableRow",
+              children: [
+                { type: "tableCell", header: true, children: [] },
+                {
+                  type: "tableCell",
+                  header: true,
+                  children: [{ type: "text", value: "KPI" }]
+                }
+              ]
+            },
+            {
+              type: "tableRow",
+              children: [
+                { type: "tableCell", children: [] },
+                {
+                  type: "tableCell",
+                  children: [{ type: "paragraph", children: [{ type: "text", value: "ROS" }] }]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+    const json = astToTiptap(ast);
+    expect(collectEmptyTextPaths(json)).toEqual([]);
+    const doc = tiptapDocFromJson(json);
+    expect(doc.textContent).toContain("KPI");
+    expect(doc.textContent).toContain("ROS");
+  });
+
+  it("keeps empty paragraphs and list items schema-valid", () => {
+    const json = astToTiptap({
+      type: "root",
+      children: [
+        { type: "paragraph", children: [] },
+        {
+          type: "list",
+          children: [{ type: "listItem", children: [] }]
+        }
+      ]
+    });
+    expect(collectEmptyTextPaths(json)).toEqual([]);
+    expect(tiptapDocFromJson(json).childCount).toBeGreaterThan(0);
   });
 });

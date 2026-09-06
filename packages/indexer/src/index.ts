@@ -1,4 +1,10 @@
-import { extractWikiLinks, headingSlug, stripMdExtension, basename } from "@mdword/shared";
+import {
+  extractWikiLinks,
+  headingSlug,
+  stripMdExtension,
+  basename,
+  documentTitle
+} from "@mdword/shared";
 import { parseMarkdown } from "@mdword/myst-parser";
 
 export interface IndexedDocument {
@@ -44,7 +50,7 @@ export function indexMarkdown(
   };
   walk(parsed.ast as never);
   const title =
-    (typeof parsed.frontmatter.title === "string" && parsed.frontmatter.title) ||
+    documentTitle(parsed.frontmatter, "") ||
     headings[0]?.text ||
     stripMdExtension(basename(path));
   const tags = Array.isArray(parsed.frontmatter.tags)

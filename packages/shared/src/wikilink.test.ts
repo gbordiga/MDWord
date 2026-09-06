@@ -12,6 +12,8 @@ describe("wikilinks", () => {
   it("parses all documented forms", () => {
     expect(parseWikiLinkInner("[[Documento]]")?.target).toBe("Documento");
     expect(parseWikiLinkInner("[[Documento|testo]]")?.label).toBe("testo");
+    expect(parseWikiLinkInner("[[Documento\\|testo]]")?.target).toBe("Documento");
+    expect(parseWikiLinkInner("[[Documento\\|testo]]")?.label).toBe("testo");
     expect(parseWikiLinkInner("[[Documento#Sezione]]")?.section).toBe("Sezione");
     expect(parseWikiLinkInner("[[Cartella/Documento]]")?.target).toBe(
       "Cartella/Documento"
@@ -52,5 +54,17 @@ describe("wikilinks", () => {
         }
       )
     );
+  });
+
+  it("parses GFM-escaped wiki pipes inside tables", () => {
+    const cell = "[[ID015 - Manuale di laboratorio\\|ID015 — Manuale di laboratorio]]";
+    const parsed = parseWikiLinkInner(cell);
+    expect(parsed?.target).toBe("ID015 - Manuale di laboratorio");
+    expect(parsed?.label).toBe("ID015 — Manuale di laboratorio");
+    const rewritten = rewriteWikiLinksToMarkdown(`| ${cell} | other |\n| --- | --- |\n`);
+    expect(rewritten).toContain("<mdoc-wiki:");
+    expect(extractWikiLinks(cell)[0]?.target).not.toMatch(/\\$/);
+    const back = rewriteMarkdownToWikiLinks(rewritten);
+    expect(extractWikiLinks(back)[0]?.target).toBe("ID015 - Manuale di laboratorio");
   });
 });

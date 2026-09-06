@@ -26,6 +26,7 @@ import {
   Underline as UnderlineIcon
 } from "lucide-react";
 import { type ReactNode } from "react";
+import { displayDocumentTitle } from "@mdword/shared";
 import { useApp } from "@/lib/store";
 import {
   applyBlockStyle,
@@ -73,7 +74,7 @@ function IconBtn({
 export function MobileTopBar() {
   const dirty = useApp((s) => s.dirty);
   const path = useApp((s) => s.path);
-  const title = useApp((s) => String(s.model.frontmatter.title ?? "Untitled"));
+  const title = useApp((s) => displayDocumentTitle(s.model.frontmatter, s.path));
   const setMobileSheet = useApp((s) => s.setMobileSheet);
   const saveFile = useApp((s) => s.saveFile);
 

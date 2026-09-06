@@ -20,6 +20,15 @@ describe("indexer", () => {
     expect(doc.tags).toContain("x");
   });
 
+  it("indexes Italian titolo frontmatter", () => {
+    const doc = indexMarkdown(
+      "IPR001.md",
+      "---\ntitolo: Direzione strategica\n---\n\n# IPR001\n",
+      1
+    );
+    expect(doc.title).toBe("Direzione strategica");
+  });
+
   it("resolves backlinks and broken links", () => {
     const a = indexMarkdown("a.md", "# A\n\n[[b]]\n", 1);
     const b = indexMarkdown("b.md", "# B\n", 1);

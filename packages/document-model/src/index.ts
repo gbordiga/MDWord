@@ -23,29 +23,63 @@ export interface OpenDocumentOptions {
   workspaceMdoc?: Mdoc;
 }
 
+function fallbackDocument(
+  source: string,
+  options: OpenDocumentOptions,
+  error: unknown
+): DocumentModel {
+  const resolvedMdoc = resolveMdoc({
+    application: APPLICATION_DEFAULTS,
+    workspace: options.workspaceMdoc,
+    document: { version: 1 }
+  });
+  return {
+    source,
+    ast: {
+      type: "root",
+      children: [{ type: "code", lang: "markdown", value: source }]
+    },
+    frontmatter: {},
+    mdoc: { version: 1 },
+    resolvedMdoc,
+    diagnostics: [
+      {
+        severity: "error",
+        message: error instanceof Error ? error.message : "Failed to open document",
+        code: "open-failed"
+      }
+    ],
+    yamlCst: null
+  };
+}
+
 export function openDocument(
   source: string,
   options: OpenDocumentOptions = {}
 ): DocumentModel {
-  const parsed = parseMarkdown(source);
-  const template = getTemplate(
-    typeof parsed.mdoc.template === "string" ? parsed.mdoc.template : undefined
-  );
-  const resolvedMdoc = resolveMdoc({
-    application: APPLICATION_DEFAULTS,
-    workspace: options.workspaceMdoc,
-    template: template?.mdoc,
-    document: parsed.mdoc
-  });
-  return {
-    source,
-    ast: parsed.ast,
-    frontmatter: parsed.frontmatter,
-    mdoc: parsed.mdoc,
-    resolvedMdoc,
-    diagnostics: parsed.diagnostics,
-    yamlCst: parsed.yaml
-  };
+  try {
+    const parsed = parseMarkdown(source);
+    const template = getTemplate(
+      typeof parsed.mdoc.template === "string" ? parsed.mdoc.template : undefined
+    );
+    const resolvedMdoc = resolveMdoc({
+      application: APPLICATION_DEFAULTS,
+      workspace: options.workspaceMdoc,
+      template: template?.mdoc,
+      document: parsed.mdoc
+    });
+    return {
+      source,
+      ast: parsed.ast,
+      frontmatter: parsed.frontmatter,
+      mdoc: parsed.mdoc,
+      resolvedMdoc,
+      diagnostics: parsed.diagnostics,
+      yamlCst: parsed.yaml
+    };
+  } catch (error) {
+    return fallbackDocument(source, options, error);
+  }
 }
 
 export function saveDocument(model: DocumentModel): string {

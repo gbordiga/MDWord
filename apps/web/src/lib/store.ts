@@ -6,13 +6,13 @@ import {
   saveDocument,
   type DocumentModel
 } from "@mdword/document-model";
-import type { ViewMode } from "@mdword/shared";
+import { displayDocumentTitle, type ViewMode } from "@mdword/shared";
 import type { Mdoc } from "@mdword/layout-engine";
 import { parseDocument } from "yaml";
 import { getHost } from "./host";
 import { untitledDocument } from "./untitled";
 import { loadWorkspace, applySavedDocument, resolveWikiTarget, type WorkspaceState } from "@mdword/workspace";
-import { astToTiptap, tiptapToAst, type TiptapNode } from "@mdword/editor";
+import { tiptapToAst, type TiptapNode } from "@mdword/editor";
 import { renderPrintDocument } from "@mdword/renderer";
 
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view";
@@ -105,15 +105,18 @@ export const useApp = create<AppState>((set, get) => {
     set({ model, dirty: true, syncGeneration: get().syncGeneration + 1 });
   },
   applyTiptap: (doc) => {
-    const ast = tiptapToAst(doc);
-    const current = get().model;
-    const next: DocumentModel = { ...current, ast };
-    const source = saveDocument(next);
-    set({
-      model: { ...openDocument(source, { workspaceMdoc: get().workspace?.workspaceMdoc }), ast },
-      dirty: true
-    });
-    void astToTiptap;
+    try {
+      const ast = tiptapToAst(doc);
+      const current = get().model;
+      const next: DocumentModel = { ...current, ast };
+      const source = saveDocument(next);
+      set({
+        model: { ...openDocument(source, { workspaceMdoc: get().workspace?.workspaceMdoc }), ast },
+        dirty: true
+      });
+    } catch (error) {
+      console.error("Could not apply visual edits", error);
+    }
   },
   setView: (view) => set({ view }),
   setRibbon: (ribbon) => set({ ribbon }),
@@ -203,7 +206,7 @@ export const useApp = create<AppState>((set, get) => {
     const html = renderPrintDocument({
       ast: model.ast,
       mdoc: model.resolvedMdoc,
-      title: String(model.frontmatter.title ?? ""),
+      title: displayDocumentTitle(model.frontmatter, path),
       date: String(model.frontmatter.date ?? ""),
       filename: path ?? "document.md"
     });
@@ -214,7 +217,7 @@ export const useApp = create<AppState>((set, get) => {
     const html = renderPrintDocument({
       ast: model.ast,
       mdoc: model.resolvedMdoc,
-      title: String(model.frontmatter.title ?? ""),
+      title: displayDocumentTitle(model.frontmatter, path),
       filename: path ?? "document.md"
     });
     await getHost().files.saveAs(html, (path ?? "document").replace(/\.md$/, "") + ".html");

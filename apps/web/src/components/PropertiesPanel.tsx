@@ -2,6 +2,7 @@
 
 import { cn } from "@mdword/ui";
 import { BUILT_IN_TEMPLATES } from "@mdword/layout-engine";
+import { documentTitle, documentTitleKey } from "@mdword/shared";
 import { useApp } from "@/lib/store";
 
 const fieldClass =
@@ -12,6 +13,7 @@ export function PropertiesPanel({ className }: { className?: string }) {
   const patchFrontmatter = useApp((s) => s.patchFrontmatter);
   const patchMdoc = useApp((s) => s.patchMdoc);
   const mdoc = model.mdoc;
+  const titleKey = documentTitleKey(model.frontmatter);
   const margins = model.resolvedMdoc.margins ?? {};
   const pageSize =
     typeof model.resolvedMdoc.page?.size === "string" ? model.resolvedMdoc.page.size : "A4";
@@ -31,8 +33,8 @@ export function PropertiesPanel({ className }: { className?: string }) {
         <input
           data-testid="prop-title"
           className={fieldClass}
-          value={String(model.frontmatter.title ?? "")}
-          onChange={(e) => patchFrontmatter({ title: e.target.value })}
+          value={documentTitle(model.frontmatter, "")}
+          onChange={(e) => patchFrontmatter({ [titleKey]: e.target.value })}
         />
       </label>
       <label className="mb-2 block">
