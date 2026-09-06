@@ -7,6 +7,7 @@ import { pageMetrics, resolveVariables } from "@mdword/layout-engine";
 import { documentTitle } from "@mdword/shared";
 import { useApp } from "@/lib/store";
 import { getHost } from "@/lib/host";
+import { Spinner } from "./Spinner";
 
 function tiptapContentFromAst(ast: Parameters<typeof astToTiptap>[0]): TiptapNode {
   try {
@@ -170,6 +171,8 @@ function VisualEditorCanvas({
     } catch (error) {
       console.error("Visual editor could not load document content", error);
       editor.commands.setContent({ type: "doc", content: [{ type: "paragraph" }] });
+    } finally {
+      useApp.getState().finishBusy(["open", "workspace"]);
     }
   }, [editor, syncGeneration, model.ast]);
 
@@ -201,7 +204,7 @@ function VisualEditorCanvas({
     <div
       ref={ref}
       data-testid="page-scroll"
-      className="page-scroll min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain bg-[#d8dee6] px-2 py-3 lg:px-4 lg:py-8"
+      className="page-scroll relative min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain bg-[#d8dee6] px-2 py-3 lg:px-4 lg:py-8"
     >
       <div
         className="page-frame mx-auto"
@@ -287,6 +290,19 @@ function VisualEditorCanvas({
           </div>
         </div>
       </div>
+      {!editor ? (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center bg-[#d8dee6]/75"
+          data-testid="editor-loading"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex flex-col items-center gap-3 rounded-xl bg-white px-6 py-5 shadow-page">
+            <Spinner size={28} />
+            <p className="text-[13px] font-medium text-[#344054]">Loading document…</p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

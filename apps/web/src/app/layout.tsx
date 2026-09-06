@@ -26,7 +26,15 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="it">
-      <body>{children}</body>
+      <body>
+        <div id="mdword-boot" className="md-boot" data-testid="app-boot" role="status" aria-live="polite">
+          <div className="md-boot-card">
+            <span className="md-spinner" style={{ width: 28, height: 28 }} />
+            <p className="md-boot-copy">Loading editor…</p>
+          </div>
+        </div>
+        {children}
+      </body>
     </html>
   );
 }
