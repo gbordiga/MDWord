@@ -95,19 +95,35 @@ export function backlinksTo(index: WorkspaceIndex, path: string): IndexedDocumen
 
 export function resolveWikiTarget(
   index: WorkspaceIndex,
-  fromPath: string,
+  _fromPath: string,
   target: string
 ): string | null {
-  const withMd = target.endsWith(".md") ? target : `${target}.md`;
+  const t = target.trim();
+  if (!t) return null;
+  const lower = t.toLowerCase();
+  const withMd = t.endsWith(".md") ? t : `${t}.md`;
   const exact = index.documents.find(
-    (d) => d.path === withMd || d.path === target || stripMdExtension(d.path) === target
+    (d) =>
+      d.path === t ||
+      d.path === withMd ||
+      stripMdExtension(d.path) === t ||
+      d.path.replace(/\\/g, "/").toLowerCase() === lower ||
+      d.path.replace(/\\/g, "/").toLowerCase().endsWith(`/${lower}`) ||
+      d.path.replace(/\\/g, "/").toLowerCase().endsWith(`/${withMd.toLowerCase()}`)
   );
   if (exact) return exact.path;
-  const base = target.split("/").pop() ?? target;
-  const matches = index.documents.filter(
-    (d) => stripMdExtension(basename(d.path)).toLowerCase() === base.toLowerCase()
-  );
-  return matches.length === 1 ? matches[0]!.path : null;
+
+  const ranked: { path: string; score: number }[] = [];
+  for (const d of index.documents) {
+    const base = stripMdExtension(basename(d.path)).toLowerCase();
+    const title = d.title.toLowerCase();
+    const aliases = d.aliases.map((a) => a.toLowerCase());
+    if (base === lower) ranked.push({ path: d.path, score: 3 });
+    else if (title === lower) ranked.push({ path: d.path, score: 2 });
+    else if (aliases.includes(lower)) ranked.push({ path: d.path, score: 1 });
+  }
+  ranked.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
+  return ranked[0]?.path ?? null;
 }
 
 export function brokenLinks(index: WorkspaceIndex): { from: string; target: string }[] {

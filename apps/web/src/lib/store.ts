@@ -11,12 +11,13 @@ import type { Mdoc } from "@mdword/layout-engine";
 import { parseDocument } from "yaml";
 import { getHost } from "./host";
 import { untitledDocument } from "./untitled";
-import { loadWorkspace, type WorkspaceState } from "@mdword/workspace";
+import { loadWorkspace, applySavedDocument, resolveWikiTarget, type WorkspaceState } from "@mdword/workspace";
 import { astToTiptap, tiptapToAst, type TiptapNode } from "@mdword/editor";
 import { renderPrintDocument } from "@mdword/renderer";
 
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view";
 export type LeftPanel = "files" | "outline" | "search" | "backlinks";
+export type MobileSheet = "workspace" | "insert" | "properties" | "more" | null;
 
 interface AppState {
   model: DocumentModel;
@@ -28,6 +29,7 @@ interface AppState {
   left: LeftPanel;
   leftOpen: boolean;
   rightOpen: boolean;
+  mobileSheet: MobileSheet;
   paletteOpen: boolean;
   findOpen: boolean;
   findQuery: string;
@@ -44,6 +46,9 @@ interface AppState {
   saveFile: () => Promise<void>;
   saveFileAs: () => Promise<void>;
   openFolder: () => Promise<void>;
+  openWorkspaceFile: (filePath: string) => Promise<void>;
+  openWorkspaceFileByTitle: (title: string) => Promise<boolean>;
+  refreshWorkspace: () => Promise<void>;
   exportPdf: () => Promise<void>;
   exportHtml: () => Promise<void>;
   patchMdoc: (mdoc: Mdoc) => void;
@@ -51,6 +56,7 @@ interface AppState {
   setZoom: (zoom: number) => void;
   toggleLeft: () => void;
   toggleRight: () => void;
+  setMobileSheet: (sheet: MobileSheet) => void;
   setPalette: (open: boolean) => void;
   setFind: (open: boolean, query?: string) => void;
 }
@@ -59,7 +65,25 @@ function modelFrom(source: string, workspaceMdoc?: Mdoc): DocumentModel {
   return openDocument(source, { workspaceMdoc });
 }
 
-export const useApp = create<AppState>((set, get) => ({
+export const useApp = create<AppState>((set, get) => {
+  const rememberSavedFile = (path: string, content: string) => {
+    const workspace = get().workspace;
+    if (!workspace) return;
+    set({ workspace: applySavedDocument(workspace, path, content) });
+  };
+
+  const reloadWorkspace = async () => {
+    const workspace = get().workspace;
+    if (!workspace?.root) return;
+    try {
+      const next = await loadWorkspace(getHost(), workspace.root);
+      set({ workspace: next });
+    } catch {
+      /* keep the optimistic list if a re-list fails */
+    }
+  };
+
+  return {
   model: modelFrom(untitledDocument()),
   path: null,
   dirty: false,
@@ -69,6 +93,7 @@ export const useApp = create<AppState>((set, get) => ({
   left: "files",
   leftOpen: true,
   rightOpen: true,
+  mobileSheet: null,
   paletteOpen: false,
   findOpen: false,
   findQuery: "",
@@ -92,7 +117,10 @@ export const useApp = create<AppState>((set, get) => ({
   },
   setView: (view) => set({ view }),
   setRibbon: (ribbon) => set({ ribbon }),
-  setLeft: (left) => set({ left, leftOpen: true }),
+  setLeft: (left) => {
+    const compact = typeof window !== "undefined" && window.innerWidth < 1024;
+    set(compact ? { left, mobileSheet: "workspace" } : { left, leftOpen: true });
+  },
   newDocument: () =>
     set({
       model: modelFrom(untitledDocument()),
@@ -117,17 +145,27 @@ export const useApp = create<AppState>((set, get) => ({
     const content = saveDocument(model);
     if (!path) {
       const next = await host.files.saveAs(content, "document.md");
-      if (next) set({ path: next, dirty: false, model: { ...model, source: content } });
+      if (next) {
+        set({ path: next, dirty: false, model: { ...model, source: content } });
+        rememberSavedFile(next, content);
+        await reloadWorkspace();
+      }
       return;
     }
     await host.files.save({ path, content });
     set({ dirty: false, model: { ...model, source: content } });
+    rememberSavedFile(path, content);
+    await reloadWorkspace();
   },
   saveFileAs: async () => {
     const host = getHost();
     const content = saveDocument(get().model);
     const next = await host.files.saveAs(content, get().path ?? "document.md");
-    if (next) set({ path: next, dirty: false });
+    if (next) {
+      set({ path: next, dirty: false });
+      rememberSavedFile(next, content);
+      await reloadWorkspace();
+    }
   },
   openFolder: async () => {
     const host = getHost();
@@ -136,6 +174,30 @@ export const useApp = create<AppState>((set, get) => ({
     const workspace = await loadWorkspace(host, root);
     set({ workspace });
   },
+  openWorkspaceFile: async (filePath) => {
+    const host = getHost();
+    try {
+      const result = await host.files.openPath(filePath);
+      set({
+        model: modelFrom(result.content, get().workspace?.workspaceMdoc),
+        path: result.path,
+        dirty: false,
+        syncGeneration: get().syncGeneration + 1,
+        mobileSheet: null
+      });
+    } catch {
+      /* file handle may be missing on web until the folder is re-listed */
+    }
+  },
+  openWorkspaceFileByTitle: async (title) => {
+    const { workspace, path } = get();
+    if (!workspace) return false;
+    const resolved = resolveWikiTarget(workspace.index, path ?? "", title);
+    if (!resolved) return false;
+    await get().openWorkspaceFile(resolved);
+    return true;
+  },
+  refreshWorkspace: () => reloadWorkspace(),
   exportPdf: async () => {
     const { model, path } = get();
     const html = renderPrintDocument({
@@ -183,6 +245,8 @@ export const useApp = create<AppState>((set, get) => ({
   setZoom: (zoom) => set({ zoom: Math.min(2, Math.max(0.5, zoom)) }),
   toggleLeft: () => set({ leftOpen: !get().leftOpen }),
   toggleRight: () => set({ rightOpen: !get().rightOpen }),
+  setMobileSheet: (mobileSheet) => set({ mobileSheet }),
   setPalette: (paletteOpen) => set({ paletteOpen }),
   setFind: (findOpen, query) => set({ findOpen, findQuery: query ?? get().findQuery })
-}));
+  };
+});

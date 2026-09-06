@@ -32,6 +32,17 @@ describe("indexer", () => {
     );
   });
 
+  it("resolves wiki targets by document title", () => {
+    const a = indexMarkdown(
+      "notes/alpha.md",
+      "---\ntitle: Alpha Notes\n---\n\n# Hi\n",
+      1
+    );
+    const index = { documents: [a] };
+    expect(resolveWikiTarget(index, "x.md", "Alpha Notes")).toBe("notes/alpha.md");
+    expect(resolveWikiTarget(index, "x.md", "alpha")).toBe("notes/alpha.md");
+  });
+
   it("searches title and body", () => {
     const docs = {
       documents: [

@@ -17,11 +17,15 @@ export const WikiLink = Node.create({
     return [{ tag: "span[data-wiki-link]" }];
   },
   renderHTML({ HTMLAttributes }) {
+    const broken = Boolean(HTMLAttributes.broken);
     return [
       "span",
       mergeAttributes(HTMLAttributes, {
         "data-wiki-link": "",
-        class: HTMLAttributes.broken ? "wikilink broken" : "wikilink"
+        "data-target": HTMLAttributes.target ?? "",
+        "data-testid": "wikilink",
+        class: broken ? "wikilink md-wikilink broken" : "wikilink md-wikilink",
+        title: "Open linked document"
       }),
       HTMLAttributes.label || HTMLAttributes.target
     ];

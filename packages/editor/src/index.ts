@@ -2,3 +2,6 @@ export { editorExtensions, WikiLink, Callout, PageBreak, Figure, Caption, MystRa
 export { astToTiptap } from "./astToTiptap";
 export type { TiptapNode } from "./astToTiptap";
 export { tiptapToAst } from "./tiptapToAst";
+export { normalizeHref } from "./urls";
+export { collectSearchMatches, nextMatchIndex } from "./search";
+export type { TextChunk, SearchMatch } from "./search";
