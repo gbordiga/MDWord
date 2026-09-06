@@ -62,7 +62,7 @@ test("new document asks to discard unsaved changes", async ({ page }) => {
   await expect(prose).toBeVisible({ timeout: 20_000 });
   await prose.click();
   await page.keyboard.type("Unsaved draft text");
-  await page.getByRole("button", { name: "File" }).click();
+  await page.getByRole("button", { name: "File", exact: true }).click();
   await page.getByTitle("New").click();
   await expect(page.getByTestId("confirm-dialog")).toBeVisible();
   await page.getByTestId("confirm-discard").click();

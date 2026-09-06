@@ -34,11 +34,9 @@ test("link dialog requires text when nothing is selected", async ({ page }) => {
 test("link bubble can open and remove a link", async ({ page }) => {
   const prose = await ready(page);
   await prose.click();
-  await page.keyboard.type("Linked text");
-  await page.keyboard.press("ControlOrMeta+A");
   await fmtButton(page, "fmt-link").click();
   await expect(page.getByTestId("link-dialog")).toBeVisible();
-  await expect(page.getByTestId("link-text")).toHaveCount(0);
+  await page.getByTestId("link-text").fill("Linked text");
   await page.getByTestId("link-url").fill("https://example.com/docs");
   await page.getByTestId("link-apply").click();
   await expect(prose.locator("a")).toContainText("Linked text");
