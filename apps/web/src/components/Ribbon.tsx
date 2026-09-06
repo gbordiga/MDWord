@@ -20,6 +20,16 @@ import {
 } from "lucide-react";
 import { useApp, type RibbonTab } from "@/lib/store";
 import { BUILT_IN_TEMPLATES } from "@mdword/layout-engine";
+import {
+  applyBlockStyle,
+  currentBlockStyle,
+  insertCallout,
+  insertPageBreak,
+  insertTable,
+  promptImage,
+  promptLink,
+  promptWikilink
+} from "@/lib/editorCommands";
 
 const TABS: { id: RibbonTab; label: string }[] = [
   { id: "file", label: "File" },
@@ -57,7 +67,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
   const actions = useApp();
 
   return (
-    <div className="border-b border-[#e4e7ec] bg-white">
+    <div className="hidden border-b border-[#e4e7ec] bg-white lg:block">
       <div className="flex items-center gap-1 px-2 pt-1">
         {TABS.map((tab) => (
           <button
@@ -88,13 +98,11 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
         {ribbon === "home" && editor && (
           <>
             <select
+              aria-label="Style"
+              data-testid="ribbon-style"
               className="h-8 rounded-md border border-[#e4e7ec] bg-white px-2 text-[13px]"
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v === "p") editor.chain().focus().setParagraph().run();
-                else editor.chain().focus().toggleHeading({ level: Number(v) as 1 }).run();
-              }}
-              defaultValue="p"
+              value={currentBlockStyle(editor)}
+              onChange={(e) => applyBlockStyle(editor, e.target.value)}
             >
               <option value="p">Body</option>
               <option value="1">Heading 1</option>
@@ -109,44 +117,21 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             <Btn title="Bullet list" onClick={() => editor.chain().focus().toggleBulletList().run()}><List size={16} /></Btn>
             <Btn title="Numbered list" onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered size={16} /></Btn>
             <Btn title="Quote" onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote size={16} /></Btn>
-            <Btn
-              title="Link"
-              onClick={() => {
-                const href = window.prompt("URL");
-                if (href) editor.chain().focus().setLink({ href }).run();
-              }}
-            >
+            <Btn title="Link" onClick={() => promptLink(editor)}>
               <LinkIcon size={16} />
             </Btn>
           </>
         )}
         {ribbon === "insert" && editor && (
           <>
-            <Btn title="Table" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><TableIcon size={16} /> Table</Btn>
-            <Btn
-              title="Image"
-              onClick={() => {
-                const src = window.prompt("Image path or URL");
-                if (src) editor.chain().focus().setImage({ src }).run();
-              }}
-            >
+            <Btn title="Table" onClick={() => insertTable(editor)}><TableIcon size={16} /> Table</Btn>
+            <Btn title="Image" onClick={() => promptImage(editor)}>
               <ImageIcon size={16} /> Image
             </Btn>
-            <Btn title="Callout" onClick={() => editor.chain().focus().insertContent({ type: "callout", attrs: { kind: "note" }, content: [{ type: "paragraph" }] }).run()}>Callout</Btn>
+            <Btn title="Callout" onClick={() => insertCallout(editor)}>Callout</Btn>
             <Btn title="Code block" onClick={() => editor.chain().focus().toggleCodeBlock().run()}>Code</Btn>
-            <Btn title="Page break" onClick={() => editor.chain().focus().insertContent({ type: "pageBreak" }).run()}><Minus size={16} /> Page break</Btn>
-            <Btn
-              title="Wikilink"
-              onClick={() => {
-                const target = window.prompt("Wikilink target");
-                if (target) {
-                  editor.chain().focus().insertContent({
-                    type: "wikiLink",
-                    attrs: { target, label: target }
-                  }).run();
-                }
-              }}
-            >
+            <Btn title="Page break" onClick={() => insertPageBreak(editor)}><Minus size={16} /> Page break</Btn>
+            <Btn title="Wikilink" onClick={() => promptWikilink(editor)}>
               Wikilink
             </Btn>
             <Btn title="Horizontal rule" onClick={() => editor.chain().focus().setHorizontalRule().run()}>Rule</Btn>

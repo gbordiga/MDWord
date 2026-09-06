@@ -28,6 +28,6 @@ test("applies heading 1 from the Home ribbon", async ({ page }) => {
   await prose.click();
   await page.keyboard.type("Titolo");
   await page.getByRole("button", { name: "Home" }).click();
-  await page.locator("select").first().selectOption("1");
+  await page.getByTestId("ribbon-style").selectOption("1");
   await expect(prose.locator("h1")).toContainText("Titolo");
 });

@@ -31,5 +31,5 @@ export function SourcePane() {
     setSource(viewRef.current, saveDocument(model));
   }, [syncGeneration, model]);
 
-  return <div ref={parentRef} className="h-full min-h-0 bg-white" data-testid="source-editor" />;
+  return <div ref={parentRef} className="h-full min-h-0 min-w-0 bg-white" data-testid="source-editor" />;
 }

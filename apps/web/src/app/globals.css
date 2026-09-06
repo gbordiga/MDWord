@@ -9,11 +9,17 @@
   --md-muted: #5c6570;
   --md-line: #d0d5dd;
   --md-accent: #1d4ed8;
+  --app-height: 100dvh;
+  --app-offset-top: 0px;
 }
 
 html,
 body {
   height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -21,6 +27,11 @@ body {
   color: var(--md-ink);
   background: var(--md-bg);
   font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  touch-action: manipulation;
+}
+
+.page-scroll {
+  -webkit-overflow-scrolling: touch;
 }
 
 *:focus-visible {
@@ -31,6 +42,13 @@ body {
 .ProseMirror {
   outline: none;
   min-height: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ProseMirror img {
+  max-width: 100%;
+  height: auto;
 }
 
 .callout {
@@ -114,6 +132,12 @@ body {
 
 .cm-editor {
   height: 100%;
+  min-height: 0;
+}
+
+.cm-editor .cm-scroller {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .ProseMirror th,
@@ -126,5 +150,42 @@ body {
 .ProseMirror table {
   border-collapse: collapse;
   width: 100%;
+  max-width: 100%;
   margin: 12px 0;
 }
+
+.ProseMirror pre {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+@media (max-width: 1023px) {
+  .page-frame {
+    width: 100% !important;
+    min-height: 100% !important;
+  }
+
+  .page-inner {
+    width: 100% !important;
+    min-height: 100% !important;
+    transform: none !important;
+    font-size: calc(16px * var(--user-zoom, 1)) !important;
+    line-height: 1.5 !important;
+    padding: 1.35rem 1.15rem 2.5rem !important;
+    border-radius: 4px;
+  }
+
+  .page-inner > .relative {
+    padding: 0 !important;
+  }
+
+  .page-overlay {
+    display: none !important;
+  }
+
+  .ProseMirror {
+    min-height: 50vh;
+  }
+}
+

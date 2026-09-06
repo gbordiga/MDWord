@@ -17,6 +17,7 @@ import { renderPrintDocument } from "@mdword/renderer";
 
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view";
 export type LeftPanel = "files" | "outline" | "search" | "backlinks";
+export type MobileSheet = "workspace" | "insert" | "properties" | "more" | null;
 
 interface AppState {
   model: DocumentModel;
@@ -28,6 +29,7 @@ interface AppState {
   left: LeftPanel;
   leftOpen: boolean;
   rightOpen: boolean;
+  mobileSheet: MobileSheet;
   paletteOpen: boolean;
   findOpen: boolean;
   findQuery: string;
@@ -51,6 +53,7 @@ interface AppState {
   setZoom: (zoom: number) => void;
   toggleLeft: () => void;
   toggleRight: () => void;
+  setMobileSheet: (sheet: MobileSheet) => void;
   setPalette: (open: boolean) => void;
   setFind: (open: boolean, query?: string) => void;
 }
@@ -69,6 +72,7 @@ export const useApp = create<AppState>((set, get) => ({
   left: "files",
   leftOpen: true,
   rightOpen: true,
+  mobileSheet: null,
   paletteOpen: false,
   findOpen: false,
   findQuery: "",
@@ -92,7 +96,10 @@ export const useApp = create<AppState>((set, get) => ({
   },
   setView: (view) => set({ view }),
   setRibbon: (ribbon) => set({ ribbon }),
-  setLeft: (left) => set({ left, leftOpen: true }),
+  setLeft: (left) => {
+    const compact = typeof window !== "undefined" && window.innerWidth < 1024;
+    set(compact ? { left, mobileSheet: "workspace" } : { left, leftOpen: true });
+  },
   newDocument: () =>
     set({
       model: modelFrom(untitledDocument()),
@@ -183,6 +190,7 @@ export const useApp = create<AppState>((set, get) => ({
   setZoom: (zoom) => set({ zoom: Math.min(2, Math.max(0.5, zoom)) }),
   toggleLeft: () => set({ leftOpen: !get().leftOpen }),
   toggleRight: () => set({ rightOpen: !get().rightOpen }),
+  setMobileSheet: (mobileSheet) => set({ mobileSheet }),
   setPalette: (paletteOpen) => set({ paletteOpen }),
   setFind: (findOpen, query) => set({ findOpen, findQuery: query ?? get().findQuery })
 }));

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { searchIndex, backlinksTo } from "@mdword/indexer";
+import { cn } from "@mdword/ui";
 import { useApp } from "@/lib/store";
 import type { GenericNode } from "@mdword/shared";
 
@@ -20,7 +21,7 @@ function headingsOf(ast: GenericNode): { text: string; depth: number }[] {
   return out;
 }
 
-export function LeftSidebar() {
+export function LeftSidebar({ className }: { className?: string }) {
   const left = useApp((s) => s.left);
   const workspace = useApp((s) => s.workspace);
   const model = useApp((s) => s.model);
@@ -31,14 +32,14 @@ export function LeftSidebar() {
   const backs = workspace && path ? backlinksTo(workspace.index, path) : [];
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-[#e4e7ec] bg-white">
+    <aside className={cn("flex h-full w-64 shrink-0 flex-col border-r border-[#e4e7ec] bg-white", className)}>
       <div className="flex border-b border-[#e4e7ec] text-[12px]">
         {(["files", "outline", "search", "backlinks"] as const).map((id) => (
           <button
             key={id}
             type="button"
             onClick={() => useApp.getState().setLeft(id)}
-            className={`flex-1 px-1 py-2 capitalize ${left === id ? "font-medium text-accent" : "text-[#667085]"}`}
+            className={`min-h-11 flex-1 px-1 py-2 capitalize touch-manipulation ${left === id ? "font-medium text-accent" : "text-[#667085]"}`}
           >
             {id}
           </button>
@@ -48,7 +49,7 @@ export function LeftSidebar() {
         {left === "files" && (
           <ul className="space-y-1">
             {(workspace?.files.filter((f) => f.name.endsWith(".md")) ?? []).map((f) => (
-              <li key={f.path} className="truncate rounded px-2 py-1 hover:bg-[#f2f4f7]">
+              <li key={f.path} className="truncate rounded px-2 py-2.5 hover:bg-[#f2f4f7]">
                 {f.name}
               </li>
             ))}
@@ -58,7 +59,7 @@ export function LeftSidebar() {
         {left === "outline" && (
           <ul className="space-y-1">
             {headings.map((h, i) => (
-              <li key={i} style={{ paddingLeft: (h.depth - 1) * 12 }} className="truncate">
+              <li key={i} style={{ paddingLeft: (h.depth - 1) * 12 }} className="truncate py-2">
                 {h.text || "Untitled"}
               </li>
             ))}
@@ -67,7 +68,7 @@ export function LeftSidebar() {
         {left === "search" && (
           <div>
             <input
-              className="mb-2 w-full rounded-md border border-[#e4e7ec] px-2 py-1"
+              className="mb-2 w-full rounded-md border border-[#e4e7ec] px-2 py-2 text-[16px] lg:py-1 lg:text-[13px]"
               placeholder="Search workspace"
               value={q}
               onChange={(e) => setQ(e.target.value)}
