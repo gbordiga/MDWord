@@ -219,18 +219,23 @@ export const webHost: HostApi = {
   export: {
     async pdf(html) {
       (window as Window & { __MDWORD_LAST_EXPORT_HTML__?: string }).__MDWORD_LAST_EXPORT_HTML__ = html;
+      if (navigator.webdriver) return new Uint8Array();
       const iframe = document.createElement("iframe");
-      iframe.style.position = "fixed";
-      iframe.style.right = "100%";
+      iframe.title = "Print";
+      iframe.setAttribute("srcdoc", html);
+      iframe.style.cssText =
+        "position:fixed;inset:0;width:100%;height:100%;border:0;z-index:2147483647;background:#fff";
       document.body.appendChild(iframe);
-      const doc = iframe.contentDocument!;
-      doc.open();
-      doc.write(html);
-      doc.close();
-      if (!navigator.webdriver) {
-        iframe.contentWindow?.print();
-      }
-      setTimeout(() => iframe.remove(), 2000);
+      await new Promise<void>((resolve) => {
+        iframe.addEventListener("load", () => resolve(), { once: true });
+        window.setTimeout(resolve, 500);
+      });
+      const win = iframe.contentWindow;
+      const cleanup = () => iframe.remove();
+      win?.addEventListener("afterprint", cleanup);
+      window.setTimeout(cleanup, 120_000);
+      win?.focus();
+      win?.print();
       return new Uint8Array();
     },
     async print(html) {
