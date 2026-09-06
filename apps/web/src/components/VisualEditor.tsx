@@ -8,10 +8,7 @@ import { useApp } from "@/lib/store";
 
 function useFitScale(widthPx: number) {
   const ref = useRef<HTMLDivElement>(null);
-  const [fit, setFit] = useState(() => {
-    if (typeof window === "undefined") return 1;
-    return Math.min(1, (window.innerWidth - 24) / widthPx);
-  });
+  const [fit, setFit] = useState(1);
 
   useEffect(() => {
     const el = ref.current;

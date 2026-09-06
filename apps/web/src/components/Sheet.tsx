@@ -35,7 +35,7 @@ export function Sheet({
       <button
         type="button"
         className="absolute inset-0 bg-black/40"
-        aria-label="Close"
+        aria-label="Dismiss"
         onClick={onClose}
       />
       <div

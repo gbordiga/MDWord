@@ -30,9 +30,9 @@ test("opens properties in a sheet and edits the title", async ({ page }) => {
   await expect(page.getByTestId("mobile-tab-bar")).toBeVisible();
   await page.getByRole("button", { name: "Properties" }).click();
   await expect(page.getByTestId("sheet-properties")).toBeVisible();
-  const title = page.getByTestId("sheet-properties").getByRole("textbox").first();
-  await title.fill("Documento mobile");
-  await page.getByRole("button", { name: "Close" }).first().click();
+  await page.getByTestId("sheet-properties").getByTestId("prop-title").fill("Documento mobile");
+  await page.getByTestId("sheet-properties").getByRole("button", { name: "Close" }).click();
+  await expect(page.getByTestId("sheet-properties")).toBeHidden();
   await expect(page.getByTestId("mobile-top-bar")).toContainText("Documento mobile");
 });
 

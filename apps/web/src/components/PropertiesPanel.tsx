@@ -29,6 +29,7 @@ export function PropertiesPanel({ className }: { className?: string }) {
       <label className="mb-2 block">
         Title
         <input
+          data-testid="prop-title"
           className={fieldClass}
           value={String(model.frontmatter.title ?? "")}
           onChange={(e) => patchFrontmatter({ title: e.target.value })}
