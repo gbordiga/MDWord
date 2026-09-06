@@ -56,7 +56,7 @@ export interface DiagnosticsBundle {
 }
 
 export interface HostApi {
-  platform: "electron" | "web";
+  platform: "electron" | "web" | "capacitor";
   files: {
     open(): Promise<OpenDocumentResult | null>;
     openPath(path: string): Promise<OpenDocumentResult>;

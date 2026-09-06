@@ -33,12 +33,12 @@ function yieldPaint(): Promise<void> {
   });
 }
 
-/** Safari/iOS already honor @page margin boxes; Chromium needs the Paged.js polyfill. */
+/** Safari/iOS already honor @page margin boxes; Chromium (web and Android) needs Paged.js. */
 function webPagedScriptUrl(platform: string): string | undefined {
-  if (typeof window === "undefined" || platform !== "web") return undefined;
+  if (typeof window === "undefined" || platform === "electron") return undefined;
   const ua = navigator.userAgent;
-  if (/CriOS|FxiOS|EdgiOS/i.test(ua)) return undefined;
-  if (/Safari/i.test(ua) && !/Chrome|Chromium|Edg|OPR/i.test(ua)) return undefined;
+  if (/CriOS|FxiOS|EdgiOS|iPhone|iPad|iPod/i.test(ua)) return undefined;
+  if (/Safari/i.test(ua) && !/Chrome|Chromium|Edg|OPR|Android/i.test(ua)) return undefined;
   return `${window.location.origin}/paged.polyfill.min.js`;
 }
 

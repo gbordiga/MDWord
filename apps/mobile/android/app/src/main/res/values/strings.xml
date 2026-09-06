@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MDWord</string>
+    <string name="title_activity_main">MDWord</string>
+    <string name="package_name">app.mdword.mobile</string>
+    <string name="custom_url_scheme">app.mdword.mobile</string>
+</resources>

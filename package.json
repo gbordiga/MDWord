@@ -20,6 +20,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "pnpm --filter @mdword/web test:e2e",
+    "mobile:sync": "pnpm build:web && pnpm --filter @mdword/mobile icons && pnpm --filter @mdword/mobile sync && pnpm --filter @mdword/mobile patch-native",
+    "mobile:android": "pnpm --filter @mdword/mobile open:android",
+    "mobile:ios": "pnpm --filter @mdword/mobile open:ios",
     "lint": "pnpm -r --if-present lint",
     "typecheck": "pnpm -r --if-present typecheck",
     "clean": "pnpm -r --if-present clean && rm -rf node_modules"
