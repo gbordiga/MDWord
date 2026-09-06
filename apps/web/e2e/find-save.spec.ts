@@ -44,7 +44,11 @@ test("PDF export writes title and date into the print document", async ({ page }
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
   await page.getByTestId("prop-title").fill("Audit report");
-  await page.getByTestId("prop-date").fill("2026-03-15");
+  const dateField = page.getByTestId("prop-date");
+  await dateField.click();
+  await dateField.fill("");
+  await dateField.pressSequentially("2026-03-15", { delay: 30 });
+  await expect(dateField).toHaveValue("2026-03-15");
   await expect(page.getByTestId("doc-title")).toContainText("Audit report");
   await expect(page.getByTestId("doc-date")).toContainText("2026-03-15");
   await page.getByRole("button", { name: "File", exact: true }).click();
