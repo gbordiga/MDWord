@@ -36,11 +36,14 @@ Linux CI produces `.AppImage` and `.deb`. Windows `.exe` and macOS `.dmg` should
 ## Layout
 
 ```
-apps/web          Next.js UI (Vercel + Electron renderer)
-apps/desktop     Electron main / preload / installers
-packages/*       document model, parser, serializer, editor, layout, indexer
-docs/            product, architecture, ADRs, format
+apps/web          Next.js UI (Vercel + Electron renderer + Capacitor WebView)
+apps/desktop      Electron main / preload / installers
+apps/mobile       Capacitor Android / iOS store shells
+packages/*        document model, parser, serializer, editor, layout, indexer
+docs/             product, architecture, ADRs, format, release notes
 ```
+
+Store / installer steps that need your accounts: `docs/COSA-DEVI-FARE.md`.
 
 ## Principles
 
