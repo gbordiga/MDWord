@@ -25,7 +25,7 @@ export const WikiLink = Node.create({
         "data-target": HTMLAttributes.target ?? "",
         "data-testid": "wikilink",
         class: broken ? "wikilink md-wikilink broken" : "wikilink md-wikilink",
-        title: "Open linked document"
+        title: "Ctrl+click to open"
       }),
       HTMLAttributes.label || HTMLAttributes.target
     ];

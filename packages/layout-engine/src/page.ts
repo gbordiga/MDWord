@@ -18,6 +18,19 @@ export interface PageMetrics {
   orientation: "portrait" | "landscape";
 }
 
+/** Gray gap between stacked sheets in page view (CSS px at 96dpi). */
+export const PAGE_STACK_GAP_PX = 24;
+
+export function countFlowPages(contentHeightPx: number, usableHeightPx: number): number {
+  if (usableHeightPx <= 1) return 1;
+  return Math.max(1, Math.ceil(contentHeightPx / usableHeightPx));
+}
+
+export function pageStackHeightPx(pageCount: number, pageHeightPx: number, gapPx = PAGE_STACK_GAP_PX): number {
+  const n = Math.max(1, pageCount);
+  return n * pageHeightPx + (n - 1) * gapPx;
+}
+
 export function pageMetrics(mdoc: Mdoc, dpi = 96): PageMetrics {
   const orientation = mdoc.page?.orientation ?? "portrait";
   let widthMm = PAGE_SIZES_MM.A4!.width;

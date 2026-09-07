@@ -24,7 +24,11 @@ export function resolveRunningForPrint(template: string, ctx: VariableContext): 
   return resolveVariables(template, { ...ctx, page: "{{page}}", pages: "{{pages}}" });
 }
 
-/** Screen preview: page 1 of an unknown total. */
+/** Screen preview: use known page totals when provided. */
 export function resolveRunningForPreview(template: string, ctx: VariableContext): string {
-  return resolveVariables(template, { ...ctx, page: ctx.page ?? "1", pages: "…" });
+  return resolveVariables(template, {
+    ...ctx,
+    page: ctx.page ?? "1",
+    pages: ctx.pages ?? "…"
+  });
 }

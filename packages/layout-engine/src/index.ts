@@ -4,3 +4,4 @@ export * from "./cascade";
 export * from "./templates";
 export * from "./variables";
 export * from "./margins";
+export * from "./typeScale";

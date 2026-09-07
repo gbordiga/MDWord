@@ -1,4 +1,6 @@
 export { editorExtensions, WikiLink, Callout, PageBreak, Figure, Caption, MystRaw } from "./schema";
+export { PageGaps, pageGapsKey } from "./pageGaps";
+export type { PageGapsStorage } from "./pageGaps";
 export { astToTiptap } from "./astToTiptap";
 export type { TiptapNode } from "./astToTiptap";
 export { sanitizeTiptapDoc } from "./sanitize";

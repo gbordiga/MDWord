@@ -4,6 +4,7 @@ import {
   resolveMdoc,
   parseMdoc,
   pageMetrics,
+  countFlowPages,
   resolveVariables,
   resolveRunningForPrint,
   resolveRunningForPreview,
@@ -39,6 +40,17 @@ describe("cascade", () => {
     expect(resolved.margins?.left).toBe("30mm");
     expect(resolved.numbering?.headings).toBe(true);
   });
+
+  it("applies a named font scale over template point sizes", () => {
+    const resolved = resolveMdoc({
+      application: APPLICATION_DEFAULTS,
+      template: getTemplate("technical-report")!.mdoc,
+      document: { version: 1, fontScale: "large" }
+    });
+    expect(resolved.typography?.body?.["font-size"]).toBe("13pt");
+    expect(resolved.typography?.["heading-1"]?.["font-size"]).toBe("24pt");
+    expect(resolved.typography?.title?.["font-size"]).toBe("32pt");
+  });
 });
 
 describe("variables", () => {
@@ -57,7 +69,8 @@ describe("variables", () => {
     expect(resolveRunningForPrint("{{title}} · {{page}} / {{pages}}", ctx)).toBe(
       "Audit · {{page}} / {{pages}}"
     );
-    expect(resolveRunningForPreview("{{page}} / {{pages}}", ctx)).toBe("1 / …");
+    expect(resolveRunningForPreview("{{page}} / {{pages}}", ctx)).toBe("1 / 1");
+    expect(resolveRunningForPreview("{{page}} / {{pages}}", { ...ctx, pages: undefined })).toBe("1 / …");
   });
 });
 
@@ -73,6 +86,15 @@ describe("page metrics", () => {
       page: { size: "A4", orientation: "landscape" }
     });
     expect(landscape.widthMm).toBe(297);
+  });
+});
+
+describe("page flow", () => {
+  it("counts stacked pages from content height", () => {
+    expect(countFlowPages(100, 400)).toBe(1);
+    expect(countFlowPages(400, 400)).toBe(1);
+    expect(countFlowPages(401, 400)).toBe(2);
+    expect(countFlowPages(0, 400)).toBe(1);
   });
 });
 

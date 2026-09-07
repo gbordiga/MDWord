@@ -10,6 +10,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Underline from "@tiptap/extension-underline";
 import { WikiLink, Callout, PageBreak, Figure, Caption, MystRaw } from "./extensions";
+import { PageGaps } from "./pageGaps";
 
 export function editorExtensions() {
   return [
@@ -27,7 +28,7 @@ export function editorExtensions() {
       openOnClick: false,
       autolink: true,
       linkOnPaste: true,
-      HTMLAttributes: { class: "md-link" }
+      HTMLAttributes: { class: "md-link", title: "Ctrl+click to open" }
     }),
     Image,
     Placeholder.configure({ placeholder: "Start writing…" }),
@@ -42,7 +43,8 @@ export function editorExtensions() {
     PageBreak,
     Figure,
     Caption,
-    MystRaw
+    MystRaw,
+    PageGaps
   ];
 }
 

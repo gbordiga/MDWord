@@ -1,5 +1,6 @@
 import type { Mdoc } from "./schema";
 import { mdocSchema } from "./schema";
+import { applyFontScale } from "./typeScale";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -44,7 +45,7 @@ export function resolveMdoc(input: CascadeInput): Mdoc {
     if (!layer) continue;
     acc = deepMerge(acc, layer as Record<string, unknown>);
   }
-  return mdocSchema.parse(acc);
+  return applyFontScale(mdocSchema.parse(acc));
 }
 
 export const APPLICATION_DEFAULTS: Mdoc = {
@@ -60,6 +61,9 @@ export const APPLICATION_DEFAULTS: Mdoc = {
     "heading-1": { "font-size": "20pt", weight: 600 },
     "heading-2": { "font-size": "16pt", weight: 600 },
     "heading-3": { "font-size": "14pt", weight: 600 },
+    "heading-4": { "font-size": "12pt", weight: 600 },
+    title: { "font-size": "28pt", weight: 700 },
+    subtitle: { "font-size": "14pt" },
     caption: { "font-size": "10pt" },
     quote: { "font-size": "11pt" },
     code: { "font-family": "Consolas, 'Liberation Mono', ui-monospace, monospace" }
