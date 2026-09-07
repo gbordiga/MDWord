@@ -95,6 +95,32 @@ await sharp(png1024).resize(180, 180).png().toFile(path.join(webPublic, "apple-t
 const desktopRes = path.join(repo, "apps/desktop/resources");
 if (fs.existsSync(desktopRes)) {
   await sharp(png1024).resize(512, 512).png().toFile(path.join(desktopRes, "icon.png"));
+  const icoSizes = [16, 24, 32, 48, 64, 128, 256];
+  const icoPngs = [];
+  for (const size of icoSizes) {
+    icoPngs.push(await sharp(png1024).resize(size, size).png().toBuffer());
+  }
+  const headerSize = 6 + 16 * icoPngs.length;
+  const header = Buffer.alloc(headerSize);
+  header.writeUInt16LE(0, 0);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(icoPngs.length, 4);
+  let offset = headerSize;
+  const parts = [header];
+  icoPngs.forEach((png, i) => {
+    const width = png.readUInt32BE(16);
+    const height = png.readUInt32BE(20);
+    const entry = 6 + i * 16;
+    header.writeUInt8(width >= 256 ? 0 : width, entry);
+    header.writeUInt8(height >= 256 ? 0 : height, entry + 1);
+    header.writeUInt16LE(1, entry + 4);
+    header.writeUInt16LE(32, entry + 6);
+    header.writeUInt32LE(png.length, entry + 8);
+    header.writeUInt32LE(offset, entry + 12);
+    parts.push(png);
+    offset += png.length;
+  });
+  fs.writeFileSync(path.join(desktopRes, "icon.ico"), Buffer.concat(parts));
 }
 
 console.log("Wrote MDWord icons and splash screens");

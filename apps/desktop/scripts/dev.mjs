@@ -1,9 +1,29 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
+async function waitForHttp(url, timeoutMs = 60000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(url);
+      if (res.ok || res.status === 404) return;
+    } catch {
+      // Next is still starting
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  throw new Error(`Timed out waiting for ${url}`);
+}
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+const icons = spawnSync(process.execPath, [path.join(root, "scripts/build-icons.mjs")], {
+  cwd: root,
+  stdio: "inherit"
+});
+if (icons.status) process.exit(icons.status);
 
 await build({
   entryPoints: [path.join(root, "src/main/index.ts")],
@@ -28,13 +48,16 @@ const next = spawn("pnpm", ["--filter", "@mdword/web", "dev"], {
   shell: true
 });
 
-await new Promise((r) => setTimeout(r, 2500));
+await waitForHttp("http://127.0.0.1:3000");
+
+const electronEnv = { ...process.env };
+delete electronEnv.ELECTRON_RUN_AS_NODE;
 
 const electron = spawn("pnpm", ["exec", "electron", "."], {
   cwd: root,
   stdio: "inherit",
   shell: true,
-  env: { ...process.env, ELECTRON_RUN_AS_NODE: "" }
+  env: electronEnv
 });
 
 const stop = () => {

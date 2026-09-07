@@ -84,6 +84,9 @@ export interface HostApi {
     readRecovery(id: string): Promise<string | null>;
     clearRecovery(id: string): Promise<void>;
     exportDiagnostics(): Promise<DiagnosticsBundle>;
+    /** Path passed by the OS ("Open with" / file association). Electron only. */
+    takeLaunchFile(): Promise<string | null>;
+    onOpenDocument(handler: (path: string) => void): () => void;
   };
   export: {
     pdf(html: string, options: Record<string, unknown>): Promise<Uint8Array>;

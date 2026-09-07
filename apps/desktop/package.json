@@ -9,8 +9,9 @@
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "build": "node scripts/build.mjs",
-    "dist": "node scripts/build.mjs && electron-builder --config electron-builder.yml",
+    "icons": "node scripts/build-icons.mjs",
+    "build": "node scripts/build-icons.mjs && node scripts/build.mjs",
+    "dist": "node scripts/build-icons.mjs && node scripts/build.mjs && electron-builder --config electron-builder.yml",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -22,6 +23,7 @@
   "devDependencies": {
     "electron": "^35.1.2",
     "electron-builder": "^26.0.12",
+    "sharp": "^0.34.4",
     "esbuild": "^0.25.2",
     "typescript": "^5.8.2"
   }

@@ -26,7 +26,13 @@ const api = {
       ipcRenderer.invoke("app.writeRecovery", { id, content, meta }),
     readRecovery: (id: string) => ipcRenderer.invoke("app.readRecovery", id),
     clearRecovery: (id: string) => ipcRenderer.invoke("app.clearRecovery", id),
-    exportDiagnostics: () => ipcRenderer.invoke("app.exportDiagnostics")
+    exportDiagnostics: () => ipcRenderer.invoke("app.exportDiagnostics"),
+    takeLaunchFile: () => ipcRenderer.invoke("app.takeLaunchFile"),
+    onOpenDocument: (handler: (path: string) => void) => {
+      const listener = (_event: unknown, filePath: string) => handler(filePath);
+      ipcRenderer.on("app.openDocument", listener);
+      return () => ipcRenderer.removeListener("app.openDocument", listener);
+    }
   },
   export: {
     pdf: (html: string, _options: Record<string, unknown>) => ipcRenderer.invoke("export.pdf", { html }),

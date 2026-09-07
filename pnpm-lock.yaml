@@ -42,6 +42,9 @@ importers:
       esbuild:
         specifier: ^0.25.2
         version: 0.25.12
+      sharp:
+        specifier: ^0.34.4
+        version: 0.34.5
       typescript:
         specifier: ^5.8.2
         version: 5.9.3
