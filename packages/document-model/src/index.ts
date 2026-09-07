@@ -8,6 +8,31 @@ import {
 } from "@mdword/layout-engine";
 import type { Diagnostic, GenericNode } from "@mdword/shared";
 import { parseDocument, stringify as stringifyYaml } from "yaml";
+import {
+  initialFrontmatterValue,
+  isFrontmatterKey,
+  LAYOUT_FRONTMATTER_KEY,
+  type FrontmatterValueKind
+} from "./frontmatterEdit";
+
+export {
+  DOCUMENT_PROPERTY_KEYS,
+  FRONTMATTER_LABELS,
+  LAYOUT_FRONTMATTER_KEY,
+  SUGGESTED_FRONTMATTER_KEYS,
+  formatFrontmatterList,
+  formatFrontmatterScalar,
+  frontmatterLabel,
+  frontmatterValueKind,
+  initialFrontmatterValue,
+  isDocumentPropertyKey,
+  isFrontmatterKey,
+  listCustomFrontmatterKeys,
+  listFrontmatterKeys,
+  parseFrontmatterList,
+  parseFrontmatterObject
+} from "./frontmatterEdit";
+export type { FrontmatterValueKind } from "./frontmatterEdit";
 
 export interface DocumentModel {
   source: string;
@@ -86,23 +111,85 @@ export function saveDocument(model: DocumentModel): string {
   return serializeMarkdown({ ast: model.ast, yaml: model.yamlCst });
 }
 
+function ensureYaml(model: DocumentModel, plain: Record<string, unknown>) {
+  if (model.yamlCst) return model.yamlCst;
+  return parseDocument(stringifyYaml(plain), { keepSourceTokens: true });
+}
+
+function commitFrontmatter(
+  model: DocumentModel,
+  yaml: ReturnType<typeof parseDocument>,
+  frontmatter: Record<string, unknown>,
+  workspaceMdoc?: Mdoc
+): DocumentModel {
+  return openDocument(saveDocument({ ...model, yamlCst: yaml, frontmatter }), { workspaceMdoc });
+}
+
+export function setFrontmatterValues(
+  model: DocumentModel,
+  patch: Record<string, unknown>,
+  workspaceMdoc?: Mdoc
+): DocumentModel {
+  const frontmatter = { ...model.frontmatter, ...patch };
+  const yaml = ensureYaml(model, frontmatter);
+  for (const [key, value] of Object.entries(patch)) {
+    if (!isFrontmatterKey(key) || key === LAYOUT_FRONTMATTER_KEY) continue;
+    yaml.set(key, value);
+  }
+  return commitFrontmatter(model, yaml, frontmatter, workspaceMdoc);
+}
+
+export function removeFrontmatterKey(
+  model: DocumentModel,
+  key: string,
+  workspaceMdoc?: Mdoc
+): DocumentModel {
+  if (key === LAYOUT_FRONTMATTER_KEY || !isFrontmatterKey(key)) return model;
+  const frontmatter = { ...model.frontmatter };
+  delete frontmatter[key];
+  const yaml = ensureYaml(model, frontmatter);
+  yaml.delete(key);
+  return commitFrontmatter(model, yaml, frontmatter, workspaceMdoc);
+}
+
+export function renameFrontmatterKey(
+  model: DocumentModel,
+  from: string,
+  to: string,
+  workspaceMdoc?: Mdoc
+): DocumentModel {
+  const next = to.trim();
+  if (from === next) return model;
+  if (from === LAYOUT_FRONTMATTER_KEY || next === LAYOUT_FRONTMATTER_KEY) return model;
+  if (!isFrontmatterKey(from) || !isFrontmatterKey(next)) return model;
+  if (Object.prototype.hasOwnProperty.call(model.frontmatter, next)) return model;
+  const value = model.frontmatter[from];
+  const frontmatter = { ...model.frontmatter };
+  delete frontmatter[from];
+  frontmatter[next] = value;
+  const yaml = ensureYaml(model, frontmatter);
+  yaml.delete(from);
+  yaml.set(next, value);
+  return commitFrontmatter(model, yaml, frontmatter, workspaceMdoc);
+}
+
+export function addFrontmatterKey(
+  model: DocumentModel,
+  key: string,
+  kind: FrontmatterValueKind = "string",
+  workspaceMdoc?: Mdoc
+): DocumentModel {
+  const next = key.trim();
+  if (!isFrontmatterKey(next) || next === LAYOUT_FRONTMATTER_KEY) return model;
+  if (Object.prototype.hasOwnProperty.call(model.frontmatter, next)) return model;
+  return setFrontmatterValues(model, { [next]: initialFrontmatterValue(kind) }, workspaceMdoc);
+}
+
 export function updateFrontmatter(
   model: DocumentModel,
   patch: Record<string, unknown>
 ): DocumentModel {
-  const next = { ...model.frontmatter, ...patch };
-  if (model.yamlCst) {
-    for (const [key, value] of Object.entries(patch)) {
-      model.yamlCst.set(key, value);
-    }
-  } else {
-    const yaml = parseDocument(stringifyYaml(next), { keepSourceTokens: true });
-    model.yamlCst = yaml;
-  }
-  const reopened = openDocument(saveDocument({ ...model, frontmatter: next }), {
-    workspaceMdoc: undefined
-  });
-  return { ...reopened };
+  return setFrontmatterValues(model, patch);
 }
 
 export function semanticAstEqual(a: GenericNode, b: GenericNode): boolean {

@@ -70,6 +70,24 @@ test("new document asks to discard unsaved changes", async ({ page }) => {
   await expect(prose).not.toContainText("Unsaved draft text");
 });
 
+test("inline properties edit standard and custom fields", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("frontmatter-inline")).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("frontmatter-toggle").click();
+  await expect(page.getByTestId("frontmatter-editor")).toBeVisible();
+  await expect(page.getByTestId("fm-value-title")).toBeVisible();
+  await page.getByTestId("fm-value-title").fill("Scheda QMS");
+  await page.getByTestId("fm-new-key").fill("codice");
+  await page.getByTestId("fm-add").click();
+  await expect(page.getByTestId("fm-row-codice")).toBeVisible();
+  await page.getByTestId("fm-value-codice").fill("IPR001");
+  await expect(page.getByTestId("doc-title")).toHaveText("Scheda QMS");
+  await page.getByRole("button", { name: "View" }).click();
+  await page.getByTitle("Source").click();
+  await expect(page.locator(".cm-content")).toContainText("codice: IPR001");
+  await expect(page.locator(".cm-content")).toContainText("title: Scheda QMS");
+});
+
 test("table of contents is a live frontmatter option", async ({ page }) => {
   await page.goto("/");
   const prose = page.locator(".ProseMirror");

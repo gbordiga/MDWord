@@ -4,6 +4,7 @@ import { create } from "zustand";
 import {
   openDocument,
   saveDocument,
+  setFrontmatterValues,
   type DocumentModel
 } from "@mdword/document-model";
 import { displayDocumentTitle, documentDate, type ViewMode } from "@mdword/shared";
@@ -95,6 +96,7 @@ interface AppState {
   exportHtml: () => Promise<void>;
   patchMdoc: (mdoc: Mdoc) => void;
   patchFrontmatter: (patch: Record<string, unknown>) => void;
+  replaceFrontmatterModel: (model: DocumentModel) => void;
   setZoom: (zoom: number) => void;
   toggleLeft: () => void;
   toggleRight: () => void;
@@ -366,16 +368,11 @@ export const useApp = create<AppState>((set, get) => {
     set({ model: next, dirty: true, syncGeneration: get().syncGeneration + 1, editGeneration: get().editGeneration + 1 });
   },
   patchFrontmatter: (patch) => {
-    const current = get().model;
-    const frontmatter = { ...current.frontmatter, ...patch };
-    const yaml = current.yamlCst;
-    if (yaml) {
-      for (const [k, v] of Object.entries(patch)) yaml.set(k, v);
-    }
-    const next = openDocument(saveDocument({ ...current, frontmatter, yamlCst: yaml }), {
-      workspaceMdoc: get().workspace?.workspaceMdoc
-    });
-    set({ model: next, dirty: true, syncGeneration: get().syncGeneration + 1, editGeneration: get().editGeneration + 1 });
+    const next = setFrontmatterValues(get().model, patch, get().workspace?.workspaceMdoc);
+    set({ model: next, dirty: true, editGeneration: get().editGeneration + 1 });
+  },
+  replaceFrontmatterModel: (model) => {
+    set({ model, dirty: true, editGeneration: get().editGeneration + 1 });
   },
   setZoom: (zoom) => set({ zoom: Math.min(2, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
   toggleLeft: () => set({ leftOpen: !get().leftOpen }),

@@ -35,18 +35,14 @@ test("choosing a local image embeds it in the document", async ({ page }) => {
   await expect(prose.locator("img")).toHaveAttribute("src", /^data:image\/png/);
 });
 
-test("Normal and Report templates explain their differences", async ({ page }) => {
+test("page layout controls stay in Properties", async ({ page }) => {
   await page.goto("/");
-  const prose = page.locator(".ProseMirror");
-  await expect(prose).toBeVisible({ timeout: 20_000 });
-  await page.getByRole("button", { name: "Layout" }).click();
-  await expect(page.getByTestId("template-hint")).toContainText("no table of contents");
-  await page.getByTestId("ribbon-template").selectOption("report");
-  await expect(page.getByTestId("template-hint")).toContainText("live table of contents");
-  await expect(page.getByTestId("document-toc")).toBeVisible();
-  await page.getByTestId("ribbon-template").selectOption("technical-report");
-  await expect(page.getByTestId("template-hint")).toContainText("10pt");
-  await expect(page.getByTestId("prop-template-hint")).toContainText("10pt");
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("prop-section-page")).toBeVisible();
+  await expect(page.getByTestId("prop-section-margins")).toBeVisible();
+  await expect(page.getByTestId("prop-section-running")).toBeVisible();
+  await expect(page.getByTestId("prop-section-toc")).toBeVisible();
+  await expect(page.getByTestId("ribbon-template")).toHaveCount(0);
 });
 
 test("header and footer fields match the page overlay", async ({ page }) => {

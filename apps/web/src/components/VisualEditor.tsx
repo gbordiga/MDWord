@@ -24,6 +24,7 @@ import { useApp } from "@/lib/store";
 import { Spinner } from "./Spinner";
 import { DocumentToc } from "./DocumentToc";
 import { PageRulers } from "./PageRulers";
+import { FrontmatterInline } from "./FrontmatterInline";
 import { collectEditorHeadings, jumpToHeading } from "@/lib/toc";
 import { handleEditorLinkClick, preventBrowserLinkOpen } from "@/lib/openEditorLink";
 import { useEditorTick } from "@/hooks/useEditorTick";
@@ -291,6 +292,7 @@ function VisualEditorCanvas({
         data-testid="page-scroll"
         className="page-scroll absolute inset-0 overflow-auto overscroll-contain px-2 py-3 lg:pb-8 lg:pr-4 lg:pl-[38px] lg:pt-[46px]"
       >
+      <FrontmatterInline width={metrics.widthPx * scale} />
       <div
         ref={pageRef}
         className="page-frame mx-auto"

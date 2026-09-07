@@ -41,7 +41,7 @@ import {
   RectangleVertical
 } from "lucide-react";
 import { useApp, type RibbonTab } from "@/lib/store";
-import { BUILT_IN_TEMPLATES, MARGIN_PRESETS, matchMarginPreset } from "@mdword/layout-engine";
+import { MARGIN_PRESETS, matchMarginPreset } from "@mdword/layout-engine";
 import { applyBlockStyle, currentBlockStyle, insertCallout, insertPageBreak, insertTable } from "@/lib/editorCommands";
 import { useEditorTick } from "@/hooks/useEditorTick";
 import { useEditorUi } from "@/lib/editorUi";
@@ -104,8 +104,6 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
   const busy = useApp((s) => s.busy);
   const { openLink, openImage, openWikilink, confirmIfDirty } = useEditorUi();
   const fileBusy = Boolean(busy);
-  const templateId = actions.model.mdoc.template ?? "normal";
-  const template = BUILT_IN_TEMPLATES.find((t) => t.id === templateId);
   const tocEnabled = Boolean(actions.model.resolvedMdoc.toc?.enabled);
   const tocDepth = actions.model.resolvedMdoc.toc?.depth ?? 3;
   const landscape = actions.model.resolvedMdoc.page?.orientation === "landscape";
@@ -322,29 +320,6 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
               ))}
               {marginPreset === "custom" ? <option value="custom">Custom margins</option> : null}
             </select>
-            <Divider />
-            <select
-              aria-label="Template"
-              data-testid="ribbon-template"
-              className="h-8 max-w-[14rem] rounded-md border border-[#e4e7ec] bg-white px-2 text-[13px]"
-              value={templateId}
-              onChange={(e) => actions.patchMdoc({ ...actions.model.mdoc, template: e.target.value })}
-            >
-              {BUILT_IN_TEMPLATES.map((t) => (
-                <option key={t.id} value={t.id} title={t.description}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-            {template ? (
-              <span
-                className="max-w-md truncate px-1 text-[11px] text-[#667085]"
-                data-testid="template-hint"
-                title={template.description}
-              >
-                {template.description}
-              </span>
-            ) : null}
           </>
         )}
         {ribbon === "references" && (
