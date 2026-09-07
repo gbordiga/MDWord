@@ -1,12 +1,50 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, protocol, net } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, shell, protocol, Menu, session } from "electron";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { existsSync, mkdirSync, createWriteStream } from "node:fs";
-import { pathToFileURL } from "node:url";
 import { z } from "zod";
-import { headerFooterFromHtml } from "@mdword/renderer";
 
 const isDev = !app.isPackaged;
+let pendingPrintHtml: string | null = null;
+
+function staticRoots(): string[] {
+  if (isDev) {
+    return [
+      path.resolve(__dirname, "../../../web/out"),
+      path.resolve(__dirname, "../../../web/public"),
+      path.join(__dirname, "../../resources/web")
+    ];
+  }
+  return [
+    path.join(process.resourcesPath, "web"),
+    path.join(app.getAppPath(), "resources", "web"),
+    path.join(__dirname, "../../resources/web")
+  ];
+}
+
+const STATIC_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".txt": "text/plain; charset=utf-8",
+  ".map": "application/json; charset=utf-8"
+};
+
+function windowIconPath(): string | undefined {
+  const ico = path.join(__dirname, "../../resources/icon.ico");
+  const png = path.join(__dirname, "../../resources/icon.png");
+  if (process.platform === "win32" && existsSync(ico)) return ico;
+  if (existsSync(png)) return png;
+  return undefined;
+}
 
 protocol.registerSchemesAsPrivileged([
   { scheme: "mdword", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }
@@ -38,9 +76,62 @@ async function atomicWrite(filePath: string, content: string): Promise<void> {
 }
 
 let mainWindow: BrowserWindow | null = null;
+let pendingOpen: string | null = null;
 const allowedRoots = new Set<string>([app.getPath("userData")]);
+const MARKDOWN_EXT = /\.(md|markdown|mdown|mkd)$/i;
+
+function isMarkdownPath(filePath: string): boolean {
+  return MARKDOWN_EXT.test(filePath);
+}
+
+function markdownPathsFromArgv(argv: string[]): string[] {
+  return argv.filter((arg, index) => {
+    if (index === 0) return false;
+    if (!arg || arg.startsWith("-")) return false;
+    if (arg === ".") return false;
+    return isMarkdownPath(arg);
+  });
+}
+
+function queueOpenDocument(filePath: string): void {
+  const resolved = path.resolve(filePath);
+  if (!isMarkdownPath(resolved)) return;
+  allowedRoots.add(path.dirname(resolved));
+  pendingOpen = resolved;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.webContents.getURL()) {
+    mainWindow.webContents.send("app.openDocument", resolved);
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+app.on("open-file", (event, filePath) => {
+  event.preventDefault();
+  queueOpenDocument(filePath);
+});
+
+if (process.platform === "win32") {
+  app.setAppUserModelId("app.mdword.desktop");
+}
+
+const gotInstanceLock = app.requestSingleInstanceLock();
+if (!gotInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (_event, argv) => {
+    for (const filePath of markdownPathsFromArgv(argv)) queueOpenDocument(filePath);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
 
 function createWindow(): void {
+  const icon = windowIconPath();
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
@@ -48,6 +139,18 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     title: "MDWord",
+    ...(icon ? { icon } : {}),
+    autoHideMenuBar: true,
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
+    ...(process.platform === "darwin"
+      ? {}
+      : {
+          titleBarOverlay: {
+            color: "#ffffff",
+            symbolColor: "#1c1f24",
+            height: 40
+          }
+        }),
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -80,26 +183,47 @@ function createWindow(): void {
 app.whenReady().then(() => {
   protocol.handle("mdword", async (request) => {
     const url = new URL(request.url);
-    const webRoot = isDev
-      ? path.resolve(__dirname, "../../../web/out")
-      : path.join(process.resourcesPath, "web");
-    let rel = decodeURIComponent(url.pathname);
-    if (rel === "/" || rel === "") rel = "/index.html";
-    const filePath = path.normalize(path.join(webRoot, rel));
-    if (!filePath.startsWith(webRoot)) {
-      return new Response("Forbidden", { status: 403 });
+    let rel = decodeURIComponent(url.pathname).replace(/^\/+/, "");
+    if (rel === "" || rel === ".") rel = "index.html";
+    if (rel === "__print.html") {
+      if (!pendingPrintHtml) return new Response("No print document", { status: 404 });
+      return new Response(pendingPrintHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
     }
-    try {
-      return await net.fetch(pathToFileURL(filePath).toString());
-    } catch {
-      const fallback = path.join(webRoot, "index.html");
-      return net.fetch(pathToFileURL(fallback).toString());
+    const serve = async (target: string) => {
+      const data = await fs.readFile(target);
+      const type = STATIC_TYPES[path.extname(target).toLowerCase()] ?? "application/octet-stream";
+      return new Response(data, { headers: { "content-type": type } });
+    };
+    for (const webRoot of staticRoots()) {
+      const filePath = path.normalize(path.join(webRoot, rel));
+      if (filePath !== webRoot && !filePath.startsWith(webRoot + path.sep)) continue;
+      if (!existsSync(filePath)) continue;
+      try {
+        return await serve(filePath);
+      } catch {
+        /* try next root */
+      }
     }
+    if (rel === "index.html" || rel.endsWith(".html")) {
+      for (const webRoot of staticRoots()) {
+        const fallback = path.join(webRoot, "index.html");
+        if (existsSync(fallback)) return serve(fallback);
+      }
+    }
+    return new Response(`Missing ${rel}`, { status: 404 });
   });
 
+  const sess = session.defaultSession;
+  sess.setPermissionCheckHandler((_contents, permission) => permission === "fileSystem");
+  sess.setPermissionRequestHandler((_contents, permission, callback) => {
+    callback(permission === "fileSystem");
+  });
+
+  Menu.setApplicationMenu(null);
   mkdirSync(userData("recovery"), { recursive: true });
   mkdirSync(userData("logs"), { recursive: true });
   registerIpc();
+  for (const filePath of markdownPathsFromArgv(process.argv)) queueOpenDocument(filePath);
   createWindow();
 });
 
@@ -231,6 +355,12 @@ function registerIpc(): void {
     await fs.rm(userData("recovery", `${safeId}.json`), { force: true });
   });
 
+  ipcMain.handle("app.takeLaunchFile", async () => {
+    const next = pendingOpen;
+    pendingOpen = null;
+    return next;
+  });
+
   ipcMain.handle("app.exportDiagnostics", async () => {
     return {
       appVersion: app.getVersion(),
@@ -242,23 +372,40 @@ function registerIpc(): void {
 
   ipcMain.handle("export.pdf", async (_e, payload: unknown) => {
     const parsed = z.object({ html: z.string() }).parse(payload);
+    pendingPrintHtml = parsed.html;
     const win = new BrowserWindow({
       show: false,
       webPreferences: { sandbox: true, contextIsolation: true, offscreen: true }
     });
-    await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(parsed.html)}`);
-    const pdf = await win.webContents.printToPDF({
-      printBackground: true,
-      displayHeaderFooter: true,
-      ...headerFooterFromHtml(parsed.html)
-    });
-    win.close();
-    const save = await dialog.showSaveDialog({
-      filters: [{ name: "PDF", extensions: ["pdf"] }],
-      defaultPath: "document.pdf"
-    });
-    if (!save.canceled && save.filePath) await fs.writeFile(save.filePath, pdf);
-    return pdf;
+    try {
+      await win.loadURL("mdword://app/__print.html");
+      await win.webContents.executeJavaScript(`new Promise((resolve) => {
+        const start = Date.now();
+        const tick = () => {
+          if (document.documentElement.dataset.pagedReady === "1" || Date.now() - start > 10000) {
+            resolve(true);
+            return;
+          }
+          setTimeout(tick, 40);
+        };
+        if (!document.querySelector("script[src*=\\"paged\\"]")) resolve(true);
+        else tick();
+      })`);
+      const pdf = await win.webContents.printToPDF({
+        printBackground: true,
+        preferCSSPageSize: true,
+        displayHeaderFooter: false
+      });
+      const save = await dialog.showSaveDialog({
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+        defaultPath: "document.pdf"
+      });
+      if (!save.canceled && save.filePath) await fs.writeFile(save.filePath, pdf);
+      return pdf;
+    } finally {
+      pendingPrintHtml = null;
+      if (!win.isDestroyed()) win.close();
+    }
   });
 
   ipcMain.handle("shell.openExternal", async (_e, url: unknown) => {

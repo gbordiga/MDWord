@@ -7,11 +7,27 @@ directories:
 files:
   - dist/**/*
   - resources/**/*
+  - "!resources/web/**"
 asar: true
+extraResources:
+  - from: resources/web
+    to: web
 extraMetadata:
   name: mdword
   author: Giacomo Bordiga
+fileAssociations:
+  - ext:
+      - md
+      - markdown
+      - mdown
+      - mkd
+    name: Markdown
+    description: Markdown document
+    mimeType: text/markdown
+    role: Editor
+    icon: icon.ico
 win:
+  icon: resources/icon.ico
   target:
     - nsis
   artifactName: MDWord-Setup-${version}.${ext}
@@ -19,12 +35,17 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  installerHeaderIcon: resources/icon.ico
 mac:
+  icon: resources/icon.png
   target:
     - dmg
   category: public.app-category.productivity
   artifactName: MDWord-${version}.${ext}
 linux:
+  icon: resources/icon.png
   target:
     - AppImage
     - deb
@@ -32,4 +53,7 @@ linux:
   executableName: MDWord
   maintainer: Giacomo Bordiga <gbordiga@gmail.com>
   artifactName: MDWord-${version}.${ext}
+  mimeTypes:
+    - text/markdown
+    - text/x-markdown
 publish: null

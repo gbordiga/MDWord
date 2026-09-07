@@ -16,6 +16,18 @@ import { tiptapToAst, type TiptapNode } from "@mdword/editor";
 import { renderPrintDocument } from "@mdword/renderer";
 
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view";
+export type PageLayoutMode = "pages" | "continuous";
+
+const PAGE_LAYOUT_KEY = "mdword.pageLayout";
+
+function readPageLayout(): PageLayoutMode {
+  if (typeof window === "undefined") return "pages";
+  try {
+    return window.localStorage.getItem(PAGE_LAYOUT_KEY) === "continuous" ? "continuous" : "pages";
+  } catch {
+    return "pages";
+  }
+}
 export type LeftPanel = "files" | "outline" | "search" | "backlinks";
 export type MobileSheet = "workspace" | "insert" | "properties" | "more" | null;
 export type BusyKind = "open" | "save" | "folder" | "export" | "workspace";
@@ -33,9 +45,10 @@ function yieldPaint(): Promise<void> {
   });
 }
 
-/** Safari/iOS already honor @page margin boxes; Chromium (web and Android) needs Paged.js. */
+/** Safari/iOS honor @page boxes natively; Chromium (web, Android, Electron) uses Paged.js. */
 function webPagedScriptUrl(platform: string): string | undefined {
-  if (typeof window === "undefined" || platform === "electron") return undefined;
+  if (typeof window === "undefined") return undefined;
+  if (platform === "electron") return "mdword://app/paged.polyfill.min.js";
   const ua = navigator.userAgent;
   if (/CriOS|FxiOS|EdgiOS|iPhone|iPad|iPod/i.test(ua)) return undefined;
   if (/Safari/i.test(ua) && !/Chrome|Chromium|Edg|OPR|Android/i.test(ua)) return undefined;
@@ -47,6 +60,7 @@ interface AppState {
   path: string | null;
   dirty: boolean;
   view: ViewMode;
+  pageLayout: PageLayoutMode;
   zoom: number;
   ribbon: RibbonTab;
   left: LeftPanel;
@@ -66,6 +80,7 @@ interface AppState {
   applySource: (source: string) => void;
   applyTiptap: (doc: TiptapNode) => void;
   setView: (view: ViewMode) => void;
+  setPageLayout: (pageLayout: PageLayoutMode) => void;
   setRibbon: (tab: RibbonTab) => void;
   setLeft: (panel: LeftPanel) => void;
   newDocument: () => void;
@@ -119,6 +134,7 @@ export const useApp = create<AppState>((set, get) => {
   path: null,
   dirty: false,
   view: "document",
+  pageLayout: readPageLayout(),
   zoom: 1,
   ribbon: "home",
   left: "files",
@@ -160,6 +176,14 @@ export const useApp = create<AppState>((set, get) => {
     }
   },
   setView: (view) => set({ view }),
+  setPageLayout: (pageLayout) => {
+    try {
+      window.localStorage.setItem(PAGE_LAYOUT_KEY, pageLayout);
+    } catch {
+      /* ignore quota / private mode */
+    }
+    set({ pageLayout });
+  },
   setRibbon: (ribbon) => set({ ribbon }),
   setLeft: (left) => {
     const compact = typeof window !== "undefined" && window.innerWidth < 1024;
@@ -176,7 +200,13 @@ export const useApp = create<AppState>((set, get) => {
     }),
   openFile: async () => {
     const host = getHost();
-    const result = await host.files.open();
+    let result: Awaited<ReturnType<typeof host.files.open>>;
+    try {
+      result = await host.files.open();
+    } catch (error) {
+      console.error("Could not open document", error);
+      return;
+    }
     if (!result) return;
     beginBusy({ kind: "open", label: "Opening document…", blocking: true });
     await yieldPaint();
