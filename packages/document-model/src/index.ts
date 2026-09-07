@@ -7,7 +7,7 @@ import {
   type Mdoc
 } from "@mdword/layout-engine";
 import type { Diagnostic, GenericNode } from "@mdword/shared";
-import { parseDocument, stringify as stringifyYaml } from "yaml";
+import { parseDocument, stringify as stringifyYaml, type Document as YamlDocument } from "yaml";
 import {
   initialFrontmatterValue,
   isFrontmatterKey,
@@ -118,7 +118,7 @@ function ensureYaml(model: DocumentModel, plain: Record<string, unknown>) {
 
 function commitFrontmatter(
   model: DocumentModel,
-  yaml: ReturnType<typeof parseDocument>,
+  yaml: YamlDocument,
   frontmatter: Record<string, unknown>,
   workspaceMdoc?: Mdoc
 ): DocumentModel {
