@@ -237,8 +237,11 @@ export function renderPrintDocument(options: {
       color: #111827;
     }
     img { max-width: 100%; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: 4px 8px; }
+    p { margin: 0 0 0.6em; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; margin: 12px 0; }
+    th, td { border: 1px solid #ccc; padding: 4px 8px; min-width: 0; vertical-align: top; word-wrap: break-word; overflow-wrap: anywhere; }
+    th p, td p { margin: 0; }
+    table tr:first-child:has(> th:empty):not(:has(th:not(:empty))) { display: none; }
     .page-break { break-after: page; page-break-after: always; }
     .admonition { border-left: 4px solid #2563eb; padding: 8px 12px; background: #f8fafc; margin: 12px 0; }
     .admonition.warning { border-color: #d97706; }

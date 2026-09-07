@@ -165,4 +165,14 @@ describe("running header and footer", () => {
     expect(html).toMatch(/font-size:\s*10px/);
     expect(html).toMatch(/color:\s*#667085/);
   });
+
+  it("prints tables with fixed layout and no cell paragraph gap", () => {
+    const html = renderPrintDocument({
+      ast: { type: "root", children: [] },
+      mdoc: { version: 1 },
+      title: "Doc"
+    });
+    expect(html).toMatch(/table-layout:\s*fixed/);
+    expect(html).toMatch(/th p,\s*td p \{ margin: 0; \}/);
+  });
 });

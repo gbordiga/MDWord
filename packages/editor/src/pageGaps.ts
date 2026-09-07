@@ -1,4 +1,5 @@
 import { Extension } from "@tiptap/core";
+import type { Node as PMNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
@@ -10,6 +11,16 @@ export type PageGapsStorage = {
 };
 
 export const pageGapsKey = new PluginKey<DecorationSet>("pageGaps");
+
+/** A widget <div> inside a <table> foster-parents and splits the table in two. */
+export function snapPageGapPos(doc: PMNode, pos: number): number {
+  const safe = Math.min(Math.max(0, pos), doc.content.size);
+  const $pos = doc.resolve(safe);
+  for (let depth = $pos.depth; depth > 0; depth--) {
+    if ($pos.node(depth).type.name === "table") return $pos.after(depth);
+  }
+  return safe;
+}
 
 function signature(set: DecorationSet, doc: { nodeSize: number }): string {
   return set.find().map((d) => d.from).join(",") + `@${doc.nodeSize}`;
@@ -87,7 +98,7 @@ export const PageGaps = Extension.create({
               if (y < prose.top - 2 || y > prose.bottom + cfg.spacerHeight) continue;
               const hit = view.posAtCoords({ left: midX, top: y - 1 });
               if (!hit) continue;
-              const pos = Math.min(Math.max(1, hit.pos), view.state.doc.content.size);
+              const pos = snapPageGapPos(view.state.doc, hit.pos);
               if (used.has(pos)) continue;
               used.add(pos);
               widgets.push(
