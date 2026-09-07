@@ -16,7 +16,7 @@
     "build": "pnpm -r --if-present build",
     "build:web": "pnpm --filter @mdword/web build",
     "build:desktop": "pnpm --filter @mdword/desktop build",
-    "dist": "pnpm build:web && mkdir -p apps/desktop/resources/web && cp -R apps/web/out/. apps/desktop/resources/web/ && pnpm --filter @mdword/desktop dist",
+    "dist": "node scripts/dist-desktop.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "pnpm --filter @mdword/web test:e2e",
@@ -33,6 +33,6 @@
     "vitest": "^3.0.9"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "electron", "electron-winstaller"]
+    "onlyBuiltDependencies": ["esbuild", "electron", "electron-winstaller", "sharp"]
   }
 }
