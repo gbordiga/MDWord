@@ -42,7 +42,7 @@ export function pageMarginCss(
     if (options?.pageTokensOnly && !hasPageToken(raw)) return;
     const expr = cssContentValue(raw, vars);
     if (!expr) return;
-    rules.push(`@${name} { content: ${expr}; font-size: 9pt; color: #444; }`);
+    rules.push(`@${name} { content: ${expr}; font-size: 10px; color: #667085; }`);
   };
   box("top-left", header.left);
   box("top-center", header.center);

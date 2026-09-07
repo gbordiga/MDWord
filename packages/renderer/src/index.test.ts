@@ -155,4 +155,14 @@ describe("running header and footer", () => {
     expect(html).not.toContain("print-page");
     expect(html).not.toMatch(/position:\s*fixed/);
   });
+
+  it("styles running boxes like the on-screen page chrome", () => {
+    const html = renderPrintDocument({
+      ast: { type: "root", children: [] },
+      mdoc: { version: 1, header: { left: "{{title}}" } },
+      title: "Audit"
+    });
+    expect(html).toMatch(/font-size:\s*10px/);
+    expect(html).toMatch(/color:\s*#667085/);
+  });
 });

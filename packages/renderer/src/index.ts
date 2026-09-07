@@ -234,7 +234,7 @@ export function renderPrintDocument(options: {
       font-family: ${bodyFont};
       font-size: ${bodySize};
       line-height: ${lineHeight};
-      color: #111;
+      color: #111827;
     }
     img { max-width: 100%; }
     table { border-collapse: collapse; width: 100%; }
@@ -243,13 +243,19 @@ export function renderPrintDocument(options: {
     .admonition { border-left: 4px solid #2563eb; padding: 8px 12px; background: #f8fafc; margin: 12px 0; }
     .admonition.warning { border-color: #d97706; }
     .unsupported-directive { background: #f1f5f9; font-size: 0.9em; }
-    h1 { font-size: ${options.mdoc.typography?.["heading-1"]?.["font-size"] ?? "20pt"}; }
-    h2 { font-size: ${options.mdoc.typography?.["heading-2"]?.["font-size"] ?? "16pt"}; }
+    h1 { font-size: ${options.mdoc.typography?.["heading-1"]?.["font-size"] ?? "20pt"}; font-weight: ${options.mdoc.typography?.["heading-1"]?.weight ?? 700}; }
+    h2 { font-size: ${options.mdoc.typography?.["heading-2"]?.["font-size"] ?? "16pt"}; font-weight: ${options.mdoc.typography?.["heading-2"]?.weight ?? 650}; }
+    h3 { font-size: ${options.mdoc.typography?.["heading-3"]?.["font-size"] ?? "14pt"}; font-weight: ${options.mdoc.typography?.["heading-3"]?.weight ?? 650}; }
+    h4 { font-size: ${options.mdoc.typography?.["heading-4"]?.["font-size"] ?? "12pt"}; font-weight: ${options.mdoc.typography?.["heading-4"]?.weight ?? 650}; }
     ul { list-style: disc outside; padding-left: 1.5em; }
     ol { list-style: decimal outside; padding-left: 1.5em; }
     li { display: list-item; }
     blockquote { border-left: 3px solid #1d4ed8; padding-left: 1em; margin: 0.7em 0; color: #344054; font-style: italic; }
-    a { color: #1d4ed8; text-decoration: underline; }
+    a, a.md-link { color: #1d4ed8; text-decoration: underline; text-underline-offset: 0.14em; }
+    u { text-decoration: underline; text-underline-offset: 0.14em; }
+    code { font-family: Consolas, "Liberation Mono", ui-monospace, monospace; font-size: 0.9em; background: #f2f4f7; padding: 0.1em 0.35em; border-radius: 4px; }
+    pre { background: #f2f4f7; border: 1px solid #e4e7ec; border-radius: 6px; padding: 10px 12px; }
+    .wikilink { color: #1d4ed8; background: #e8eefc; border-radius: 4px; padding: 0 4px; }
     .toc { border-bottom: 1px solid #d0d5dd; margin: 0 0 1.2em; padding-bottom: 0.8em; }
     .toc h2 { font-size: 14pt; margin: 0 0 0.4em; }
     .toc ol { list-style: none; padding: 0; margin: 0; }
@@ -258,8 +264,8 @@ export function renderPrintDocument(options: {
     .toc-d4 { margin-left: 3.6em; }
     .toc-empty { color: #667085; }
     .doc-masthead { margin: 0 0 1.1em; }
-    .doc-title { font-size: 22pt; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 0.2em; }
-    .doc-subtitle { font-size: 12pt; color: #4b5563; margin: 0 0 0.35em; }
+    .doc-title { font-size: ${options.mdoc.typography?.title?.["font-size"] ?? "28pt"}; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 0.2em; }
+    .doc-subtitle { font-size: ${options.mdoc.typography?.subtitle?.["font-size"] ?? "14pt"}; color: #4b5563; margin: 0 0 0.35em; }
     .doc-date { font-size: 10pt; color: #667085; margin: 0; }
     ${
       useBodyBars
