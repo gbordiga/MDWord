@@ -74,12 +74,20 @@ test("PDF export writes title and date into the print document", async ({ page }
   expect(html).toContain("paged.polyfill.min.js");
 });
 
-test("typing a draft shows autosave progress", async ({ page }) => {
+test("typing a draft stays unsaved until a manual save", async ({ page }) => {
   await page.goto("/");
   const prose = page.locator(".ProseMirror");
   await expect(prose).toBeVisible({ timeout: 20_000 });
   await prose.click();
-  await page.keyboard.type("Autosave draft token");
-  await expect(page.getByTestId("save-status")).toContainText(/Unsaved|Saving/);
-  await expect(page.getByTestId("save-status")).toContainText("Draft saved locally", { timeout: 8_000 });
+  await page.keyboard.type("Manual save draft token");
+  await expect(page.getByTestId("save-status")).toHaveAttribute("data-save-state", "unsaved");
+  await expect(page.getByTestId("save-status")).toContainText("Unsaved");
+  await page.waitForTimeout(2000);
+  await expect(page.getByTestId("save-status")).toHaveAttribute("data-save-state", "unsaved");
+  await expect(page.getByTestId("topbar-sidebar")).toBeVisible();
+  await expect(page.getByTestId("topbar-properties")).toBeVisible();
+  await page.getByRole("button", { name: "history", exact: true }).click();
+  await expect(page.getByTestId("history-pane")).toBeVisible();
+  await expect(page.getByTestId("history-unsaved")).toBeEnabled();
+  await expect(page.getByTestId("history-diff")).toContainText("Manual save draft token");
 });

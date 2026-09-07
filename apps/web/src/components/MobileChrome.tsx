@@ -86,17 +86,8 @@ export function MobileTopBar() {
   const setMobileSheet = useApp((s) => s.setMobileSheet);
   const saveFile = useApp((s) => s.saveFile);
   const saving = useApp((s) => s.busy?.kind === "save");
-  const lastDraftAt = useApp((s) => s.lastDraftAt);
   const lastSavedAt = useApp((s) => s.lastSavedAt);
-  const saveHint = saving
-    ? "Saving…"
-    : dirty && !path && lastDraftAt
-      ? "Draft saved locally"
-      : dirty
-        ? "Unsaved"
-        : lastSavedAt
-          ? "Saved"
-          : (path ?? "Unsaved");
+  const saveHint = saving ? "Saving…" : dirty ? "Unsaved" : lastSavedAt ? "Saved" : (path ?? "Untitled");
 
   return (
     <header

@@ -9,6 +9,7 @@ import { Spinner } from "./Spinner";
 import type { GenericNode } from "@mdword/shared";
 import { focusHeading } from "@/lib/editorCommands";
 import { useEditorUi } from "@/lib/editorUi";
+import { HistoryPane } from "./HistoryPane";
 
 function headingsOf(ast: GenericNode): { text: string; depth: number }[] {
   const out: { text: string; depth: number }[] = [];
@@ -45,7 +46,7 @@ export function LeftSidebar({ className }: { className?: string }) {
   return (
     <aside className={cn("flex h-full w-full min-w-0 flex-col border-r border-[#e4e7ec] bg-white", className)}>
       <div className="flex border-b border-[#e4e7ec] text-[12px]">
-        {(["files", "outline", "search", "backlinks"] as const).map((id) => (
+        {(["files", "outline", "search", "history", "backlinks"] as const).map((id) => (
           <button
             key={id}
             type="button"
@@ -149,6 +150,7 @@ export function LeftSidebar({ className }: { className?: string }) {
             {!workspace && <p className="p-2 text-[#667085]">Open a folder to search across files.</p>}
           </div>
         )}
+        {left === "history" && <HistoryPane />}
         {left === "backlinks" && (
           <ul>
             {backs.map((d) => (

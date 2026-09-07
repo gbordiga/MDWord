@@ -23,9 +23,12 @@ import { getHost } from "@/lib/host";
 import { configureNativeChrome, hideNativeSplash } from "@/lib/native";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
 import { useCtrlWheelZoom } from "@/hooks/useCtrlWheelZoom";
-import { useAutosave } from "@/hooks/useAutosave";
+import { recoveredDraftDiffers, useCrashDraft, usePeriodicCrashDraft, useUnsavedCloseGuard } from "@/hooks/useCrashDraft";
 import { insertTable, selectionText } from "@/lib/editorCommands";
 import { EditorUiProvider, useEditorUi } from "@/lib/editorUi";
+import { RecoveryDialog } from "./RecoveryDialog";
+import { clearCrashDraft, readCrashDraft } from "@/lib/recovery";
+import { saveStatusText } from "@/lib/saveStatus";
 
 export function AppShell() {
   const editorRef = useRef<Editor | null>(null);
@@ -57,8 +60,11 @@ function AppShellInner({
   const { keyboardOpen } = useVisualViewport();
   const { openLink, openImage, openWikilink, dialog, closeDialog, confirm, confirmIfDirty, closeConfirm } =
     useEditorUi();
+  const [recovery, setRecovery] = useState<{ content: string; title?: string; path: string | null } | null>(null);
   useCtrlWheelZoom();
-  useAutosave();
+  useCrashDraft();
+  usePeriodicCrashDraft();
+  useUnsavedCloseGuard();
 
   useEffect(() => {
     const collapseChrome = () => {
@@ -128,15 +134,14 @@ function AppShellInner({
   }, [confirmIfDirty, openLink]);
 
   useEffect(() => {
-    const id = window.setInterval(() => {
-      const state = useApp.getState();
-      if (!state.dirty) return;
-      void getHost().app.writeRecovery("current", state.model.source, {
-        path: state.path,
-        updatedMs: Date.now()
-      });
-    }, 15000);
-    return () => window.clearInterval(id);
+    let cancelled = false;
+    void readCrashDraft().then((draft) => {
+      if (cancelled || !draft || !recoveredDraftDiffers(draft.content)) return;
+      setRecovery({ content: draft.content, title: draft.meta.title, path: draft.meta.path ?? null });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useLayoutEffect(() => {
@@ -241,6 +246,19 @@ function AppShellInner({
       <ImageDialog open={dialog === "image"} editor={editor} onClose={closeDialog} />
       <WikilinkDialog open={dialog === "wikilink"} editor={editor} onClose={closeDialog} />
       <ConfirmDialog confirm={confirm} onClose={closeConfirm} />
+      {recovery ? (
+        <RecoveryDialog
+          title={recovery.title}
+          onRestore={() => {
+            void useApp.getState().applyRecoveredDraft(recovery.content, recovery.path);
+            setRecovery(null);
+          }}
+          onDiscard={() => {
+            void clearCrashDraft();
+            setRecovery(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -248,31 +266,13 @@ function AppShellInner({
 function DesktopSaveStatus() {
   const busy = useApp((s) => s.busy);
   const dirty = useApp((s) => s.dirty);
-  const path = useApp((s) => s.path);
   const lastSavedAt = useApp((s) => s.lastSavedAt);
-  const lastDraftAt = useApp((s) => s.lastDraftAt);
-  const saving = busy?.kind === "save";
-  let text = "";
-  let state = "clean";
-  if (saving) {
-    text = "Saving…";
-    state = "saving";
-  } else if (dirty && !path && lastDraftAt) {
-    text = "Draft saved locally";
-    state = "draft";
-  } else if (dirty) {
-    text = "Unsaved";
-    state = "unsaved";
-  } else if (lastSavedAt) {
-    text = "Saved";
-    state = "saved";
-  }
-
+  const { text, state } = saveStatusText({ busyKind: busy?.kind, dirty, lastSavedAt });
   if (!text) return null;
 
   return (
     <span data-testid="save-status" data-save-state={state} className="inline-flex items-center gap-1.5" aria-live="polite">
-      {saving ? <Spinner size={12} /> : null}
+      {busy?.kind === "save" ? <Spinner size={12} /> : null}
       {text}
     </span>
   );

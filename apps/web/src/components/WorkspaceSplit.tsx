@@ -2,9 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { PanelLeft, PanelRight } from "lucide-react";
 import { useIsCompact } from "@/hooks/useMediaQuery";
-import { useApp } from "@/lib/store";
 import { LeftSidebar } from "./LeftSidebar";
 import { PropertiesPanel } from "./PropertiesPanel";
 
@@ -68,30 +66,6 @@ export function WorkspaceSplit({
         </>
       ) : null}
     </PanelGroup>
-    {!compact && !showLeft ? (
-      <button
-        type="button"
-        data-testid="reopen-left-sidebar"
-        title="Open sidebar"
-        className="absolute left-2 top-1/2 z-30 inline-flex -translate-y-1/2 items-center gap-1 rounded-md border border-[#cdd5df] bg-white px-2 py-1 text-[12px] font-medium text-[#344054] shadow-[0_1px_4px_rgb(16_24_40_/_10%)] hover:bg-[#f8fafc]"
-        onClick={() => useApp.getState().toggleLeft()}
-      >
-        <PanelLeft size={14} />
-        Sidebar
-      </button>
-    ) : null}
-    {!compact && !showRight ? (
-      <button
-        type="button"
-        data-testid="reopen-properties"
-        title="Open properties"
-        className="absolute right-2 top-1/2 z-30 inline-flex -translate-y-1/2 items-center gap-1 rounded-md border border-[#cdd5df] bg-white px-2 py-1 text-[12px] font-medium text-[#344054] shadow-[0_1px_4px_rgb(16_24_40_/_10%)] hover:bg-[#f8fafc]"
-        onClick={() => useApp.getState().toggleRight()}
-      >
-        Properties
-        <PanelRight size={14} />
-      </button>
-    ) : null}
     </div>
   );
 }

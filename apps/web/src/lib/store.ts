@@ -12,6 +12,8 @@ import type { Mdoc } from "@mdword/layout-engine";
 import { parseDocument } from "yaml";
 import { getHost } from "./host";
 import { untitledDocument } from "./untitled";
+import { addHistorySnapshot, historyKeyFromPath, newUntitledHistoryKey } from "./documentHistory";
+import { clearCrashDraft, writeCrashDraft } from "./recovery";
 import { loadWorkspace, applySavedDocument, resolveWikiTarget, type WorkspaceState } from "@mdword/workspace";
 import { tiptapToAst, type TiptapNode } from "@mdword/editor";
 import { renderPrintDocument } from "@mdword/renderer";
@@ -28,7 +30,7 @@ export function readPageLayout(): PageLayoutMode {
     return "pages";
   }
 }
-export type LeftPanel = "files" | "outline" | "search" | "backlinks";
+export type LeftPanel = "files" | "outline" | "search" | "backlinks" | "history";
 export type MobileSheet = "workspace" | "insert" | "properties" | "more" | null;
 export type BusyKind = "open" | "save" | "folder" | "export" | "workspace";
 
@@ -76,6 +78,8 @@ interface AppState {
   editGeneration: number;
   lastSavedAt: number | null;
   lastDraftAt: number | null;
+  lastSavedContent: string;
+  historyKey: string;
   busy: BusyState | null;
   applySource: (source: string) => void;
   applyTiptap: (doc: TiptapNode) => void;
@@ -103,7 +107,9 @@ interface AppState {
   setPalette: (open: boolean) => void;
   setFind: (open: boolean, query?: string) => void;
   finishBusy: (kinds?: BusyKind[]) => void;
-  autosave: () => Promise<void>;
+  saveDraft: () => Promise<void>;
+  restoreHistory: (content: string) => void;
+  applyRecoveredDraft: (content: string, path: string | null) => Promise<void>;
 }
 
 function modelFrom(source: string, workspaceMdoc?: Mdoc): DocumentModel {
@@ -130,8 +136,31 @@ export const useApp = create<AppState>((set, get) => {
 
   const beginBusy = (busy: BusyState) => set({ busy });
 
+  const markSaved = (path: string, content: string, model: DocumentModel) => {
+    const historyKey = historyKeyFromPath(path, get().historyKey);
+    set({
+      path,
+      dirty: false,
+      model: { ...model, source: content },
+      lastSavedAt: Date.now(),
+      lastSavedContent: content,
+      historyKey
+    });
+    rememberSavedFile(path, content);
+    void addHistorySnapshot({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      docKey: historyKey,
+      savedAt: Date.now(),
+      title: displayDocumentTitle(model.frontmatter, path),
+      content
+    });
+    void clearCrashDraft();
+  };
+
+  const initialSource = untitledDocument();
+
   return {
-  model: modelFrom(untitledDocument()),
+  model: modelFrom(initialSource),
   path: null,
   dirty: false,
   view: "document",
@@ -151,6 +180,8 @@ export const useApp = create<AppState>((set, get) => {
   editGeneration: 0,
   lastSavedAt: null,
   lastDraftAt: null,
+  lastSavedContent: initialSource,
+  historyKey: newUntitledHistoryKey(),
   busy: null,
   finishBusy: (kinds) => {
     const busy = get().busy;
@@ -190,15 +221,20 @@ export const useApp = create<AppState>((set, get) => {
     const compact = typeof window !== "undefined" && window.innerWidth < 1024;
     set(compact ? { left, mobileSheet: "workspace" } : { left, leftOpen: true });
   },
-  newDocument: () =>
+  newDocument: () => {
+    const source = untitledDocument();
+    void clearCrashDraft();
     set({
-      model: modelFrom(untitledDocument()),
+      model: modelFrom(source),
       path: null,
       dirty: false,
       lastSavedAt: null,
       lastDraftAt: null,
+      lastSavedContent: source,
+      historyKey: newUntitledHistoryKey(),
       syncGeneration: get().syncGeneration + 1
-    }),
+    });
+  },
   openFile: async () => {
     const host = getHost();
     let result: Awaited<ReturnType<typeof host.files.open>>;
@@ -213,11 +249,14 @@ export const useApp = create<AppState>((set, get) => {
     await yieldPaint();
     try {
       const model = modelFrom(result.content, get().workspace?.workspaceMdoc);
+      void clearCrashDraft();
       set({
         model,
         path: result.path,
         dirty: false,
         lastSavedAt: Date.now(),
+        lastSavedContent: result.content,
+        historyKey: historyKeyFromPath(result.path, get().historyKey),
         syncGeneration: get().syncGeneration + 1
       });
       if (get().view === "source") set({ busy: null });
@@ -235,8 +274,7 @@ export const useApp = create<AppState>((set, get) => {
       if (!next) return;
       beginBusy({ kind: "save", label: "Saving…", blocking: false });
       try {
-        set({ path: next, dirty: false, model: { ...model, source: content }, lastSavedAt: Date.now() });
-        rememberSavedFile(next, content);
+        markSaved(next, content, model);
         await reloadWorkspace();
       } finally {
         set({ busy: null });
@@ -247,8 +285,7 @@ export const useApp = create<AppState>((set, get) => {
     await yieldPaint();
     try {
       await host.files.save({ path, content });
-      set({ dirty: false, model: { ...model, source: content }, lastSavedAt: Date.now() });
-      rememberSavedFile(path, content);
+      markSaved(path, content, model);
       await reloadWorkspace();
     } catch (error) {
       console.error("Could not save document", error);
@@ -263,8 +300,7 @@ export const useApp = create<AppState>((set, get) => {
     if (!next) return;
     beginBusy({ kind: "save", label: "Saving…", blocking: false });
     try {
-      set({ path: next, dirty: false, lastSavedAt: Date.now() });
-      rememberSavedFile(next, content);
+      markSaved(next, content, get().model);
       await reloadWorkspace();
     } finally {
       set({ busy: null });
@@ -290,11 +326,14 @@ export const useApp = create<AppState>((set, get) => {
     await yieldPaint();
     try {
       const result = await host.files.openPath(filePath);
+      void clearCrashDraft();
       set({
         model: modelFrom(result.content, get().workspace?.workspaceMdoc),
         path: result.path,
         dirty: false,
         lastSavedAt: Date.now(),
+        lastSavedContent: result.content,
+        historyKey: historyKeyFromPath(result.path, get().historyKey),
         syncGeneration: get().syncGeneration + 1,
         mobileSheet: null
       });
@@ -379,33 +418,49 @@ export const useApp = create<AppState>((set, get) => {
   setMobileSheet: (mobileSheet) => set({ mobileSheet }),
   setPalette: (paletteOpen) => set({ paletteOpen }),
   setFind: (findOpen, query) => set({ findOpen, findQuery: query ?? get().findQuery }),
-  autosave: async () => {
+  saveDraft: async () => {
     const state = get();
     if (!state.dirty) return;
-    if (state.busy) return;
-    const host = getHost();
-    const content = saveDocument(state.model);
-    beginBusy({ kind: "save", label: "Saving…", blocking: false });
     try {
-      await host.app.writeRecovery("current", content, {
+      const content = saveDocument(state.model);
+      await writeCrashDraft(content, {
         path: state.path,
-        updatedMs: Date.now()
+        title: displayDocumentTitle(state.model.frontmatter, state.path)
       });
       set({ lastDraftAt: Date.now() });
-      if (state.path && (await host.files.canWrite(state.path))) {
-        await host.files.save({ path: state.path, content });
-        rememberSavedFile(state.path, content);
-        set({
-          dirty: false,
-          model: { ...state.model, source: content },
-          lastSavedAt: Date.now()
-        });
-      }
     } catch (error) {
-      console.error("Autosave failed", error);
-    } finally {
-      set({ busy: null });
+      console.error("Crash draft failed", error);
     }
+  },
+  restoreHistory: (content) => {
+    const model = modelFrom(content, get().workspace?.workspaceMdoc);
+    set({
+      model,
+      dirty: content !== get().lastSavedContent,
+      syncGeneration: get().syncGeneration + 1,
+      editGeneration: get().editGeneration + 1
+    });
+  },
+  applyRecoveredDraft: async (content, path) => {
+    let lastSavedContent = get().lastSavedContent;
+    if (path) {
+      try {
+        lastSavedContent = await getHost().files.read(path);
+      } catch {
+        /* keep the session baseline if the original file is unavailable */
+      }
+    }
+    const model = modelFrom(content, get().workspace?.workspaceMdoc);
+    set({
+      model,
+      path,
+      dirty: content !== lastSavedContent,
+      lastSavedContent,
+      historyKey: historyKeyFromPath(path, get().historyKey),
+      lastDraftAt: Date.now(),
+      syncGeneration: get().syncGeneration + 1,
+      editGeneration: get().editGeneration + 1
+    });
   }
   };
 });
