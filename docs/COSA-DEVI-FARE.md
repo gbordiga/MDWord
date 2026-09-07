@@ -28,6 +28,26 @@ Vercel **non** pubblica in automatico da Origin. Serve una **privacy policy** e 
 
 ---
 
+## 0. Mirror su GitHub (una volta)
+
+Il codice vive su Origin Cursor. Da questo ambiente **non c’è login GitHub**, quindi il repo `https://github.com/gbordiga/MDWord` lo crei tu (oggi risulta 404).
+
+Sul tuo computer, con [GitHub CLI](https://cli.github.com/):
+
+```bash
+gh auth login
+chmod +x scripts/push-github.sh
+./scripts/push-github.sh
+```
+
+Crea il repo pubblico, aggiunge il remote `github` (Origin resta `origin`) e spinge `main` + tag `v0.1.0`.
+
+Repo privato: `GITHUB_VISIBILITY=private ./scripts/push-github.sh`
+
+Poi su GitHub: Settings → Secrets se vuoi che Actions (`CI` e `Release Linux`) girino anche lì.
+
+---
+
 ## 2. Desktop Linux (binari locali)
 
 Sulla macchina di sviluppo, dopo `git pull`:

@@ -38,6 +38,15 @@ pnpm typecheck
 
 Packages export TypeScript source (`src/index.ts`) and are transpiled by Next.js / electron-vite. Keep them UI-agnostic except `@mdword/ui` and `@mdword/editor`.
 
+## Git
+
+`origin` is Origin Cursor. Optional GitHub mirror (remote name `github`):
+
+```sh
+gh auth login
+./scripts/push-github.sh
+```
+
 ## Conventions
 
 - TypeScript strict
