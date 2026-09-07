@@ -33,6 +33,17 @@ pnpm dist
 
 Linux CI produces `.AppImage` and `.deb`. Windows `.exe` and macOS `.dmg` should be built on those OS runners for signed releases. See `docs/releasing.md`.
 
+## Git remotes
+
+Primary: Origin Cursor (`origin`). To also host on GitHub:
+
+```sh
+gh auth login
+./scripts/push-github.sh
+```
+
+That creates `https://github.com/gbordiga/MDWord`, adds a `github` remote, and pushes `main` plus tags. Origin stays `origin`. Details: `docs/COSA-DEVI-FARE.md`.
+
 ## Layout
 
 ```
