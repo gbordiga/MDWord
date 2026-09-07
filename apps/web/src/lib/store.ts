@@ -21,8 +21,7 @@ export type PageLayoutMode = "pages" | "continuous";
 
 const PAGE_LAYOUT_KEY = "mdword.pageLayout";
 
-function readPageLayout(): PageLayoutMode {
-  if (typeof window === "undefined") return "pages";
+export function readPageLayout(): PageLayoutMode {
   try {
     return window.localStorage.getItem(PAGE_LAYOUT_KEY) === "continuous" ? "continuous" : "pages";
   } catch {
@@ -136,7 +135,7 @@ export const useApp = create<AppState>((set, get) => {
   path: null,
   dirty: false,
   view: "document",
-  pageLayout: readPageLayout(),
+  pageLayout: "pages",
   zoom: 1,
   ribbon: "home",
   left: "files",

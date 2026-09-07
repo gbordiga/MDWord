@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { Ribbon } from "./Ribbon";
 import { WorkspaceSplit } from "./WorkspaceSplit";
@@ -18,7 +18,7 @@ import { WikilinkDialog } from "./WikilinkDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { BusyOverlay } from "./BusyOverlay";
 import { Spinner } from "./Spinner";
-import { useApp } from "@/lib/store";
+import { readPageLayout, useApp } from "@/lib/store";
 import { getHost } from "@/lib/host";
 import { configureNativeChrome, hideNativeSplash } from "@/lib/native";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
@@ -137,6 +137,14 @@ function AppShellInner({
       });
     }, 15000);
     return () => window.clearInterval(id);
+  }, []);
+
+  useLayoutEffect(() => {
+    document.documentElement.classList.add("mdword-ready");
+    const stored = readPageLayout();
+    if (stored !== useApp.getState().pageLayout) {
+      useApp.setState({ pageLayout: stored });
+    }
   }, []);
 
   useEffect(() => {
