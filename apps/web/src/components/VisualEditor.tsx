@@ -212,13 +212,14 @@ function VisualEditorCanvas({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
+  const layoutRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [pageCount, setPageCount] = useState(1);
   const metrics = pageMetrics(model.resolvedMdoc);
   const fit = useFitScale(metrics.widthPx, scrollRef);
   const scale = fit * zoom;
-  const padTop = metrics.margins.top + 22;
-  const padBottom = metrics.margins.bottom + 22;
+  const padTop = metrics.margins.top;
+  const padBottom = metrics.margins.bottom;
   const usableH = Math.max(48, metrics.heightPx - padTop - padBottom);
   const spacerH = padTop + padBottom + PAGE_STACK_GAP_PX;
   const pageMinHeight = paged ? metrics.heightPx : metrics.heightPx * 1.15;
@@ -248,7 +249,8 @@ function VisualEditorCanvas({
 
   useLayoutEffect(() => {
     if (!editor) return;
-    const storage = editor.storage.pageGaps as PageGapsStorage;
+    const storage = editor.storage.pageGaps as PageGapsStorage | undefined;
+    if (!storage) return;
     storage.enabled = paged;
     storage.usableHeight = usableH;
     storage.spacerHeight = spacerH;
@@ -282,6 +284,7 @@ function VisualEditorCanvas({
       <PageRulers
         scrollRef={scrollRef}
         pageRef={pageRef}
+        layoutRef={layoutRef}
         metrics={metrics}
         scale={scale}
         pageHeightPx={metrics.heightPx}
@@ -292,6 +295,7 @@ function VisualEditorCanvas({
         data-testid="page-scroll"
         className="page-scroll absolute inset-0 overflow-auto overscroll-contain px-2 py-3 lg:pb-8 lg:pr-4 lg:pl-[38px] lg:pt-[46px]"
       >
+      <div ref={layoutRef}>
       <FrontmatterInline width={metrics.widthPx * scale} />
       <div
         ref={pageRef}
@@ -320,7 +324,6 @@ function VisualEditorCanvas({
         }
       >
         <div
-          ref={paged ? undefined : pageRef}
           className={`page-inner relative ${paged ? "" : "bg-white shadow-page"}`}
           style={{
             width: metrics.widthPx,
@@ -339,7 +342,6 @@ function VisualEditorCanvas({
                 return (
                   <div
                     key={index}
-                    ref={index === 0 ? pageRef : undefined}
                     className="absolute left-0 bg-white shadow-page"
                     data-testid={index === 0 ? "page-sheet" : undefined}
                     style={{
@@ -444,6 +446,7 @@ function VisualEditorCanvas({
             <EditorContent editor={editor} className={numberedHeadings ? "md-numbered-headings" : undefined} />
           </div>
         </div>
+      </div>
       </div>
       {!editor ? (
         <div

@@ -102,6 +102,7 @@ function ticks(lengthMm: number, pxPerMm: number, origin: number, axis: "x" | "y
 export function PageRulers({
   scrollRef,
   pageRef,
+  layoutRef,
   metrics,
   scale,
   pageHeightPx,
@@ -109,6 +110,7 @@ export function PageRulers({
 }: {
   scrollRef: RefObject<HTMLElement | null>;
   pageRef: RefObject<HTMLElement | null>;
+  layoutRef?: RefObject<HTMLElement | null>;
   metrics: PageMetrics;
   scale: number;
   pageHeightPx: number;
@@ -136,15 +138,25 @@ export function PageRulers({
     };
 
     update();
+    const rafUpdate = () => {
+      requestAnimationFrame(update);
+    };
     scroll.addEventListener("scroll", update, { passive: true });
-    const ro = new ResizeObserver(update);
+    window.addEventListener("resize", rafUpdate);
+    const ro = new ResizeObserver(rafUpdate);
     ro.observe(scroll);
     ro.observe(page);
+    const layout = layoutRef?.current;
+    if (layout) ro.observe(layout);
+    for (const child of scroll.children) {
+      if (child instanceof HTMLElement) ro.observe(child);
+    }
     return () => {
       scroll.removeEventListener("scroll", update);
+      window.removeEventListener("resize", rafUpdate);
       ro.disconnect();
     };
-  }, [scrollRef, pageRef, scale, pageHeightPx, metrics.widthPx, metrics.heightPx]);
+  }, [scrollRef, pageRef, layoutRef, scale, pageHeightPx, metrics.widthPx, metrics.heightPx]);
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20 hidden lg:block" data-testid="page-rulers">

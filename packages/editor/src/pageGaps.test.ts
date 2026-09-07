@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { astToTiptap } from "./astToTiptap";
-import { snapPageGapPos } from "./pageGaps";
+import { collectPageGapPositions, snapPageGapPos } from "./pageGaps";
 import { tiptapDocFromJson } from "./schemaValid";
 
 describe("snapPageGapPos", () => {
@@ -59,5 +59,37 @@ describe("snapPageGapPos", () => {
     expect(snapped).toBe(tableEnd);
     expect(doc.resolve(snapped).parent.type.name).not.toBe("tableCell");
     expect(doc.resolve(snapped).parent.type.name).not.toBe("table");
+  });
+});
+
+describe("collectPageGapPositions", () => {
+  it("breaks before a block that would enter the next page margin", () => {
+    const gaps = collectPageGapPositions(
+      [
+        { pos: 1, height: 700 },
+        { pos: 20, height: 200 },
+        { pos: 40, height: 100 }
+      ],
+      80,
+      800
+    );
+    expect(gaps).toEqual([20]);
+  });
+
+  it("does not break a block that already starts a page", () => {
+    expect(collectPageGapPositions([{ pos: 1, height: 1200 }], 0, 800)).toEqual([]);
+  });
+
+  it("places a second break after a tall first page", () => {
+    const gaps = collectPageGapPositions(
+      [
+        { pos: 1, height: 750 },
+        { pos: 10, height: 100 },
+        { pos: 20, height: 780 }
+      ],
+      0,
+      800
+    );
+    expect(gaps).toEqual([10, 20]);
   });
 });

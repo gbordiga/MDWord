@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { searchIndex, backlinksTo } from "@mdword/indexer";
 import { cn } from "@mdword/ui";
 import { useApp } from "@/lib/store";
@@ -54,6 +55,16 @@ export function LeftSidebar({ className }: { className?: string }) {
             {id}
           </button>
         ))}
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          title="Close sidebar"
+          data-testid="close-left-sidebar"
+          className="shrink-0 px-2 text-[#667085] hover:bg-[#f2f4f7] hover:text-[#1c1f24]"
+          onClick={() => useApp.getState().toggleLeft()}
+        >
+          <X size={16} />
+        </button>
       </div>
       <div className="relative flex-1 overflow-auto p-2 text-[13px]">
         {busy?.kind === "folder" ? (

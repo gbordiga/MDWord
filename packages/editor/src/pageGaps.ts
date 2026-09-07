@@ -12,6 +12,29 @@ export type PageGapsStorage = {
 
 export const pageGapsKey = new PluginKey<DecorationSet>("pageGaps");
 
+export type PageGapBlock = { pos: number; height: number };
+
+/** Place a gap before a block that would start in the bottom margin of the current page. */
+export function collectPageGapPositions(
+  blocks: PageGapBlock[],
+  extra: number,
+  usable: number
+): number[] {
+  if (usable < 48) return [];
+  const gaps: number[] = [];
+  let y = Math.max(0, extra);
+  for (const block of blocks) {
+    if (block.height <= 0) continue;
+    const used = y % usable;
+    if (used > 1 && used + block.height > usable) {
+      gaps.push(block.pos);
+      y += usable - used;
+    }
+    y += block.height;
+  }
+  return gaps;
+}
+
 /** A widget <div> inside a <table> foster-parents and splits the table in two. */
 export function snapPageGapPos(doc: PMNode, pos: number): number {
   const safe = Math.min(Math.max(0, pos), doc.content.size);
@@ -22,8 +45,8 @@ export function snapPageGapPos(doc: PMNode, pos: number): number {
   return safe;
 }
 
-function signature(set: DecorationSet, doc: { nodeSize: number }): string {
-  return set.find().map((d) => d.from).join(",") + `@${doc.nodeSize}`;
+function signature(set: DecorationSet, doc: { nodeSize: number }, spacer: number): string {
+  return set.find().map((d) => d.from).join(",") + `@${doc.nodeSize}@${Math.round(spacer)}`;
 }
 
 export const PageGaps = Extension.create({
@@ -62,9 +85,9 @@ export const PageGaps = Extension.create({
           let last = "";
 
           const refresh = () => {
-            const cfg = editor.storage.pageGaps as PageGapsStorage;
+            const cfg = editor.storage.pageGaps as PageGapsStorage | undefined;
             const current = pageGapsKey.getState(view.state) ?? DecorationSet.empty;
-            if (!cfg.enabled || cfg.usableHeight < 48) {
+            if (!cfg?.enabled || cfg.usableHeight < 48 || !view.dom.isConnected) {
               if (current.find().length) {
                 last = "";
                 view.dispatch(view.state.tr.setMeta(pageGapsKey, DecorationSet.empty).setMeta("addToHistory", false));
@@ -72,15 +95,22 @@ export const PageGaps = Extension.create({
               return;
             }
 
-            const spacers = view.dom.querySelectorAll<HTMLElement>(".md-page-gap");
-            let spacerTotal = 0;
-            for (const node of spacers) spacerTotal += node.offsetHeight;
-
-            const contentH = Math.max(0, view.dom.scrollHeight - spacerTotal);
-            const extra = Math.max(0, cfg.contentTop);
-            const flowH = contentH + extra;
-            const pages = Math.max(1, Math.ceil(flowH / cfg.usableHeight));
-            if (pages < 2) {
+            let extra = 0;
+            let positions: number[] = [];
+            try {
+              extra = Math.max(0, cfg.contentTop);
+              const blocks: PageGapBlock[] = [];
+              view.state.doc.forEach((_node, pos) => {
+                const dom = view.nodeDOM(pos);
+                if (!(dom instanceof HTMLElement) || dom.classList.contains("md-page-gap")) return;
+                blocks.push({ pos, height: dom.offsetHeight });
+              });
+              positions = collectPageGapPositions(blocks, extra, cfg.usableHeight);
+            } catch (error) {
+              console.error("page gaps could not measure blocks", error);
+              return;
+            }
+            if (!positions.length) {
               if (current.find().length) {
                 last = "";
                 view.dispatch(view.state.tr.setMeta(pageGapsKey, DecorationSet.empty).setMeta("addToHistory", false));
@@ -88,38 +118,24 @@ export const PageGaps = Extension.create({
               return;
             }
 
-            const prose = view.dom.getBoundingClientRect();
-            const midX = prose.left + Math.min(prose.width, 24) + 8;
-            const used = new Set<number>();
-            const widgets: Decoration[] = [];
-
-            for (let i = 1; i < pages; i++) {
-              const y = prose.top - extra + i * cfg.usableHeight + (i - 1) * cfg.spacerHeight;
-              if (y < prose.top - 2 || y > prose.bottom + cfg.spacerHeight) continue;
-              const hit = view.posAtCoords({ left: midX, top: y - 1 });
-              if (!hit) continue;
-              const pos = snapPageGapPos(view.state.doc, hit.pos);
-              if (used.has(pos)) continue;
-              used.add(pos);
-              widgets.push(
-                Decoration.widget(
-                  pos,
-                  () => {
-                    const el = document.createElement("div");
-                    el.className = "md-page-gap";
-                    el.style.height = `${cfg.spacerHeight}px`;
-                    el.contentEditable = "false";
-                    el.setAttribute("data-testid", "page-gap");
-                    return el;
-                  },
-                  { side: -1, ignoreSelection: true, key: `page-gap-${i}-${pos}` }
-                )
-              );
-            }
+            const widgets = positions.map((pos, index) =>
+              Decoration.widget(
+                pos,
+                () => {
+                  const el = document.createElement("div");
+                  el.className = "md-page-gap";
+                  el.style.height = `${cfg.spacerHeight}px`;
+                  el.contentEditable = "false";
+                  el.setAttribute("data-testid", "page-gap");
+                  return el;
+                },
+                { side: -1, ignoreSelection: true, key: `page-gap-${index}-${pos}-${Math.round(cfg.spacerHeight)}` }
+              )
+            );
 
             const next = DecorationSet.create(view.state.doc, widgets);
-            const sig = signature(next, view.state.doc);
-            if (sig === last || sig === signature(current, view.state.doc)) return;
+            const sig = signature(next, view.state.doc, cfg.spacerHeight);
+            if (sig === last || sig === signature(current, view.state.doc, cfg.spacerHeight)) return;
             last = sig;
             view.dispatch(view.state.tr.setMeta(pageGapsKey, next).setMeta("addToHistory", false));
           };
