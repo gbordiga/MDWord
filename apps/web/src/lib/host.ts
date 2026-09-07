@@ -10,7 +10,7 @@ const DB = "mdword";
 const PREFS = "preferences";
 const RECOVERY = "recovery";
 
-function isElectron(): boolean {
+export function isElectron(): boolean {
   return typeof window !== "undefined" && Boolean((window as Window & { mdword?: HostApi }).mdword);
 }
 
@@ -59,11 +59,15 @@ type FsHandle = {
   kind: "file" | "directory";
   getFile(): Promise<File>;
   createWritable(): Promise<{ write: (data: string) => Promise<void>; close: () => Promise<void> }>;
+  queryPermission?: (opts: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
+  requestPermission?: (opts: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
 };
 
 type DirHandle = {
   name: string;
   entries(): AsyncIterable<[string, FsHandle]>;
+  queryPermission?: (opts: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
+  requestPermission?: (opts: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
 };
 
 type WindowFs = Window & {
@@ -73,6 +77,46 @@ type WindowFs = Window & {
 };
 
 const fileHandles = new Map<string, FsHandle>();
+const fileTexts = new Map<string, string>();
+
+async function ensureHandleAccess(handle: FsHandle | DirHandle, mode: "read" | "readwrite"): Promise<boolean> {
+  try {
+    if (typeof handle.queryPermission === "function") {
+      const current = await handle.queryPermission({ mode });
+      if (current === "granted") return true;
+    }
+    if (typeof handle.requestPermission === "function") {
+      return (await handle.requestPermission({ mode })) === "granted";
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function textFromHandle(handle: FsHandle, key: string): Promise<string> {
+  const cached = fileTexts.get(key);
+  if (cached !== undefined) return cached;
+  await ensureHandleAccess(handle, "read");
+  const file = await handle.getFile();
+  const text = await file.text();
+  fileTexts.set(key, text);
+  return text;
+}
+
+function pickFileWithInput(accept = ".md,.markdown,text/markdown"): Promise<OpenDocumentResult | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = accept;
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return resolve(null);
+      resolve({ path: file.name, content: await file.text() });
+    };
+    input.click();
+  });
+}
 
 function download(name: string, content: string, type = "text/markdown"): void {
   const blob = new Blob([content], { type });
@@ -90,40 +134,39 @@ export const webHost: HostApi = {
     async open(): Promise<OpenDocumentResult | null> {
       const picker = (window as WindowFs).showOpenFilePicker;
       if (picker) {
-        const handles = await picker({
-          types: [{ description: "Markdown", accept: { "text/markdown": [".md", ".markdown"] } }]
-        });
-        const handle = handles[0];
-        if (!handle) return null;
-        const file = await handle.getFile();
-        const content = await file.text();
-        fileHandles.set(handle.name, handle);
-        return { path: handle.name, content };
+        try {
+          const handles = await picker({
+            types: [{ description: "Markdown", accept: { "text/markdown": [".md", ".markdown"] } }]
+          });
+          const handle = handles[0];
+          if (!handle) return null;
+          await ensureHandleAccess(handle, "readwrite");
+          const content = await textFromHandle(handle, handle.name);
+          fileHandles.set(handle.name, handle);
+          return { path: handle.name, content };
+        } catch {
+          return pickFileWithInput();
+        }
       }
-      return new Promise((resolve) => {
-        const input = document.createElement("input");
-        input.type = "file";
-        input.accept = ".md,.markdown,text/markdown";
-        input.onchange = async () => {
-          const file = input.files?.[0];
-          if (!file) return resolve(null);
-          resolve({ path: file.name, content: await file.text() });
-        };
-        input.click();
-      });
+      return pickFileWithInput();
     },
     async openPath(path: string) {
-      const handle = fileHandles.get(path);
+      const cached = fileTexts.get(path) ?? fileTexts.get(path.split("/").pop() ?? path);
+      if (cached !== undefined) return { path, content: cached };
+      const handle = fileHandles.get(path) ?? fileHandles.get(path.split("/").pop() ?? path);
       if (!handle) throw new Error("File is not available in this browser session");
-      const file = await handle.getFile();
-      return { path, content: await file.text() };
+      const content = await textFromHandle(handle, path);
+      return { path, content };
     },
     async save({ path, content }) {
       const handle = fileHandles.get(path);
       if (handle) {
+        await ensureHandleAccess(handle, "readwrite");
         const writable = await handle.createWritable();
         await writable.write(content);
         await writable.close();
+        fileTexts.set(path, content);
+        fileTexts.set(handle.name, content);
         return;
       }
       if (isNativeApp()) {
@@ -160,30 +203,41 @@ export const webHost: HostApi = {
       const picker = (window as WindowFs).showDirectoryPicker;
       if (!picker) return null;
       const dir = (await picker()) as unknown as DirHandle;
+      await ensureHandleAccess(dir, "read");
       folderHandle = dir;
       return dir.name;
     },
     async list(folder) {
       if (!folderHandle) return [];
+      await ensureHandleAccess(folderHandle, "read");
       const out: { path: string; name: string; isDirectory: boolean }[] = [];
       const entries = folderHandle.entries();
       for await (const [name, handle] of entries) {
+        const filePath = `${folder}/${name}`;
         out.push({
-          path: `${folder}/${name}`,
+          path: filePath,
           name,
           isDirectory: handle.kind === "directory"
         });
         if (handle.kind === "file" && name.endsWith(".md")) {
           fileHandles.set(name, handle);
-          fileHandles.set(`${folder}/${name}`, handle);
+          fileHandles.set(filePath, handle);
+          try {
+            const text = await textFromHandle(handle, filePath);
+            fileTexts.set(name, text);
+          } catch {
+            /* permission or platform blocked this file */
+          }
         }
       }
       return out;
     },
     async read(path) {
+      const cached = fileTexts.get(path) ?? fileTexts.get(path.split("/").pop() ?? path);
+      if (cached !== undefined) return cached;
       const handle = fileHandles.get(path) ?? fileHandles.get(path.split("/").pop() ?? path);
       if (!handle) throw new Error("File handle missing");
-      return (await handle.getFile()).text();
+      return textFromHandle(handle, path);
     },
     async write(path, content) {
       await this.save({ path, content });
@@ -228,6 +282,12 @@ export const webHost: HostApi = {
         platform: "web",
         logs: ["telemetry=off", `electron=${isElectron()}`, `native=${isNativeApp()}`]
       };
+    },
+    async takeLaunchFile() {
+      return null;
+    },
+    onOpenDocument() {
+      return () => undefined;
     }
   },
   export: {

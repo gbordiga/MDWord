@@ -41,6 +41,28 @@ body {
   flex-direction: column;
 }
 
+.md-titlebar {
+  box-sizing: border-box;
+  /* 1px taller than the Windows overlay so the rule runs under min/max/close */
+  height: 41px;
+  width: 100%;
+  padding-left: max(12px, env(titlebar-area-x, 12px));
+  padding-right: max(
+    12px,
+    calc(100% - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100%) + 12px)
+  );
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.md-titlebar button,
+.md-titlebar a,
+.md-titlebar input,
+.md-titlebar select {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 html.keyboard-open .mdword-app {
   top: var(--app-offset-top, 0px);
   bottom: auto;
@@ -212,11 +234,16 @@ html.keyboard-open .mdword-app {
   color: #1d4ed8;
   text-decoration: underline;
   text-underline-offset: 0.14em;
-  cursor: pointer;
+  cursor: text;
 }
 
 .ProseMirror a:hover {
   color: #1e40af;
+}
+
+.ProseMirror.md-mod-link a,
+.ProseMirror.md-mod-link .wikilink {
+  cursor: pointer;
 }
 
 .ProseMirror code {
@@ -270,6 +297,11 @@ html.keyboard-open .mdword-app {
   background: #fef3f2;
 }
 
+.md-page-gap {
+  pointer-events: none;
+  user-select: none;
+}
+
 .page-break-block {
   height: 28px;
   margin: 18px -8px;
@@ -296,7 +328,7 @@ html.keyboard-open .mdword-app {
   background: #e8eefc;
   border-radius: 4px;
   padding: 0 4px;
-  cursor: pointer;
+  cursor: text;
 }
 
 .wikilink.broken {

@@ -30,6 +30,8 @@ import {
   SquareCode,
   FileText,
   Columns2,
+  BookOpen,
+  AlignVerticalSpaceAround,
   ZoomIn,
   ZoomOut,
   PanelLeft,
@@ -124,7 +126,6 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             {tab.label}
           </button>
         ))}
-        <div className="ml-auto pr-3 text-[12px] text-[#667085]">MDWord</div>
       </div>
       <div className="flex flex-wrap items-center gap-1 bg-[#f8fafc] px-2 py-1.5">
         {ribbon === "file" && (
@@ -396,6 +397,23 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             </Btn>
             <Btn title="Split" pressed={actions.view === "split"} onClick={() => actions.setView("split")}>
               <Columns2 size={16} /> Split
+            </Btn>
+            <Divider />
+            <Btn
+              title="Pages"
+              testId="view-pages"
+              pressed={actions.pageLayout === "pages"}
+              onClick={() => actions.setPageLayout("pages")}
+            >
+              <BookOpen size={16} /> Pages
+            </Btn>
+            <Btn
+              title="Continuous"
+              testId="view-continuous"
+              pressed={actions.pageLayout === "continuous"}
+              onClick={() => actions.setPageLayout("continuous")}
+            >
+              <AlignVerticalSpaceAround size={16} /> Continuous
             </Btn>
             <Divider />
             <Btn title="Outline" onClick={() => actions.setLeft("outline")}>

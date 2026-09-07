@@ -18,6 +18,7 @@ test("Layout ribbon Narrow preset updates margin fields and the page", async ({ 
 test("Properties margin preset Wide updates left and right millimetres", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("prop-section-margins").locator("summary").click();
   await page.getByTestId("margin-preset").selectOption("wide");
   await expect(page.getByTestId("prop-margin-left")).toHaveValue("50mm");
   await expect(page.getByTestId("prop-margin-right")).toHaveValue("50mm");

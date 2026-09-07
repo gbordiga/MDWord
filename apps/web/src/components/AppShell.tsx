@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { Ribbon } from "./Ribbon";
-import { LeftSidebar } from "./LeftSidebar";
-import { PropertiesPanel } from "./PropertiesPanel";
+import { WorkspaceSplit } from "./WorkspaceSplit";
 import { VisualEditor } from "./VisualEditor";
 import { SourcePane } from "./SourcePane";
 import { CommandPalette } from "./CommandPalette";
+import { DesktopTopBar } from "./DesktopTopBar";
 import { MobileFormatBar, MobileSheets, MobileTabBar, MobileTopBar } from "./MobileChrome";
 import { FindBar } from "./FindBar";
 import { EditorContextBar } from "./EditorContextBar";
@@ -145,6 +145,18 @@ function AppShellInner({
   }, []);
 
   useEffect(() => {
+    const host = getHost();
+    const openFromOs = (filePath: string) => {
+      void useApp.getState().openWorkspaceFile(filePath);
+    };
+    const stop = host.app.onOpenDocument(openFromOs);
+    void host.app.takeLaunchFile().then((filePath) => {
+      if (filePath) openFromOs(filePath);
+    });
+    return stop;
+  }, []);
+
+  useEffect(() => {
     if (!busy) return;
     const timeout = window.setTimeout(() => useApp.getState().finishBusy(), 30000);
     return () => window.clearTimeout(timeout);
@@ -165,31 +177,32 @@ function AppShellInner({
       aria-busy={Boolean(busy)}
     >
       <MobileTopBar />
+      <DesktopTopBar />
       <Ribbon editor={editor} />
       <MobileFormatBar editor={editor} />
       <FindBar />
       <EditorContextBar />
       <div className="relative flex min-h-0 min-w-0 flex-1">
-        {leftOpen && <LeftSidebar className="max-lg:hidden" />}
-        <div
-          className={`flex min-h-0 min-w-0 flex-1 ${
-            view === "split" ? "flex-col lg:flex-row" : ""
-          }`}
-        >
-          {view !== "source" && <VisualEditor editorRef={editorRef} onEditor={setEditor} />}
-          {view !== "document" && (
-            <div
-              className={
-                view === "split"
-                  ? "min-h-0 min-w-0 flex-1 border-t border-[#e4e7ec] lg:w-1/2 lg:border-l lg:border-t-0"
-                  : "min-h-0 min-w-0 flex-1"
-              }
-            >
-              <SourcePane />
-            </div>
-          )}
-        </div>
-        {rightOpen && <PropertiesPanel className="max-lg:hidden" />}
+        <WorkspaceSplit leftOpen={leftOpen} rightOpen={rightOpen}>
+          <div
+            className={`flex h-full min-h-0 min-w-0 ${
+              view === "split" ? "flex-col lg:flex-row" : ""
+            }`}
+          >
+            {view !== "source" && <VisualEditor editorRef={editorRef} onEditor={setEditor} />}
+            {view !== "document" && (
+              <div
+                className={
+                  view === "split"
+                    ? "min-h-0 min-w-0 flex-1 border-t border-[#e4e7ec] lg:w-1/2 lg:border-l lg:border-t-0"
+                    : "min-h-0 min-w-0 flex-1"
+                }
+              >
+                <SourcePane />
+              </div>
+            )}
+          </div>
+        </WorkspaceSplit>
         {busy?.blocking ? <BusyOverlay label={busy.label} /> : null}
       </div>
       <footer className="hidden h-7 shrink-0 items-center justify-between border-t border-[#e4e7ec] bg-white px-3 text-[11px] text-[#667085] lg:flex">

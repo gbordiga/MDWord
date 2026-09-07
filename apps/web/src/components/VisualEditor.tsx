@@ -1,17 +1,33 @@
 "use client";
 
-import { Component, useEffect, useRef, useState, type CSSProperties, type ErrorInfo, type ReactNode } from "react";
+import {
+  Component,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ErrorInfo,
+  type ReactNode
+} from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
-import { editorExtensions, astToTiptap, type TiptapNode } from "@mdword/editor";
-import { pageMetrics, resolveRunningForPreview } from "@mdword/layout-engine";
+import { editorExtensions, astToTiptap, type PageGapsStorage, type TiptapNode } from "@mdword/editor";
+import {
+  countFlowPages,
+  PAGE_STACK_GAP_PX,
+  pageMetrics,
+  pageStackHeightPx,
+  resolveRunningForPreview
+} from "@mdword/layout-engine";
 import { documentDate, documentTitle } from "@mdword/shared";
 import { useApp } from "@/lib/store";
-import { getHost } from "@/lib/host";
 import { Spinner } from "./Spinner";
 import { DocumentToc } from "./DocumentToc";
-import { MarginGuides } from "./MarginGuides";
+import { PageRulers } from "./PageRulers";
 import { collectEditorHeadings, jumpToHeading } from "@/lib/toc";
+import { handleEditorLinkClick, preventBrowserLinkOpen } from "@/lib/openEditorLink";
 import { useEditorTick } from "@/hooks/useEditorTick";
+import { useIsCompact } from "@/hooks/useMediaQuery";
 
 function tiptapContentFromAst(ast: Parameters<typeof astToTiptap>[0]): TiptapNode {
   try {
@@ -64,12 +80,11 @@ class VisualEditorBoundary extends Component<
   }
 }
 
-function useFitScale(widthPx: number) {
-  const ref = useRef<HTMLDivElement>(null);
+function useFitScale(widthPx: number, elRef: { current: HTMLElement | null }) {
   const [fit, setFit] = useState(1);
 
   useEffect(() => {
-    const el = ref.current;
+    const el = elRef.current;
     if (!el) return;
     const update = () => {
       const styles = window.getComputedStyle(el);
@@ -82,9 +97,9 @@ function useFitScale(widthPx: number) {
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [widthPx]);
+  }, [widthPx, elRef]);
 
-  return { ref, fit };
+  return fit;
 }
 
 export function VisualEditor({
@@ -115,6 +130,9 @@ function VisualEditorCanvas({
   const model = useApp((s) => s.model);
   const patchMdoc = useApp((s) => s.patchMdoc);
   const zoom = useApp((s) => s.zoom);
+  const pageLayout = useApp((s) => s.pageLayout);
+  const compact = useIsCompact();
+  const paged = pageLayout === "pages" && !compact;
   const applyTiptap = useApp((s) => s.applyTiptap);
   const syncGeneration = useApp((s) => s.syncGeneration);
 
@@ -126,6 +144,11 @@ function VisualEditorCanvas({
       attributes: {
         class: "md-prose",
         spellcheck: "true"
+      },
+      handleClick: (view, pos, event) =>
+        event.defaultPrevented ? true : handleEditorLinkClick(view, pos, event),
+      handleDOMEvents: {
+        mousedown: (_view, event) => preventBrowserLinkOpen(event)
       }
     },
     onUpdate: ({ editor: ed }) => {
@@ -147,24 +170,28 @@ function VisualEditorCanvas({
     if (!editor) return;
     const dom = editor.view.dom;
     const onClick = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
-      const wiki = target.closest<HTMLElement>(".md-wikilink, [data-wiki-link]");
-      if (wiki) {
-        event.preventDefault();
-        const name = (wiki.getAttribute("data-target") || wiki.textContent || "").trim();
-        if (name) void useApp.getState().openWorkspaceFileByTitle(name);
-        return;
-      }
-      const anchor = target.closest<HTMLAnchorElement>("a.md-link, a[href]");
-      if (anchor && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        const href = anchor.getAttribute("href");
-        if (href) void getHost().shell.openExternal(href);
+      const wiki = (event.target as HTMLElement | null)?.closest?.("a[href], [data-wiki-link]");
+      if (!wiki) return;
+      const pos = editor.view.posAtCoords({ left: event.clientX, top: event.clientY });
+      if (pos && handleEditorLinkClick(editor.view, pos.pos, event)) {
+        event.stopPropagation();
       }
     };
-    dom.addEventListener("click", onClick);
-    return () => dom.removeEventListener("click", onClick);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Control" && event.key !== "Meta") return;
+      dom.classList.toggle("md-mod-link", event.type === "keydown");
+    };
+    const clearMod = () => dom.classList.remove("md-mod-link");
+    dom.addEventListener("click", onClick, true);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKey);
+    window.addEventListener("blur", clearMod);
+    return () => {
+      dom.removeEventListener("click", onClick, true);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKey);
+      window.removeEventListener("blur", clearMod);
+    };
   }, [editor]);
 
   const lastGen = useRef(syncGeneration);
@@ -182,10 +209,19 @@ function VisualEditorCanvas({
     }
   }, [editor, syncGeneration, model.ast]);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [pageCount, setPageCount] = useState(1);
   const metrics = pageMetrics(model.resolvedMdoc);
-  const { ref, fit } = useFitScale(metrics.widthPx);
+  const fit = useFitScale(metrics.widthPx, scrollRef);
   const scale = fit * zoom;
-  const pageMinHeight = metrics.heightPx * 1.15;
+  const padTop = metrics.margins.top + 22;
+  const padBottom = metrics.margins.bottom + 22;
+  const usableH = Math.max(48, metrics.heightPx - padTop - padBottom);
+  const spacerH = padTop + padBottom + PAGE_STACK_GAP_PX;
+  const pageMinHeight = paged ? metrics.heightPx : metrics.heightPx * 1.15;
+  const sheetCount = paged ? pageCount : 1;
   const body = model.resolvedMdoc.typography?.body;
   const header = model.resolvedMdoc.header ?? {};
   const footer = model.resolvedMdoc.footer ?? {};
@@ -209,13 +245,54 @@ function VisualEditorCanvas({
   const subtitleText = String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? "");
   const dateText = documentDate(model.frontmatter);
 
+  useLayoutEffect(() => {
+    if (!editor) return;
+    const storage = editor.storage.pageGaps as PageGapsStorage;
+    storage.enabled = paged;
+    storage.usableHeight = usableH;
+    storage.spacerHeight = spacerH;
+    const prose = editor.view.dom;
+    const padded = contentRef.current;
+    storage.contentTop = padded ? Math.max(0, prose.offsetTop) : 0;
+    editor.view.dispatch(editor.state.tr.setMeta("pageGapsRefresh", true).setMeta("addToHistory", false));
+
+    const measure = () => {
+      if (!paged || !padded) {
+        setPageCount(1);
+        return;
+      }
+      let gapH = 0;
+      padded.querySelectorAll<HTMLElement>(".md-page-gap").forEach((node) => {
+        gapH += node.offsetHeight;
+      });
+      const inner = Math.max(0, padded.scrollHeight - padTop - padBottom - gapH);
+      setPageCount(countFlowPages(inner, usableH));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(padded ?? prose);
+    return () => ro.disconnect();
+  }, [editor, paged, usableH, spacerH, padTop, padBottom, titleText, subtitleText, tocEnabled, tocItems.length]);
+
+  const runningVars = (index: number) => ({ ...vars, page: index + 1, pages: sheetCount });
+
   return (
-    <div
-      ref={ref}
-      data-testid="page-scroll"
-      className="page-scroll relative min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain bg-[#d8dee6] px-2 py-3 lg:px-4 lg:py-8"
-    >
+    <div className="relative min-h-0 min-w-0 flex-1 bg-[#d8dee6]">
+      <PageRulers
+        scrollRef={scrollRef}
+        pageRef={pageRef}
+        metrics={metrics}
+        scale={scale}
+        pageHeightPx={metrics.heightPx}
+        onChange={(margins) => patchMdoc({ ...model.mdoc, margins })}
+      />
       <div
+        ref={scrollRef}
+        data-testid="page-scroll"
+        className="page-scroll absolute inset-0 overflow-auto overscroll-contain px-2 py-3 lg:pb-8 lg:pr-4 lg:pl-[38px] lg:pt-[46px]"
+      >
+      <div
+        ref={pageRef}
         className="page-frame mx-auto"
         data-testid="page-canvas"
         style={
@@ -224,6 +301,9 @@ function VisualEditorCanvas({
             "--page-min-h": `${pageMinHeight}px`,
             "--page-scale": String(scale),
             "--user-zoom": String(zoom),
+            "--md-title-size": String(typo.title?.["font-size"] ?? "28pt"),
+            "--md-title-weight": String(typo.title?.weight ?? 700),
+            "--md-subtitle-size": String(typo.subtitle?.["font-size"] ?? "14pt"),
             "--md-h1-size": String(typo["heading-1"]?.["font-size"] ?? "20pt"),
             "--md-h1-weight": String(typo["heading-1"]?.weight ?? 700),
             "--md-h2-size": String(typo["heading-2"]?.["font-size"] ?? "16pt"),
@@ -232,15 +312,18 @@ function VisualEditorCanvas({
             "--md-h3-weight": String(typo["heading-3"]?.weight ?? 650),
             "--md-h4-size": String(typo["heading-4"]?.["font-size"] ?? "12pt"),
             width: metrics.widthPx * scale,
-            minHeight: pageMinHeight * scale
+            minHeight: (paged ? pageStackHeightPx(sheetCount, metrics.heightPx) : pageMinHeight) * scale,
+            height: paged ? pageStackHeightPx(sheetCount, metrics.heightPx) * scale : undefined
           } as CSSProperties
         }
       >
         <div
-          className="page-inner relative bg-white shadow-page"
+          ref={paged ? undefined : pageRef}
+          className={`page-inner relative ${paged ? "" : "bg-white shadow-page"}`}
           style={{
             width: metrics.widthPx,
-            minHeight: pageMinHeight,
+            minHeight: paged ? pageStackHeightPx(sheetCount, metrics.heightPx) : pageMinHeight,
+            height: paged ? pageStackHeightPx(sheetCount, metrics.heightPx) : undefined,
             transform: `scale(${scale})`,
             transformOrigin: "top left",
             fontFamily: String(body?.["font-family"] ?? "Aptos, Calibri, Carlito, Segoe UI, sans-serif"),
@@ -248,12 +331,89 @@ function VisualEditorCanvas({
             lineHeight: String(body?.["line-height"] ?? 1.15)
           }}
         >
+          {paged
+            ? Array.from({ length: sheetCount }, (_, index) => {
+                const pageVars = runningVars(index);
+                return (
+                  <div
+                    key={index}
+                    ref={index === 0 ? pageRef : undefined}
+                    className="absolute left-0 bg-white shadow-page"
+                    data-testid={index === 0 ? "page-sheet" : undefined}
+                    style={{
+                      top: index * (metrics.heightPx + PAGE_STACK_GAP_PX),
+                      width: metrics.widthPx,
+                      height: metrics.heightPx
+                    }}
+                  >
+                    <div
+                      className="page-overlay pointer-events-none"
+                      aria-hidden={index > 0}
+                      data-testid={index === 0 ? "page-overlay" : undefined}
+                    >
+                      <div
+                        className="absolute left-0 right-0 top-0 flex justify-between px-8 text-[10px] text-[#667085]"
+                        style={{ height: metrics.margins.top, alignItems: "center" }}
+                        data-testid={index === 0 ? "page-header" : undefined}
+                      >
+                        <span data-testid={index === 0 ? "page-header-left" : undefined}>
+                          {resolveRunningForPreview(header.left ?? "", pageVars)}
+                        </span>
+                        <span data-testid={index === 0 ? "page-header-center" : undefined}>
+                          {resolveRunningForPreview(header.center ?? "", pageVars)}
+                        </span>
+                        <span data-testid={index === 0 ? "page-header-right" : undefined}>
+                          {resolveRunningForPreview(header.right ?? "", pageVars)}
+                        </span>
+                      </div>
+                      <div
+                        className="absolute left-0 right-0 bottom-0 flex justify-between px-8 text-[10px] text-[#667085]"
+                        style={{ height: metrics.margins.bottom, alignItems: "center" }}
+                        data-testid={index === 0 ? "page-footer" : undefined}
+                      >
+                        <span data-testid={index === 0 ? "page-footer-left" : undefined}>
+                          {resolveRunningForPreview(footer.left ?? "", pageVars)}
+                        </span>
+                        <span data-testid={index === 0 ? "page-footer-center" : undefined}>
+                          {resolveRunningForPreview(footer.center ?? "", pageVars)}
+                        </span>
+                        <span data-testid={index === 0 ? "page-footer-right" : undefined}>
+                          {resolveRunningForPreview(footer.right ?? "", pageVars)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            : (
+              <div className="page-overlay pointer-events-none" aria-hidden data-testid="page-overlay">
+                <div
+                  className="absolute left-0 right-0 top-0 flex justify-between px-8 text-[10px] text-[#667085]"
+                  style={{ height: metrics.margins.top, alignItems: "center" }}
+                  data-testid="page-header"
+                >
+                  <span data-testid="page-header-left">{resolveRunningForPreview(header.left ?? "", vars)}</span>
+                  <span data-testid="page-header-center">{resolveRunningForPreview(header.center ?? "", vars)}</span>
+                  <span data-testid="page-header-right">{resolveRunningForPreview(header.right ?? "", vars)}</span>
+                </div>
+                <div
+                  className="absolute left-0 right-0 bottom-0 flex justify-between px-8 text-[10px] text-[#667085]"
+                  style={{ height: metrics.margins.bottom, alignItems: "center" }}
+                  data-testid="page-footer"
+                >
+                  <span data-testid="page-footer-left">{resolveRunningForPreview(footer.left ?? "", vars)}</span>
+                  <span data-testid="page-footer-center">{resolveRunningForPreview(footer.center ?? "", vars)}</span>
+                  <span data-testid="page-footer-right">{resolveRunningForPreview(footer.right ?? "", vars)}</span>
+                </div>
+              </div>
+            )}
           <div
-            className="relative"
+            ref={contentRef}
+            className="relative z-10"
             style={{
-              paddingTop: metrics.margins.top + 22,
+              paddingTop: padTop,
               paddingRight: metrics.margins.right,
-              paddingBottom: metrics.margins.bottom + 22,
+              paddingBottom: padBottom,
               paddingLeft: metrics.margins.left
             }}
           >
@@ -281,31 +441,6 @@ function VisualEditorCanvas({
             ) : null}
             <EditorContent editor={editor} className={numberedHeadings ? "md-numbered-headings" : undefined} />
           </div>
-          <MarginGuides
-            metrics={metrics}
-            scale={scale}
-            onChange={(margins) => patchMdoc({ ...model.mdoc, margins })}
-          />
-          <div className="page-overlay pointer-events-none" aria-hidden data-testid="page-overlay">
-            <div
-              className="absolute left-0 right-0 top-0 flex justify-between px-8 text-[10px] text-[#667085]"
-              style={{ height: metrics.margins.top, alignItems: "center" }}
-              data-testid="page-header"
-            >
-              <span data-testid="page-header-left">{resolveRunningForPreview(header.left ?? "", vars)}</span>
-              <span data-testid="page-header-center">{resolveRunningForPreview(header.center ?? "", vars)}</span>
-              <span data-testid="page-header-right">{resolveRunningForPreview(header.right ?? "", vars)}</span>
-            </div>
-            <div
-              className="absolute left-0 right-0 bottom-0 flex justify-between px-8 text-[10px] text-[#667085]"
-              style={{ height: metrics.margins.bottom, alignItems: "center" }}
-              data-testid="page-footer"
-            >
-              <span data-testid="page-footer-left">{resolveRunningForPreview(footer.left ?? "", vars)}</span>
-              <span data-testid="page-footer-center">{resolveRunningForPreview(footer.center ?? "", vars)}</span>
-              <span data-testid="page-footer-right">{resolveRunningForPreview(footer.right ?? "", vars)}</span>
-            </div>
-          </div>
         </div>
       </div>
       {!editor ? (
@@ -321,6 +456,7 @@ function VisualEditorCanvas({
           </div>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }

@@ -7,6 +7,8 @@ import {
   FilePlus,
   FileText,
   Files,
+  BookOpen,
+  AlignVerticalSpaceAround,
   FolderOpen,
   Image as ImageIcon,
   Italic,
@@ -409,6 +411,12 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
           </MoreItem>
           <MoreItem label="Split view" onClick={() => run(() => actions.setView("split"))}>
             <Files size={18} />
+          </MoreItem>
+          <MoreItem label="Pages" onClick={() => run(() => actions.setPageLayout("pages"))}>
+            <BookOpen size={18} />
+          </MoreItem>
+          <MoreItem label="Continuous" onClick={() => run(() => actions.setPageLayout("continuous"))}>
+            <AlignVerticalSpaceAround size={18} />
           </MoreItem>
           <MoreItem label="Find in document" onClick={() => run(() => actions.setFind(true))}>
             <Search size={18} />

@@ -42,7 +42,7 @@ export function LeftSidebar({ className }: { className?: string }) {
   };
 
   return (
-    <aside className={cn("flex h-full w-64 shrink-0 flex-col border-r border-[#e4e7ec] bg-white", className)}>
+    <aside className={cn("flex h-full w-full min-w-0 flex-col border-r border-[#e4e7ec] bg-white", className)}>
       <div className="flex border-b border-[#e4e7ec] text-[12px]">
         {(["files", "outline", "search", "backlinks"] as const).map((id) => (
           <button
