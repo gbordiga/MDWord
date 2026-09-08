@@ -1,5 +1,9 @@
 import {
   defaultPreferences,
+  MAX_WORKSPACE_LIST_DEPTH,
+  MAX_WORKSPACE_LIST_ENTRIES,
+  shouldSkipWorkspaceDir,
+  shouldSkipWorkspaceFile,
   type HostApi,
   type OpenDocumentResult,
   type UserPreferences
@@ -65,7 +69,8 @@ type FsHandle = {
 
 type DirHandle = {
   name: string;
-  entries(): AsyncIterable<[string, FsHandle]>;
+  kind?: "directory";
+  entries(): AsyncIterable<[string, FsHandle | DirHandle]>;
   queryPermission?: (opts: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
   requestPermission?: (opts: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
 };
@@ -78,6 +83,35 @@ type WindowFs = Window & {
 
 const fileHandles = new Map<string, FsHandle>();
 const fileTexts = new Map<string, string>();
+
+function isDirectoryHandle(handle: FsHandle | DirHandle): handle is DirHandle {
+  return handle.kind === "directory";
+}
+
+async function collectFolderEntries(
+  dir: DirHandle,
+  prefix: string,
+  depth: number,
+  out: { path: string; name: string; isDirectory: boolean }[]
+): Promise<void> {
+  if (depth > MAX_WORKSPACE_LIST_DEPTH || out.length >= MAX_WORKSPACE_LIST_ENTRIES) return;
+  await ensureHandleAccess(dir, "read");
+  for await (const [name, handle] of dir.entries()) {
+    if (out.length >= MAX_WORKSPACE_LIST_ENTRIES) return;
+    if (shouldSkipWorkspaceFile(name)) continue;
+    const isDirectory = isDirectoryHandle(handle);
+    if (isDirectory && shouldSkipWorkspaceDir(name)) continue;
+    const filePath = `${prefix}/${name}`;
+    out.push({ path: filePath, name, isDirectory });
+    if (isDirectory) {
+      await collectFolderEntries(handle, filePath, depth + 1, out);
+      continue;
+    }
+    const fileHandle = handle as FsHandle;
+    fileHandles.set(filePath, fileHandle);
+    if (!fileHandles.has(name)) fileHandles.set(name, fileHandle);
+  }
+}
 
 async function ensureHandleAccess(handle: FsHandle | DirHandle, mode: "read" | "readwrite"): Promise<boolean> {
   try {
@@ -209,27 +243,8 @@ export const webHost: HostApi = {
     },
     async list(folder) {
       if (!folderHandle) return [];
-      await ensureHandleAccess(folderHandle, "read");
       const out: { path: string; name: string; isDirectory: boolean }[] = [];
-      const entries = folderHandle.entries();
-      for await (const [name, handle] of entries) {
-        const filePath = `${folder}/${name}`;
-        out.push({
-          path: filePath,
-          name,
-          isDirectory: handle.kind === "directory"
-        });
-        if (handle.kind === "file" && name.endsWith(".md")) {
-          fileHandles.set(name, handle);
-          fileHandles.set(filePath, handle);
-          try {
-            const text = await textFromHandle(handle, filePath);
-            fileTexts.set(name, text);
-          } catch {
-            /* permission or platform blocked this file */
-          }
-        }
-      }
+      await collectFolderEntries(folderHandle, folder, 0, out);
       return out;
     },
     async read(path) {

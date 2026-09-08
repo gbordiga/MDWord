@@ -1,4 +1,4 @@
-import type { HostApi } from "@mdword/shared";
+import { isMarkdownFileName, type HostApi } from "@mdword/shared";
 import {
   indexMarkdown,
   searchIndex,
@@ -22,7 +22,7 @@ export async function loadWorkspace(
   root: string
 ): Promise<WorkspaceState> {
   const listing = await host.files.list(root);
-  const mdFiles = listing.filter((f) => !f.isDirectory && f.name.endsWith(".md"));
+  const mdFiles = listing.filter((f) => !f.isDirectory && isMarkdownFileName(f.name));
   const documents: IndexedDocument[] = [];
   for (const file of mdFiles) {
     try {
@@ -33,7 +33,10 @@ export async function loadWorkspace(
     }
   }
   let workspaceMdoc: Mdoc | undefined;
-  const config = listing.find((f) => f.path.replace(/\\/g, "/").endsWith(".mdoc/config.yaml"));
+  const config = listing.find((f) => {
+    const p = f.path.replace(/\\/g, "/");
+    return p.endsWith(".mdoc/config.yaml") || p.endsWith(".mdoc/config.yml");
+  });
   if (config) {
     try {
       const raw = await host.files.read(config.path);
@@ -49,4 +52,12 @@ export async function loadWorkspace(
 
 export { searchIndex, backlinksTo, resolveWikiTarget, brokenLinks };
 export { applySavedDocument, isInsideWorkspace, upsertWorkspaceFile } from "./files";
+export {
+  buildFileTree,
+  expandFolderPathsForSelection,
+  isOpenableWorkspaceFile,
+  isSameWorkspacePath,
+  workspaceFolderName,
+  type FileTreeNode
+} from "./tree";
 export type { IndexedDocument, WorkspaceIndex };

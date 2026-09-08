@@ -85,4 +85,22 @@ describe("loadWorkspace", () => {
     expect(second.files.map((f) => f.name)).toEqual(["a.md", "b.md"]);
     expect(second.index.documents.map((d) => d.title).sort()).toEqual(["A", "B"]);
   });
+
+  it("indexes nested markdown files from a recursive listing", async () => {
+    const listing = [
+      { path: "/notes/drafts", name: "drafts", isDirectory: true },
+      { path: "/notes/drafts/idea.md", name: "idea.md", isDirectory: false },
+      { path: "/notes/photo.png", name: "photo.png", isDirectory: false }
+    ];
+    const host = {
+      files: {
+        list: async () => listing,
+        read: async (path: string) => (path.endsWith("idea.md") ? "# Idea\n" : "")
+      }
+    } as unknown as HostApi;
+
+    const loaded = await loadWorkspace(host, "/notes");
+    expect(loaded.files).toHaveLength(3);
+    expect(loaded.index.documents.map((d) => d.title)).toEqual(["Idea"]);
+  });
 });

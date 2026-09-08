@@ -10,6 +10,7 @@ import type { GenericNode } from "@mdword/shared";
 import { focusHeading } from "@/lib/editorCommands";
 import { useEditorUi } from "@/lib/editorUi";
 import { HistoryPane } from "./HistoryPane";
+import { FileTree } from "./FileTree";
 
 function headingsOf(ast: GenericNode): { text: string; depth: number }[] {
   const out: { text: string; depth: number }[] = [];
@@ -78,30 +79,16 @@ export function LeftSidebar({ className }: { className?: string }) {
             <p>{busy.label}</p>
           </div>
         ) : left === "files" ? (
-          <ul className="space-y-1" data-testid="workspace-files">
-            {(workspace?.files.filter((f) => f.name.endsWith(".md")) ?? []).map((f) => {
-              const active = path === f.path || path === f.name || (path ?? "").endsWith(`/${f.name}`);
-              return (
-                <li key={f.path}>
-                  <button
-                    type="button"
-                    data-testid="workspace-file"
-                    data-path={f.path}
-                    onClick={() => openFile(f.path)}
-                    className={`w-full truncate rounded px-2 py-2.5 text-left hover:bg-[#f2f4f7] ${
-                      active ? "bg-[#e8eefc] font-medium text-accent" : ""
-                    }`}
-                  >
-                    {f.name}
-                  </button>
-                </li>
-              );
-            })}
-            {workspace && workspace.files.filter((f) => f.name.endsWith(".md")).length === 0 && (
-              <p className="p-2 text-[#667085]">No markdown files yet. Save a document to see it here.</p>
-            )}
-            {!workspace && <p className="p-2 text-[#667085]">Open a folder to browse files.</p>}
-          </ul>
+          workspace?.root ? (
+            <FileTree
+              files={workspace.files}
+              root={workspace.root}
+              currentPath={path}
+              onOpenFile={openFile}
+            />
+          ) : (
+            <p className="p-2 text-[#667085]">Open a folder to browse files.</p>
+          )
         ) : null}
         {left === "outline" && (
           <ul className="space-y-1" data-testid="outline-list">

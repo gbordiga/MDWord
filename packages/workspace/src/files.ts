@@ -1,3 +1,4 @@
+import { isMarkdownFileName } from "@mdword/shared";
 import { indexMarkdown, type WorkspaceIndex } from "@mdword/indexer";
 import type { Mdoc } from "@mdword/layout-engine";
 
@@ -58,7 +59,7 @@ export function applySavedDocument(
 ): WorkspaceSnapshot {
   if (!isInsideWorkspace(filePath, workspace.root)) return workspace;
   const name = basename(filePath);
-  if (!/\.(md|markdown)$/i.test(name)) return workspace;
+  if (!isMarkdownFileName(name)) return workspace;
   const fullPath =
     filePath.includes("/") || filePath.includes("\\")
       ? filePath

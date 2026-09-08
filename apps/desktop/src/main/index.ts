@@ -3,6 +3,12 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import { existsSync, mkdirSync, createWriteStream } from "node:fs";
 import { z } from "zod";
+import {
+  MAX_WORKSPACE_LIST_DEPTH,
+  MAX_WORKSPACE_LIST_ENTRIES,
+  shouldSkipWorkspaceDir,
+  shouldSkipWorkspaceFile
+} from "@mdword/shared";
 
 const isDev = !app.isPackaged;
 let pendingPrintHtml: string | null = null;
@@ -273,15 +279,36 @@ function registerIpc(): void {
 
   ipcMain.handle("files.list", async (_e, folder: unknown) => {
     const root = assertSafePath(z.string().parse(folder), [...allowedRoots]);
-    const entries = await fs.readdir(root, { withFileTypes: true });
-    return Promise.all(
-      entries.map(async (entry) => ({
-        path: path.join(root, entry.name),
-        name: entry.name,
-        isDirectory: entry.isDirectory(),
-        modifiedMs: (await fs.stat(path.join(root, entry.name))).mtimeMs
-      }))
-    );
+    const out: { path: string; name: string; isDirectory: boolean; modifiedMs?: number }[] = [];
+
+    async function walk(dir: string, depth: number): Promise<void> {
+      if (depth > MAX_WORKSPACE_LIST_DEPTH || out.length >= MAX_WORKSPACE_LIST_ENTRIES) return;
+      let entries: import("node:fs").Dirent[];
+      try {
+        entries = await fs.readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        if (out.length >= MAX_WORKSPACE_LIST_ENTRIES) return;
+        if (shouldSkipWorkspaceFile(entry.name)) continue;
+        if (entry.isSymbolicLink()) continue;
+        const isDirectory = entry.isDirectory();
+        if (isDirectory && shouldSkipWorkspaceDir(entry.name)) continue;
+        const full = path.join(dir, entry.name);
+        let modifiedMs: number | undefined;
+        try {
+          modifiedMs = (await fs.stat(full)).mtimeMs;
+        } catch {
+          continue;
+        }
+        out.push({ path: full, name: entry.name, isDirectory, modifiedMs });
+        if (isDirectory) await walk(full, depth + 1);
+      }
+    }
+
+    await walk(root, 0);
+    return out;
   });
 
   ipcMain.handle("files.read", async (_e, filePath: unknown) => {
