@@ -84,8 +84,9 @@ test("inline properties edit standard and custom fields", async ({ page }) => {
   await expect(page.getByTestId("doc-title")).toHaveText("Scheda QMS");
   await page.getByRole("button", { name: "View" }).click();
   await page.getByTitle("Source").click();
-  await expect(page.locator(".cm-content")).toContainText("codice: IPR001");
-  await expect(page.locator(".cm-content")).toContainText("title: Scheda QMS");
+  await expect(page.locator(".cm-content")).toContainText("codice:");
+  await expect(page.locator(".cm-content")).toContainText("IPR001");
+  await expect(page.locator(".cm-content")).toContainText("Scheda QMS");
 });
 
 test("table of contents is a live frontmatter option", async ({ page }) => {

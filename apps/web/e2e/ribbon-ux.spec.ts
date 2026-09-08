@@ -53,6 +53,7 @@ test("header and footer fields match the page overlay", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("page-header-right")).toContainText("1 /");
+  await page.getByTestId("prop-section-running").locator("summary").click();
   await expect(page.getByTestId("prop-header-left")).toBeVisible();
   await expect(page.getByTestId("prop-header-center")).toBeVisible();
   await expect(page.getByTestId("prop-footer-center")).toBeVisible();

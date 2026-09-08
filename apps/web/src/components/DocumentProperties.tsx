@@ -205,7 +205,13 @@ export function DocumentProperties({
         </div>
       </PropertySection>
 
-      <PropertySection id="custom" title="Custom properties" hint="Extra fields stored with this file" testIds={testIds}>
+      <PropertySection
+        id="custom"
+        title="Custom properties"
+        hint="Extra fields stored with this file"
+        defaultOpen={variant === "inline" ? true : undefined}
+        testIds={testIds}
+      >
         <FrontmatterEditor compact={variant === "panel"} testIdScope={variant} />
       </PropertySection>
 
