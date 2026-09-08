@@ -49,7 +49,7 @@ export function removeLink(editor: Editor): void {
 export function insertImage(editor: Editor, src: string, alt?: string): boolean {
   const url = src.trim();
   if (!url) return false;
-  editor.chain().focus().setImage({ src: url, alt: (alt ?? "").trim() }).run();
+  editor.chain().focus().setFigure({ src: url, alt: (alt ?? "").trim() }).run();
   return true;
 }
 

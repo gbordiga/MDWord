@@ -1,6 +1,16 @@
 import type { GenericNode } from "@mdword/shared";
 import { encodeWikiHref } from "@mdword/shared";
 import type { TiptapNode } from "./astToTiptap";
+import {
+  DEFAULT_IMAGE_LAYOUT,
+  DEFAULT_IMAGE_WIDTH,
+  escapeHtmlAttr,
+  isDefaultFigureLayout,
+  isImageLayout,
+  mystFromLayout,
+  parseWidthPercent,
+  type ImageLayout
+} from "./imageModel";
 
 function unwrapMarks(node: TiptapNode): GenericNode[] {
   if (node.type === "text") {
@@ -41,7 +51,56 @@ function astInline(node: TiptapNode): GenericNode[] {
   return (node.content ?? []).flatMap(astInline);
 }
 
-function astBlock(node: TiptapNode): GenericNode {
+function captionNodes(node: TiptapNode): GenericNode[] {
+  const caption = (node.content ?? []).find((child) => child.type === "caption");
+  if (!caption) return [];
+  return (caption.content ?? []).flatMap(astInline);
+}
+
+function figureToAst(node: TiptapNode, inTable: boolean): GenericNode {
+  const src = String(node.attrs?.src ?? node.content?.find((c) => c.type === "image")?.attrs?.src ?? "");
+  const alt = String(node.attrs?.alt ?? node.content?.find((c) => c.type === "image")?.attrs?.alt ?? "");
+  const width = parseWidthPercent(node.attrs?.width ?? DEFAULT_IMAGE_WIDTH);
+  const layout: ImageLayout = isImageLayout(node.attrs?.layout) ? node.attrs.layout : DEFAULT_IMAGE_LAYOUT;
+  const label = node.attrs?.label != null && String(node.attrs.label) ? String(node.attrs.label) : undefined;
+  const caption = captionNodes(node);
+  const myst = mystFromLayout(layout);
+  const simple = isDefaultFigureLayout(width, layout) && !caption.length && !label;
+
+  if (inTable) {
+    const tableLayout = layout.startsWith("float")
+      ? layout === "float-right"
+        ? "block-right"
+        : "block-left"
+      : layout;
+    if (isDefaultFigureLayout(width, tableLayout) && !label) {
+      return { type: "image", url: src, alt };
+    }
+    return {
+      type: "html",
+      value: `<img src="${escapeHtmlAttr(src)}" alt="${escapeHtmlAttr(alt)}" width="${width}%" class="md-layout-${tableLayout}" />`
+    };
+  }
+
+  if (simple) {
+    return { type: "image", url: src, alt };
+  }
+
+  const image: GenericNode = { type: "image", url: src, alt };
+  if (width !== DEFAULT_IMAGE_WIDTH) image.width = `${width}%`;
+  if (myst.align !== "center") image.align = myst.align;
+  if (myst.className) image.class = myst.className;
+
+  if (!caption.length && !label) return image;
+
+  const children: GenericNode[] = [image];
+  if (caption.length) children.push({ type: "caption", children: caption });
+  const container: GenericNode = { type: "container", kind: "figure", children };
+  if (label) container.label = label;
+  return container;
+}
+
+function astBlock(node: TiptapNode, inTable = false): GenericNode {
   switch (node.type) {
     case "paragraph":
       return { type: "paragraph", children: (node.content ?? []).flatMap(astInline) };
@@ -52,14 +111,14 @@ function astBlock(node: TiptapNode): GenericNode {
         children: (node.content ?? []).flatMap(astInline)
       };
     case "blockquote":
-      return { type: "blockquote", children: (node.content ?? []).map(astBlock) };
+      return { type: "blockquote", children: (node.content ?? []).map((child) => astBlock(child)) };
     case "bulletList":
       return {
         type: "list",
         ordered: false,
         children: (node.content ?? []).map((item) => ({
           type: "listItem",
-          children: (item.content ?? []).map(astBlock)
+          children: (item.content ?? []).map((child) => astBlock(child))
         }))
       };
     case "orderedList":
@@ -68,7 +127,7 @@ function astBlock(node: TiptapNode): GenericNode {
         ordered: true,
         children: (node.content ?? []).map((item) => ({
           type: "listItem",
-          children: (item.content ?? []).map(astBlock)
+          children: (item.content ?? []).map((child) => astBlock(child))
         }))
       };
     case "taskList":
@@ -78,7 +137,7 @@ function astBlock(node: TiptapNode): GenericNode {
         children: (node.content ?? []).map((item) => ({
           type: "listItem",
           checked: Boolean(item.attrs?.checked),
-          children: (item.content ?? []).map(astBlock)
+          children: (item.content ?? []).map((child) => astBlock(child))
         }))
       };
     case "codeBlock":
@@ -97,7 +156,7 @@ function astBlock(node: TiptapNode): GenericNode {
           children: (row.content ?? []).map((cell) => ({
             type: "tableCell",
             header: cell.type === "tableHeader" || i === 0,
-            children: (cell.content ?? []).map(astBlock)
+            children: (cell.content ?? []).map((child) => astBlock(child, true))
           }))
         }))
       };
@@ -105,24 +164,25 @@ function astBlock(node: TiptapNode): GenericNode {
       return {
         type: "mystDirective",
         name: String(node.attrs?.kind ?? "note"),
-        children: (node.content ?? []).map(astBlock)
+        children: (node.content ?? []).map((child) => astBlock(child))
       };
     case "pageBreak":
       return { type: "mystDirective", name: "page-break" };
-    case "figure": {
-      const children: GenericNode[] = [];
-      for (const child of node.content ?? []) {
-        if (child.type === "image") {
-          children.push({ type: "image", url: child.attrs?.src, alt: child.attrs?.alt });
-        } else if (child.type === "caption") {
-          children.push({
-            type: "paragraph",
-            children: (child.content ?? []).flatMap(astInline)
-          });
-        }
-      }
-      return { type: "mystDirective", name: "figure", children };
-    }
+    case "image":
+      return figureToAst(
+        {
+          type: "figure",
+          attrs: {
+            src: node.attrs?.src,
+            alt: node.attrs?.alt,
+            width: node.attrs?.width ?? DEFAULT_IMAGE_WIDTH,
+            layout: node.attrs?.layout ?? DEFAULT_IMAGE_LAYOUT
+          }
+        },
+        inTable
+      );
+    case "figure":
+      return figureToAst(node, inTable);
     case "mystRaw":
       return {
         type: "mystDirective",
@@ -135,5 +195,5 @@ function astBlock(node: TiptapNode): GenericNode {
 }
 
 export function tiptapToAst(doc: TiptapNode): GenericNode {
-  return { type: "root", children: (doc.content ?? []).map(astBlock) };
+  return { type: "root", children: (doc.content ?? []).map((child) => astBlock(child)) };
 }

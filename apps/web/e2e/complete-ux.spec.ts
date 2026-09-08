@@ -38,7 +38,7 @@ test("table tools add a row and can delete the table", async ({ page }) => {
   await page.getByTestId("insert-table").click();
   await expect(prose.locator("table")).toBeVisible();
   const rowsBefore = await prose.locator("tr").count();
-  await expect(page.getByTestId("editor-context-bar")).toBeVisible();
+  await expect(page.getByTestId("ribbon-tab-table")).toBeEnabled();
   await page.getByTestId("table-add-row").click();
   await expect(prose.locator("tr")).toHaveCount(rowsBefore + 1);
   await page.getByTestId("table-delete").click();

@@ -18,7 +18,7 @@ import { loadWorkspace, applySavedDocument, resolveWikiTarget, type WorkspaceSta
 import { tiptapToAst, type TiptapNode } from "@mdword/editor";
 import { renderPrintDocument } from "@mdword/renderer";
 
-export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view";
+export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view" | "image" | "table";
 export type PageLayoutMode = "pages" | "continuous";
 
 const PAGE_LAYOUT_KEY = "mdword.pageLayout";

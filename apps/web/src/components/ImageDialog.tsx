@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { Dialog, DialogButton, DialogField, dialogInputClass } from "./Dialog";
 import { insertImage } from "@/lib/editorCommands";
-
-const MAX_BYTES = 8 * 1024 * 1024;
+import { isAllowedImageFile } from "@mdword/editor";
 
 export function ImageDialog({
   open,
@@ -38,12 +37,8 @@ export function ImageDialog({
 
   const onPickFile = (file: File | undefined) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("Choose an image file (PNG, JPEG, GIF, or WebP).");
-      return;
-    }
-    if (file.size > MAX_BYTES) {
-      setError("Choose an image smaller than 8 MB.");
+    if (!isAllowedImageFile(file)) {
+      setError("Choose an image file (PNG, JPEG, GIF, or WebP) smaller than 8 MB.");
       return;
     }
     setError("");

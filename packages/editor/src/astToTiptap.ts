@@ -1,6 +1,14 @@
 import type { GenericNode } from "@mdword/shared";
 import { decodeWikiHref, WIKI_SCHEME } from "@mdword/shared";
 import { sanitizeTiptapDoc } from "./sanitize";
+import {
+  DEFAULT_IMAGE_LAYOUT,
+  DEFAULT_IMAGE_WIDTH,
+  layoutFromMyst,
+  parseHtmlImg,
+  parseWidthPercent,
+  type ImageLayout
+} from "./imageModel";
 
 export interface TiptapNode {
   type: string;
@@ -55,6 +63,8 @@ function inline(nodes: GenericNode[] | undefined): TiptapNode[] {
       case "break":
         out.push({ type: "hardBreak" });
         break;
+      case "image":
+        break;
       case "link": {
         const url = String(node.url ?? "");
         if (url.startsWith(WIKI_SCHEME)) {
@@ -78,11 +88,6 @@ function inline(nodes: GenericNode[] | undefined): TiptapNode[] {
         }
         break;
       }
-      case "image": {
-        const src = String(node.url ?? "").trim();
-        if (src) out.push({ type: "image", attrs: { src, alt: node.alt ?? "" } });
-        break;
-      }
       default:
         if (node.children) out.push(...inline(node.children));
         else if (node.value) out.push(textNode(String(node.value)));
@@ -91,10 +96,124 @@ function inline(nodes: GenericNode[] | undefined): TiptapNode[] {
   return out;
 }
 
+function findImageNode(node: GenericNode | undefined): GenericNode | undefined {
+  if (!node) return undefined;
+  if (node.type === "image") return node;
+  for (const child of node.children ?? []) {
+    const found = findImageNode(child);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function captionFromNodes(nodes: GenericNode[] | undefined): TiptapNode | null {
+  const parts: TiptapNode[] = [];
+  for (const node of nodes ?? []) {
+    if (node.type === "image") continue;
+    if (node.type === "container") {
+      const nested = captionFromNodes(node.children);
+      if (nested?.content) parts.push(...nested.content);
+      continue;
+    }
+    if (node.type === "paragraph" || node.type === "caption") {
+      parts.push(...inline(node.children));
+    } else if (node.type === "text" && node.value) {
+      parts.push(textNode(String(node.value)));
+    } else if (node.children) {
+      const nested = captionFromNodes(node.children);
+      if (nested?.content) parts.push(...nested.content);
+    }
+  }
+  const content = parts.filter((p) => p.type !== "text" || p.text);
+  if (!content.length) return null;
+  return { type: "caption", content };
+}
+
+function figureAttrsFromImage(
+  image: GenericNode | undefined,
+  extra?: { url?: unknown; alt?: unknown; width?: unknown; align?: unknown; className?: unknown; label?: unknown }
+): TiptapNode["attrs"] {
+  const src = String(image?.url ?? extra?.url ?? "").trim();
+  const width = parseWidthPercent(image?.width ?? extra?.width);
+  const layout: ImageLayout = layoutFromMyst(image?.align ?? extra?.align, image?.class ?? extra?.className);
+  return {
+    src,
+    alt: String(image?.alt ?? extra?.alt ?? ""),
+    width: width || DEFAULT_IMAGE_WIDTH,
+    layout,
+    label: extra?.label != null && String(extra.label) ? String(extra.label) : null
+  };
+}
+
+function figureNode(attrs: TiptapNode["attrs"], caption?: TiptapNode | null): TiptapNode {
+  return {
+    type: "figure",
+    attrs: {
+      src: String(attrs?.src ?? ""),
+      alt: String(attrs?.alt ?? ""),
+      width: attrs?.width ?? DEFAULT_IMAGE_WIDTH,
+      layout: attrs?.layout ?? DEFAULT_IMAGE_LAYOUT,
+      label: attrs?.label ?? null
+    },
+    content: caption ? [caption] : []
+  };
+}
+
+function figureFromImage(node: GenericNode, extra?: Parameters<typeof figureAttrsFromImage>[1]): TiptapNode | null {
+  const attrs = figureAttrsFromImage(node.type === "image" ? node : findImageNode(node), extra);
+  if (!String(attrs?.src ?? "").trim()) return null;
+  return figureNode(attrs);
+}
+
+function figureFromDirective(node: GenericNode): TiptapNode {
+  const options = (node.options ?? {}) as Record<string, unknown>;
+  const image = findImageNode(node);
+  const caption =
+    captionFromNodes(node.children) ||
+    (typeof node.value === "string" && node.value.trim()
+      ? { type: "caption", content: [textNode(node.value.trim())] }
+      : null);
+  const built = figureFromImage(image ?? { type: "image", url: node.args, alt: options.alt }, {
+    url: node.args,
+    alt: options.alt,
+    width: options.width ?? image?.width,
+    align: options.align ?? image?.align,
+    className: options.class ?? image?.class,
+    label: options.label ?? node.label
+  });
+  if (!built) return EMPTY_PARAGRAPH;
+  return figureNode(built.attrs, caption);
+}
+
+function paragraphBlocks(node: GenericNode): TiptapNode[] {
+  const children = node.children ?? [];
+  if (!children.some((c) => c.type === "image")) {
+    return [{ type: "paragraph", content: inline(children) }];
+  }
+  const out: TiptapNode[] = [];
+  let buffer: GenericNode[] = [];
+  const flush = () => {
+    const content = inline(buffer);
+    if (content.length) out.push({ type: "paragraph", content });
+    buffer = [];
+  };
+  for (const child of children) {
+    if (child.type === "image") {
+      flush();
+      const fig = figureFromImage(child);
+      if (fig) out.push(fig);
+    } else {
+      buffer.push(child);
+    }
+  }
+  flush();
+  return out.length ? out : [EMPTY_PARAGRAPH];
+}
+
 function block(node: GenericNode): TiptapNode | TiptapNode[] {
   switch (node.type) {
     case "paragraph":
-      return { type: "paragraph", content: inline(node.children) };
+      return paragraphBlocks(node);
     case "heading":
       return {
         type: "heading",
@@ -156,7 +275,7 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
               : [EMPTY_PARAGRAPH]
         };
       }
-      if (name === "figure") {
+      if (name === "figure" || name === "image") {
         return figureFromDirective(node);
       }
       return {
@@ -168,32 +287,29 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
       };
     }
     case "image":
-      return {
-        type: "paragraph",
-        content: [{ type: "image", attrs: { src: node.url, alt: node.alt ?? "" } }]
-      };
+      return figureFromImage(node) ?? EMPTY_PARAGRAPH;
+    case "container":
+      if (node.kind === "figure") return figureFromDirective(node);
+      return node.children ? blocks(node.children) : EMPTY_PARAGRAPH;
+    case "html": {
+      const img = parseHtmlImg(String(node.value ?? ""));
+      if (!img) {
+        if (node.children) return blocks(node.children);
+        return EMPTY_PARAGRAPH;
+      }
+      return figureNode({
+        src: img.src,
+        alt: img.alt,
+        width: img.width,
+        layout: img.layout,
+        label: null
+      });
+    }
     default:
       if (node.children) return blocks(node.children);
       if (node.value) return { type: "paragraph", content: [textNode(String(node.value))] };
       return EMPTY_PARAGRAPH;
   }
-}
-
-function figureFromDirective(node: GenericNode): TiptapNode {
-  const image = node.children?.find((c) => c.type === "image");
-  const captionNodes = (node.children ?? []).filter((c) => c.type !== "image");
-  const content: TiptapNode[] = [];
-  if (image) {
-    content.push({ type: "image", attrs: { src: image.url, alt: image.alt ?? "" } });
-  }
-  if (captionNodes.length) {
-    content.push({ type: "caption", content: inline(captionNodes) });
-  }
-  return {
-    type: "figure",
-    attrs: { label: (node.options as { label?: string } | undefined)?.label ?? null },
-    content
-  };
 }
 
 function blocks(nodes: GenericNode[] | undefined): TiptapNode[] {

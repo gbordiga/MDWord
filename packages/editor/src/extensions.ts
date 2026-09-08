@@ -68,35 +68,6 @@ export const PageBreak = Node.create({
   }
 });
 
-export const Figure = Node.create({
-  name: "figure",
-  group: "block",
-  content: "image caption?",
-  addAttributes() {
-    return {
-      label: { default: null },
-      align: { default: "block-center" }
-    };
-  },
-  parseHTML() {
-    return [{ tag: "figure" }];
-  },
-  renderHTML({ HTMLAttributes }) {
-    return ["figure", mergeAttributes(HTMLAttributes, { class: "md-figure" }), 0];
-  }
-});
-
-export const Caption = Node.create({
-  name: "caption",
-  content: "inline*",
-  parseHTML() {
-    return [{ tag: "figcaption" }];
-  },
-  renderHTML() {
-    return ["figcaption", { class: "md-caption" }, 0];
-  }
-});
-
 export const MystRaw = Node.create({
   name: "mystRaw",
   group: "block",

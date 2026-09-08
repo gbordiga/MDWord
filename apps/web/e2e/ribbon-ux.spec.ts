@@ -22,7 +22,7 @@ test("choosing a local image embeds it in the document", async ({ page }) => {
   const prose = page.locator(".ProseMirror");
   await expect(prose).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: "Insert" }).click();
-  await page.getByTitle("Image").click();
+  await page.getByTestId("insert-image").click();
   await expect(page.getByTestId("image-dialog")).toBeVisible();
   await page.getByTestId("image-file").setInputFiles({
     name: "dot.png",
@@ -33,6 +33,10 @@ test("choosing a local image embeds it in the document", async ({ page }) => {
   await page.getByTestId("image-insert").click();
   await expect(prose.locator("img")).toBeVisible();
   await expect(prose.locator("img")).toHaveAttribute("src", /^data:image\/png/);
+  await expect(page.getByTestId("ribbon-tab-image")).toBeEnabled();
+  await expect(page.getByTestId("image-float-left")).toBeVisible();
+  await page.getByTestId("image-float-left").click();
+  await expect(prose.locator("figure")).toHaveAttribute("data-layout", "float-left");
 });
 
 test("page layout controls stay in Properties", async ({ page }) => {

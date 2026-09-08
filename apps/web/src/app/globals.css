@@ -275,6 +275,12 @@ html.keyboard-open .mdword-app {
   height: auto;
 }
 
+.ProseMirror::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
 .callout {
   border-left: 4px solid #1d4ed8;
   background: #f8fafc;
@@ -346,18 +352,114 @@ html.keyboard-open .mdword-app {
 }
 
 .md-figure {
-  margin: 16px 0;
+  margin: 12px 0;
+  max-width: 100%;
+}
+
+.md-figure.md-layout-block-center {
   text-align: center;
 }
 
-.md-figure img {
+.md-figure.md-layout-block-left {
+  text-align: left;
+}
+
+.md-figure.md-layout-block-right {
+  text-align: right;
+}
+
+.md-figure.md-layout-float-left {
+  float: left;
+  margin: 0 1em 0.75em 0;
+}
+
+.md-figure.md-layout-float-right {
+  float: right;
+  margin: 0 0 0.75em 1em;
+}
+
+.md-figure-box {
+  position: relative;
+  display: inline-block;
   max-width: 100%;
+  vertical-align: top;
+}
+
+.md-figure img,
+.md-figure-box img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+}
+
+.md-figure.is-selected .md-figure-box {
+  outline: 2px solid #2f6fed;
+  outline-offset: 2px;
+}
+
+.md-figure-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: ew-resize;
+}
+
+.md-figure-resize-left {
+  left: -4px;
+}
+
+.md-figure-resize-right {
+  right: -4px;
+}
+
+.md-figure.is-selected .md-figure-resize::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 4px;
+  height: 28px;
+  border-radius: 2px;
+  background: #2f6fed;
+  transform: translateY(-50%);
 }
 
 .md-caption {
   font-size: 10pt;
   color: #4b5563;
   margin-top: 6px;
+  min-height: 1.2em;
+}
+
+.md-figure:not(.is-selected) .md-caption:empty {
+  display: none;
+}
+
+.md-caption:empty::before {
+  content: "Caption";
+  color: #98a2b3;
+}
+
+.ProseMirror td .md-figure,
+.ProseMirror th .md-figure {
+  float: none !important;
+  margin: 4px 0;
+  width: auto !important;
+}
+
+.cm-data-url-fold {
+  display: inline;
+  border-radius: 4px;
+  background: #eef2f6;
+  color: #344054;
+  padding: 0 4px;
+  cursor: pointer;
+  font-style: italic;
 }
 
 .md-toc {

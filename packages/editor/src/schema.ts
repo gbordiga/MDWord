@@ -1,6 +1,5 @@
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
-import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
@@ -9,7 +8,8 @@ import { TableHeader } from "@tiptap/extension-table-header";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Underline from "@tiptap/extension-underline";
-import { WikiLink, Callout, PageBreak, Figure, Caption, MystRaw } from "./extensions";
+import { WikiLink, Callout, PageBreak, MystRaw } from "./extensions";
+import { Figure, Caption } from "./figure";
 import { PageGaps } from "./pageGaps";
 
 export function editorExtensions() {
@@ -30,7 +30,6 @@ export function editorExtensions() {
       linkOnPaste: true,
       HTMLAttributes: { class: "md-link", title: "Ctrl+click to open" }
     }),
-    Image,
     Placeholder.configure({ placeholder: "Start writing…" }),
     Table.configure({ resizable: false }),
     TableRow,
@@ -49,3 +48,10 @@ export function editorExtensions() {
 }
 
 export { WikiLink, Callout, PageBreak, Figure, Caption, MystRaw };
+export type { FigureAttrs, ImageLayout } from "./imageModel";
+export {
+  DEFAULT_IMAGE_LAYOUT,
+  DEFAULT_IMAGE_WIDTH,
+  IMAGE_LAYOUTS,
+  widthForLayoutChange
+} from "./imageModel";

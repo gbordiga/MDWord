@@ -4,7 +4,10 @@ import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { FONT_SCALES, matchFontScale, matchMarginPreset } from "@mdword/layout-engine";
 import { documentDate, documentTitle, documentTitleKey } from "@mdword/shared";
+import { IMAGE_LAYOUTS, widthForLayoutChange, type ImageLayout } from "@mdword/editor";
 import { useApp } from "@/lib/store";
+import { useEditorUi } from "@/lib/editorUi";
+import { useEditorTick } from "@/hooks/useEditorTick";
 import { FrontmatterEditor } from "./FrontmatterEditor";
 import { MarginEditor } from "./MarginEditor";
 
@@ -102,8 +105,67 @@ export function DocumentProperties({
     ?.trim();
   const testIds = variant === "panel";
 
+  const { editor } = useEditorUi();
+  useEditorTick(editor);
+  const inImage = Boolean(editor?.isActive("figure"));
+  const imageAttrs = editor?.getAttributes("figure") ?? {};
+  const imageLayout = IMAGE_LAYOUTS.includes(imageAttrs.layout as ImageLayout)
+    ? (imageAttrs.layout as ImageLayout)
+    : "block-center";
+  const imageWidth = Number(imageAttrs.width ?? 100);
+
   return (
     <div>
+      {inImage && editor ? (
+        <PropertySection
+          id="image"
+          title="Image"
+          hint={`${imageWidth}% · ${imageLayout.replace("-", " ")}`}
+          defaultOpen
+          testIds={testIds}
+        >
+          <Field label="Position">
+            <select
+              data-testid={testIds ? "prop-image-layout" : undefined}
+              className={fieldClass}
+              value={imageLayout}
+              onChange={(e) => {
+                const next = e.target.value as ImageLayout;
+                editor
+                  .chain()
+                  .focus()
+                  .updateFigure({ layout: next, width: widthForLayoutChange(imageWidth, next) })
+                  .run();
+              }}
+            >
+              <option value="block-left">Left</option>
+              <option value="block-center">Center</option>
+              <option value="block-right">Right</option>
+              <option value="float-left">Float left</option>
+              <option value="float-right">Float right</option>
+            </select>
+          </Field>
+          <Field label="Width (%)">
+            <input
+              data-testid={testIds ? "prop-image-width" : undefined}
+              className={fieldClass}
+              type="number"
+              min={10}
+              max={100}
+              value={imageWidth}
+              onChange={(e) => editor.chain().focus().updateFigure({ width: Number(e.target.value) }).run()}
+            />
+          </Field>
+          <Field label="Alternative text">
+            <input
+              data-testid={testIds ? "prop-image-alt" : undefined}
+              className={fieldClass}
+              value={String(imageAttrs.alt ?? "")}
+              onChange={(e) => editor.chain().focus().updateFigure({ alt: e.target.value }).run()}
+            />
+          </Field>
+        </PropertySection>
+      ) : null}
       <p className="px-3 pb-2 pt-1 text-[12px] leading-snug text-[#667085]">
         Saved in this document. Fields, page, margins, header, footer and contents all travel with the
         file.

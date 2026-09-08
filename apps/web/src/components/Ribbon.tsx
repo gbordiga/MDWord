@@ -41,20 +41,27 @@ import {
   RectangleHorizontal,
   RectangleVertical
 } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useApp, type RibbonTab } from "@/lib/store";
 import { MARGIN_PRESETS, matchMarginPreset } from "@mdword/layout-engine";
 import { applyBlockStyle, currentBlockStyle, insertCallout, insertPageBreak, insertTable } from "@/lib/editorCommands";
 import { useEditorTick } from "@/hooks/useEditorTick";
 import { useEditorUi } from "@/lib/editorUi";
 import { Spinner } from "./Spinner";
+import { ImageRibbonTools, TableRibbonTools } from "./ContextualRibbons";
 
-const TABS: { id: RibbonTab; label: string }[] = [
+const MAIN_TABS: { id: RibbonTab; label: string }[] = [
   { id: "file", label: "File" },
   { id: "home", label: "Home" },
   { id: "insert", label: "Insert" },
   { id: "layout", label: "Layout" },
   { id: "references", label: "References" },
   { id: "view", label: "View" }
+];
+
+const CONTEXT_TABS: { id: RibbonTab; label: string }[] = [
+  { id: "image", label: "Image" },
+  { id: "table", label: "Table" }
 ];
 
 function Btn({
@@ -109,22 +116,55 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
   const tocDepth = actions.model.resolvedMdoc.toc?.depth ?? 3;
   const landscape = actions.model.resolvedMdoc.page?.orientation === "landscape";
   const marginPreset = matchMarginPreset(actions.model.resolvedMdoc.margins);
+  const inImage = Boolean(editor?.isActive("figure"));
+  const inTable = Boolean(editor?.isActive("table"));
+  const lastMain = useRef<RibbonTab>("home");
+  const prevContext = useRef({ inImage: false, inTable: false });
+
+  useEffect(() => {
+    if (ribbon !== "image" && ribbon !== "table") lastMain.current = ribbon;
+  }, [ribbon]);
+
+  useEffect(() => {
+    const was = prevContext.current;
+    if (inImage && !was.inImage) setRibbon("image");
+    else if (inTable && !inImage && !was.inTable) setRibbon("table");
+    else if (!inImage && !inTable && (ribbon === "image" || ribbon === "table")) {
+      setRibbon(lastMain.current);
+    } else if (!inImage && inTable && was.inImage) {
+      setRibbon("table");
+    }
+    prevContext.current = { inImage, inTable };
+  }, [inImage, inTable, ribbon, setRibbon]);
 
   return (
     <div className="hidden border-b border-[#e4e7ec] bg-white lg:block">
       <div className="flex items-center gap-1 px-2 pt-1">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setRibbon(tab.id)}
-            className={`rounded-t-md px-3 py-1.5 text-[13px] ${
-              ribbon === tab.id ? "bg-[#f8fafc] font-medium text-accent" : "text-[#4b5563]"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {[...MAIN_TABS, ...CONTEXT_TABS].map((tab) => {
+          const contextual = tab.id === "image" || tab.id === "table";
+          const enabled = tab.id === "image" ? inImage : tab.id === "table" ? inTable : true;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              data-testid={`ribbon-tab-${tab.id}`}
+              disabled={contextual && !enabled}
+              onClick={() => {
+                if (contextual && !enabled) return;
+                setRibbon(tab.id);
+              }}
+              className={`rounded-t-md px-3 py-1.5 text-[13px] ${
+                ribbon === tab.id
+                  ? "bg-[#f8fafc] font-medium text-accent"
+                  : contextual && !enabled
+                    ? "cursor-not-allowed text-[#98a2b3]"
+                    : "text-[#4b5563]"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
       <div className="flex flex-wrap items-center gap-1 bg-[#f8fafc] px-2 py-1.5">
         {ribbon === "file" && (
@@ -246,7 +286,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             <Btn title="Table" testId="insert-table" onClick={() => editor && insertTable(editor)}>
               <TableIcon size={16} /> Table
             </Btn>
-            <Btn title="Image" onClick={openImage}>
+            <Btn title="Image" testId="insert-image" onClick={openImage}>
               <ImageIcon size={16} /> Image
             </Btn>
             <Divider />
@@ -430,6 +470,8 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             </Btn>
           </>
         )}
+        {ribbon === "image" && <ImageRibbonTools editor={editor} enabled={inImage} />}
+        {ribbon === "table" && <TableRibbonTools editor={editor} enabled={inTable} />}
       </div>
     </div>
   );

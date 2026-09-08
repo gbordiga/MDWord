@@ -15,6 +15,63 @@ function escape(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function layoutClass(node: GenericNode | { align?: unknown; class?: unknown }): string {
+  const classes = String(node.class ?? "");
+  const floated = /\bfloat\b/.test(classes);
+  const align = String(node.align ?? "").toLowerCase();
+  if (floated && align === "right") return "md-layout-float-right";
+  if (floated) return "md-layout-float-left";
+  if (align === "left") return "md-layout-block-left";
+  if (align === "right") return "md-layout-block-right";
+  return "md-layout-block-center";
+}
+
+function renderImg(node: GenericNode): string {
+  const src = escape(String(node.url ?? node.src ?? ""));
+  const alt = escape(String(node.alt ?? ""));
+  const width = node.width != null && String(node.width) ? ` width="${escape(String(node.width))}"` : "";
+  const cls = layoutClass(node);
+  return `<img src="${src}" alt="${alt}"${width} class="${cls}" />`;
+}
+
+function findImage(node: GenericNode): GenericNode | undefined {
+  if (node.type === "image") return node;
+  for (const child of node.children ?? []) {
+    const found = findImage(child);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function renderFigure(node: GenericNode): string {
+  const image = findImage(node) ?? node;
+  const options = (node.options ?? {}) as Record<string, unknown>;
+  const width = image.width ?? options.width;
+  const align = image.align ?? options.align ?? node.align;
+  const className = image.class ?? options.class ?? node.class;
+  const url = image.url ?? node.args ?? node.url;
+  const alt = image.alt ?? options.alt ?? "";
+  const cls = layoutClass({ type: "image", align, class: className });
+  const widthAttr = width != null && String(width) ? ` style="width:${escape(String(width))}"` : "";
+  const img = `<img src="${escape(String(url ?? ""))}" alt="${escape(String(alt))}" />`;
+  const captionBits: string[] = [];
+  const walkCaption = (n: GenericNode) => {
+    if (n.type === "image") return;
+    if (n.type === "caption" || n.type === "paragraph") {
+      const text = renderNodes(n.children).trim();
+      if (text) captionBits.push(text);
+      return;
+    }
+    n.children?.forEach(walkCaption);
+  };
+  (node.children ?? []).forEach(walkCaption);
+  if (typeof node.value === "string" && node.value.trim() && !captionBits.length) {
+    captionBits.push(escape(node.value.trim()));
+  }
+  const cap = captionBits.length ? `<figcaption>${captionBits.join(" ")}</figcaption>` : "";
+  return `<figure class="md-figure ${cls}"${widthAttr}>${img}${cap}</figure>`;
+}
+
 function renderNodes(nodes: GenericNode[] | undefined): string {
   return (nodes ?? []).map(renderNode).join("");
 }
@@ -53,7 +110,9 @@ function renderNode(node: GenericNode): string {
       return `<a href="${escape(safe)}">${renderNodes(node.children)}</a>`;
     }
     case "image":
-      return `<img src="${escape(String(node.url ?? ""))}" alt="${escape(String(node.alt ?? ""))}" />`;
+      return renderImg(node);
+    case "html":
+      return String(node.value ?? "");
     case "list": {
       const ordered = Boolean(node.ordered);
       const tag = ordered ? "ol" : "ul";
@@ -83,7 +142,11 @@ function renderNode(node: GenericNode): string {
     case "admonitionTitle":
       return `<p class="admonition-title">${renderNodes(node.children)}</p>`;
     case "figure":
-      return `<figure>${renderNodes(node.children)}</figure>`;
+    case "container":
+      if (node.type === "container" && node.kind !== "figure") {
+        return renderNodes(node.children);
+      }
+      return renderFigure(node);
     case "caption":
       return `<figcaption>${renderNodes(node.children)}</figcaption>`;
     case "mystDirective": {
@@ -93,8 +156,8 @@ function renderNode(node: GenericNode): string {
       if (kinds.includes(name)) {
         return `<aside class="admonition ${escape(name)}"><p class="admonition-title">${escape(name)}</p>${renderNodes(node.children)}</aside>`;
       }
-      if (name === "figure") {
-        return `<figure>${renderNodes(node.children)}</figure>`;
+      if (name === "figure" || name === "image") {
+        return renderFigure(node);
       }
       const raw = String(node.value ?? renderNodes(node.children));
       return `<pre class="unsupported-directive" data-directive="${escape(name)}">${escape(raw)}</pre>`;
@@ -134,7 +197,9 @@ export function astToHtml(ast: GenericNode): string {
     allowedAttributes: {
       ...sanitizeHtml.defaults.allowedAttributes,
       a: ["href", "class", "title"],
-      img: ["src", "alt", "title"],
+      img: ["src", "alt", "title", "width", "class"],
+      figure: ["class", "style"],
+      figcaption: ["class"],
       aside: ["class"],
       div: ["class"],
       nav: ["class", "data-toc"],
@@ -236,7 +301,14 @@ export function renderPrintDocument(options: {
       line-height: ${lineHeight};
       color: #111827;
     }
-    img { max-width: 100%; }
+    img { max-width: 100%; height: auto; }
+    figure.md-figure { margin: 12px 0; max-width: 100%; }
+    .md-layout-block-center { text-align: center; }
+    .md-layout-block-left { text-align: left; }
+    .md-layout-block-right { text-align: right; }
+    .md-layout-float-left { float: left; margin: 0 1em 0.75em 0; }
+    .md-layout-float-right { float: right; margin: 0 0 0.75em 1em; }
+    figcaption { font-size: 10pt; color: #4b5563; margin-top: 6px; }
     p { margin: 0 0 0.6em; }
     table { border-collapse: collapse; width: 100%; table-layout: fixed; margin: 12px 0; }
     th, td { border: 1px solid #ccc; padding: 4px 8px; min-width: 0; vertical-align: top; word-wrap: break-word; overflow-wrap: anywhere; }

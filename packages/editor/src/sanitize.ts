@@ -52,7 +52,37 @@ function sanitizeNode(node: TiptapNode): TiptapNode | null {
   if (node.type === "image") {
     const src = String(node.attrs?.src ?? "").trim();
     if (!src) return null;
-    return node;
+    return {
+      type: "figure",
+      attrs: {
+        src,
+        alt: String(node.attrs?.alt ?? ""),
+        width: node.attrs?.width ?? 100,
+        layout: node.attrs?.layout ?? "block-center",
+        label: node.attrs?.label ?? null
+      },
+      content: []
+    };
+  }
+
+  if (node.type === "figure") {
+    const nestedImage = (node.content ?? []).find((child) => child.type === "image");
+    const src = String(node.attrs?.src ?? nestedImage?.attrs?.src ?? "").trim();
+    const caption = (node.content ?? [])
+      .map((child) => sanitizeNode(child))
+      .filter((child): child is TiptapNode => child != null && child.type === "caption");
+    if (!src) return caption.length ? { type: "paragraph", content: sanitizeInline(caption[0]?.content) } : EMPTY_PARAGRAPH;
+    return {
+      ...node,
+      attrs: {
+        src,
+        alt: String(node.attrs?.alt ?? nestedImage?.attrs?.alt ?? ""),
+        width: node.attrs?.width ?? 100,
+        layout: node.attrs?.layout ?? "block-center",
+        label: node.attrs?.label ?? null
+      },
+      content: caption
+    };
   }
 
   const content = (node.content ?? [])
@@ -92,13 +122,6 @@ function sanitizeNode(node: TiptapNode): TiptapNode | null {
 
   if (node.type === "blockquote" || node.type === "callout") {
     return { ...node, content: content.length ? content : [EMPTY_PARAGRAPH] };
-  }
-
-  if (node.type === "figure") {
-    if (!content.some((child) => child.type === "image")) {
-      return content.length ? { type: "paragraph", content: sanitizeInline(content) } : EMPTY_PARAGRAPH;
-    }
-    return { ...node, content };
   }
 
   if (node.type === "doc") {

@@ -5,6 +5,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { yaml } from "@codemirror/lang-yaml";
 import { highlightSelectionMatches } from "@codemirror/search";
 import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
+import { dataUrlFold } from "./dataUrlFold";
 
 export function createSourceEditor(options: {
   parent: HTMLElement;
@@ -30,6 +31,7 @@ export function createSourceEditor(options: {
         }),
         EditorView.lineWrapping,
         EditorView.editable.of(!options.readOnly),
+        ...dataUrlFold(),
         EditorView.theme({
           "&": { height: "100%", fontSize: "13.5px" },
           ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }
@@ -86,3 +88,5 @@ export function findInSource(
   });
   return { count: matches.length, index };
 }
+
+export { findDataUrlRanges } from "./dataUrlFold";

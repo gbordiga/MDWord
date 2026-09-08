@@ -90,18 +90,22 @@ This is a MyST directive in the `page-break` name. Automatic pagination must not
 
 ## Figures and images
 
-Images use relative paths. Prefer:
+Images use relative paths when a file is on disk, or a `data:` URL when the user embeds a local file. Prefer:
 
 ```markdown
+![Alt text](./images/demo.png)
+
 :::{figure} ./images/pump.png
 :label: fig-pump
-:align: center
+:align: left
+:width: 40%
+:class: float
 
 Schema della pompa.
 :::
 ```
 
-Do not embed base64 unless the user explicitly asks.
+`:align:` is block placement (`left` / `center` / `right`). Add `:class: float` for text wrap. `:width:` is a percent of the column. Simple `![alt](url)` images stay CommonMark. Do not embed base64 unless the user inserts a local file.
 
 ## Unknown nodes
 
