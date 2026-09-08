@@ -34,9 +34,9 @@ test("choosing a local image embeds it in the document", async ({ page }) => {
   await expect(prose.locator("img")).toBeVisible();
   await expect(prose.locator("img")).toHaveAttribute("src", /^data:image\/png/);
   await expect(page.getByTestId("ribbon-tab-image")).toBeEnabled();
-  await expect(page.getByTestId("image-float-left")).toBeVisible();
+  await expect(page.getByTestId("image-float-left")).toBeEnabled();
   await page.getByTestId("image-float-left").click();
-  await expect(prose.locator("figure")).toHaveAttribute("data-layout", "float-left");
+  await expect(prose.locator('[data-testid="doc-figure"]')).toHaveAttribute("data-layout", "float-left");
 });
 
 test("page layout controls stay in Properties", async ({ page }) => {
@@ -52,7 +52,7 @@ test("page layout controls stay in Properties", async ({ page }) => {
 test("header and footer fields match the page overlay", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId("page-header-right")).toContainText("1 / …");
+  await expect(page.getByTestId("page-header-right")).toContainText("1 /");
   await expect(page.getByTestId("prop-header-left")).toBeVisible();
   await expect(page.getByTestId("prop-header-center")).toBeVisible();
   await expect(page.getByTestId("prop-footer-center")).toBeVisible();

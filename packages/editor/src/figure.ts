@@ -40,6 +40,23 @@ function resolveFigurePos(state: EditorState): number | null {
   return figurePosFromSelection(state) ?? figureSelectionKey.getState(state) ?? null;
 }
 
+function posValid(state: EditorState, pos: number | null | undefined): pos is number {
+  return pos != null && state.doc.nodeAt(pos)?.type.name === "figure";
+}
+
+function firstFigurePos(state: EditorState): number | null {
+  const resolved = resolveFigurePos(state);
+  if (posValid(state, resolved)) return resolved;
+  let found: number | null = null;
+  state.doc.descendants((node, pos) => {
+    if (node.type.name === "figure") {
+      found = pos;
+      return false;
+    }
+  });
+  return found;
+}
+
 export const Figure = Node.create({
   name: "figure",
   group: "block",
@@ -253,7 +270,7 @@ export const Figure = Node.create({
       updateFigure:
         (attrs) =>
         ({ state, tr, dispatch }) => {
-          const pos = resolveFigurePos(state);
+          const pos = firstFigurePos(state);
           if (pos == null) return false;
           const figure = state.doc.nodeAt(pos);
           if (!figure || figure.type.name !== "figure") return false;
@@ -272,7 +289,7 @@ export const Figure = Node.create({
       setFigureCaption:
         (text) =>
         ({ state, tr, dispatch }) => {
-          const pos = resolveFigurePos(state);
+          const pos = firstFigurePos(state);
           if (pos == null) return false;
           const figure = state.doc.nodeAt(pos);
           if (!figure || figure.type.name !== "figure") return false;

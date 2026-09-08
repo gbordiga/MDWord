@@ -106,14 +106,10 @@ export function ImageRibbonTools({ editor, enabled }: { editor: Editor | null; e
           disabled={!enabled || (inTable && item.id.startsWith("float"))}
           onClick={() => {
             if (!editor) return;
-            editor
-              .chain()
-              .focus()
-              .updateFigure({
-                layout: item.id,
-                width: widthForLayoutChange(width, item.id)
-              })
-              .run();
+            editor.commands.updateFigure({
+              layout: item.id,
+              width: widthForLayoutChange(width, item.id)
+            });
           }}
         >
           {item.icon}
@@ -130,7 +126,7 @@ export function ImageRibbonTools({ editor, enabled }: { editor: Editor | null; e
           disabled={!enabled}
           className="h-8 w-16 rounded-md border border-[#e4e7ec] bg-white px-1 text-[13px] text-[#1c1f24] disabled:opacity-40"
           value={enabled ? width : ""}
-          onChange={(e) => editor?.chain().focus().updateFigure({ width: Number(e.target.value) }).run()}
+          onChange={(e) => editor?.commands.updateFigure({ width: Number(e.target.value) })}
         />
         %
       </label>
@@ -140,7 +136,7 @@ export function ImageRibbonTools({ editor, enabled }: { editor: Editor | null; e
         className="h-8 w-40 rounded-md border border-[#e4e7ec] bg-white px-2 text-[13px] disabled:opacity-40"
         placeholder="Alternative text"
         value={enabled ? alt : ""}
-        onChange={(e) => editor?.chain().focus().updateFigure({ alt: e.target.value }).run()}
+        onChange={(e) => editor?.commands.updateFigure({ alt: e.target.value })}
       />
       <input
         data-testid="image-caption"
@@ -148,7 +144,7 @@ export function ImageRibbonTools({ editor, enabled }: { editor: Editor | null; e
         className="h-8 w-44 rounded-md border border-[#e4e7ec] bg-white px-2 text-[13px] disabled:opacity-40"
         placeholder="Caption"
         value={enabled ? caption : ""}
-        onChange={(e) => editor?.chain().focus().setFigureCaption(e.target.value).run()}
+        onChange={(e) => editor?.commands.setFigureCaption(e.target.value)}
       />
       <Divider />
       <Tool title="Replace image" testId="image-replace" disabled={!enabled} onClick={openImage}>
