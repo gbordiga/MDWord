@@ -10,6 +10,7 @@ import {
   type ImageLayout
 } from "./imageModel";
 import { mediaDropPlugin } from "./mediaDrop";
+import { createFigureView } from "./figureView";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -17,6 +18,7 @@ declare module "@tiptap/core" {
       setFigure: (attrs: Partial<FigureAttrs> & { src: string }) => ReturnType;
       updateFigure: (attrs: Partial<FigureAttrs>) => ReturnType;
       setFigureCaption: (text: string) => ReturnType;
+      ensureFigureCaption: () => ReturnType;
     };
   }
 }
@@ -57,12 +59,20 @@ function firstFigurePos(state: EditorState): number | null {
   return found;
 }
 
+export function figureCaptionText(state: EditorState): string {
+  const pos = firstFigurePos(state);
+  if (pos == null) return "";
+  const figure = state.doc.nodeAt(pos);
+  const cap = figure?.firstChild;
+  return cap?.type.name === "caption" ? cap.textContent : "";
+}
+
 export const Figure = Node.create({
   name: "figure",
   group: "block",
   content: "caption?",
   defining: true,
-  draggable: true,
+  draggable: false,
   selectable: true,
   addAttributes() {
     return {
@@ -142,106 +152,7 @@ export const Figure = Node.create({
     ];
   },
   addNodeView() {
-    return ({ node, editor, getPos }) => {
-      let current = node;
-      const dom = document.createElement("figure");
-      const box = document.createElement("div");
-      const img = document.createElement("img");
-      const left = document.createElement("button");
-      const right = document.createElement("button");
-      const contentDOM = document.createElement("figcaption");
-      box.className = "md-figure-box";
-      contentDOM.className = "md-caption";
-      left.type = "button";
-      right.type = "button";
-      left.className = "md-figure-resize md-figure-resize-left";
-      right.className = "md-figure-resize md-figure-resize-right";
-      left.tabIndex = -1;
-      right.tabIndex = -1;
-      left.setAttribute("aria-label", "Resize image");
-      right.setAttribute("aria-label", "Resize image");
-      img.setAttribute("data-testid", "doc-image");
-      dom.setAttribute("data-testid", "doc-figure");
-      box.append(img, left, right);
-      dom.append(box, contentDOM);
-
-      const apply = (current: typeof node) => {
-        const width = clampImageWidth(Number(current.attrs.width ?? DEFAULT_IMAGE_WIDTH));
-        const layout = isImageLayout(current.attrs.layout) ? current.attrs.layout : DEFAULT_IMAGE_LAYOUT;
-        const selected = editor.isActive("figure") && typeof getPos === "function" && editor.state.selection.from === getPos();
-        dom.className = figureClass(layout, selected);
-        dom.dataset.width = String(width);
-        dom.dataset.layout = layout;
-        if (current.attrs.label) dom.dataset.label = String(current.attrs.label);
-        else delete dom.dataset.label;
-        img.src = String(current.attrs.src ?? "");
-        img.alt = String(current.attrs.alt ?? "");
-        box.style.width = `${width}%`;
-        if (layout.startsWith("float")) {
-          dom.style.width = `${width}%`;
-          box.style.width = "100%";
-        } else {
-          dom.style.width = "";
-        }
-      };
-
-      apply(node);
-
-      const select = (event: Event) => {
-        event.preventDefault();
-        const pos = typeof getPos === "function" ? getPos() : null;
-        if (pos == null) return;
-        editor.chain().setNodeSelection(pos).run();
-      };
-      img.addEventListener("mousedown", select);
-
-      const startResize = (side: "left" | "right") => (event: PointerEvent) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const pos = typeof getPos === "function" ? getPos() : null;
-        if (pos == null) return;
-        editor.chain().setNodeSelection(pos).run();
-        const startX = event.clientX;
-        const startWidth = box.getBoundingClientRect().width;
-        const parent = (dom.parentElement ?? dom).getBoundingClientRect().width || startWidth;
-        const startPct = clampImageWidth(Number(current.attrs.width ?? DEFAULT_IMAGE_WIDTH));
-        const onMove = (move: PointerEvent) => {
-          const dx = move.clientX - startX;
-          const signed = side === "left" ? -dx : dx;
-          const next = clampImageWidth(((startWidth + signed) / parent) * 100);
-          editor.commands.updateFigure({ width: next });
-        };
-        const onUp = () => {
-          window.removeEventListener("pointermove", onMove);
-          window.removeEventListener("pointerup", onUp);
-        };
-        window.addEventListener("pointermove", onMove);
-        window.addEventListener("pointerup", onUp);
-        void startPct;
-      };
-      left.addEventListener("pointerdown", startResize("left"));
-      right.addEventListener("pointerdown", startResize("right"));
-
-      return {
-        dom,
-        contentDOM,
-        update(updated) {
-          if (updated.type.name !== "figure") return false;
-          current = updated;
-          apply(updated);
-          return true;
-        },
-        selectNode() {
-          dom.classList.add("is-selected");
-        },
-        deselectNode() {
-          dom.classList.remove("is-selected");
-        },
-        destroy() {
-          img.removeEventListener("mousedown", select);
-        }
-      };
-    };
+    return ({ node, editor, getPos }) => createFigureView({ node, editor, getPos });
   },
   addCommands() {
     return {
@@ -307,6 +218,22 @@ export const Figure = Node.create({
             dispatch(tr);
           }
           return true;
+        },
+      ensureFigureCaption:
+        () =>
+        ({ state, tr, dispatch }) => {
+          const pos = firstFigurePos(state);
+          if (pos == null) return false;
+          const figure = state.doc.nodeAt(pos);
+          if (!figure || figure.type.name !== "figure") return false;
+          if (figure.firstChild?.type.name === "caption") return true;
+          const captionType = state.schema.nodes.caption;
+          if (!captionType) return false;
+          if (dispatch) {
+            tr.insert(pos + 1, captionType.create());
+            dispatch(tr);
+          }
+          return true;
         }
     };
   },
@@ -334,9 +261,9 @@ export const Caption = Node.create({
   name: "caption",
   content: "inline*",
   parseHTML() {
-    return [{ tag: "figcaption" }];
+    return [{ tag: "figcaption" }, { tag: "span.md-caption-text" }];
   },
   renderHTML() {
-    return ["figcaption", { class: "md-caption" }, 0];
+    return ["span", { class: "md-caption-text" }, 0];
   }
 });

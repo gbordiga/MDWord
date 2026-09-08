@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { FONT_SCALES, matchFontScale, matchMarginPreset } from "@mdword/layout-engine";
 import { documentDate, documentTitle, documentTitleKey } from "@mdword/shared";
-import { IMAGE_LAYOUTS, widthForLayoutChange, type ImageLayout } from "@mdword/editor";
+import { IMAGE_LAYOUTS, figureCaptionText, widthForLayoutChange, type ImageLayout } from "@mdword/editor";
 import { useApp } from "@/lib/store";
 import { useEditorUi } from "@/lib/editorUi";
 import { useEditorTick } from "@/hooks/useEditorTick";
@@ -113,6 +113,7 @@ export function DocumentProperties({
     ? (imageAttrs.layout as ImageLayout)
     : "block-center";
   const imageWidth = Number(imageAttrs.width ?? 100);
+  const imageCaption = editor ? figureCaptionText(editor.state) : "";
 
   return (
     <div>
@@ -154,6 +155,15 @@ export function DocumentProperties({
               max={100}
               value={imageWidth}
               onChange={(e) => editor.chain().focus().updateFigure({ width: Number(e.target.value) }).run()}
+            />
+          </Field>
+          <Field label="Caption">
+            <input
+              data-testid={testIds ? "prop-image-caption" : "image-caption"}
+              className={fieldClass}
+              value={imageCaption}
+              placeholder="Caption"
+              onChange={(e) => editor.commands.setFigureCaption(e.target.value)}
             />
           </Field>
           <Field label="Alternative text">

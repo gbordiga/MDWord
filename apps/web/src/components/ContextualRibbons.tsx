@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import {
   IMAGE_LAYOUTS,
+  figureCaptionText,
   widthForLayoutChange,
   type ImageLayout
 } from "@mdword/editor";
@@ -67,20 +68,7 @@ const LAYOUT_BUTTONS: { id: ImageLayout; title: string; testId: string; icon: Re
 ];
 
 function captionText(editor: Editor): string {
-  const { $from, from } = editor.state.selection;
-  let current = editor.state.doc.nodeAt(from);
-  if (current?.type.name !== "figure") {
-    current = null;
-    for (let depth = $from.depth; depth > 0; depth -= 1) {
-      if ($from.node(depth).type.name === "figure") {
-        current = $from.node(depth);
-        break;
-      }
-    }
-  }
-  if (!current) return "";
-  const caption = current.firstChild?.type.name === "caption" ? current.firstChild : null;
-  return caption?.textContent ?? "";
+  return figureCaptionText(editor.state);
 }
 
 export function ImageRibbonTools({ editor, enabled }: { editor: Editor | null; enabled: boolean }) {

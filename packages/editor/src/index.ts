@@ -1,4 +1,6 @@
 export { editorExtensions, WikiLink, Callout, PageBreak, Figure, Caption, MystRaw } from "./schema";
+export { figureCaptionText } from "./figure";
+export { moveFigureTo, mappedInsertAfterDelete } from "./figureMove";
 export { PageGaps, pageGapsKey, snapPageGapPos, collectPageGapPositions } from "./pageGaps";
 export type { PageGapsStorage } from "./pageGaps";
 export { astToTiptap } from "./astToTiptap";

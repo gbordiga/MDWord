@@ -34,8 +34,9 @@ test("choosing a local image embeds it in the document", async ({ page }) => {
   await expect(prose.locator("img")).toBeVisible();
   await expect(prose.locator("img")).toHaveAttribute("src", /^data:image\/png/);
   await expect(page.getByTestId("ribbon-tab-image")).toBeEnabled();
-  await expect(page.getByTestId("image-float-left")).toBeEnabled();
-  await page.getByTestId("image-float-left").click();
+  const imageFloat = page.locator("div.hidden.lg\\:block").getByTestId("image-float-left");
+  await expect(imageFloat).toBeEnabled();
+  await imageFloat.click();
   await expect(prose.locator('[data-testid="doc-figure"]')).toHaveAttribute("data-layout", "float-left");
 });
 

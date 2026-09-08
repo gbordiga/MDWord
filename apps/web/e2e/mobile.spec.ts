@@ -28,10 +28,10 @@ test("fits the editor on a phone without horizontal overflow", async ({ page }) 
 test("opens properties in a sheet and edits the title", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("mobile-tab-bar")).toBeVisible();
-  await page.getByRole("button", { name: "Properties" }).click();
+  await page.getByTestId("mobile-tab-bar").getByRole("button", { name: "Properties" }).click();
   await expect(page.getByTestId("sheet-properties")).toBeVisible();
   await page.getByTestId("sheet-properties").getByTestId("prop-title").fill("Documento mobile");
-  await page.getByTestId("sheet-properties").getByRole("button", { name: "Close" }).click();
+  await page.getByTestId("sheet-properties").getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByTestId("sheet-properties")).toBeHidden();
   await expect(page.getByTestId("mobile-top-bar")).toContainText("Documento mobile");
   await expect(page.getByTestId("doc-title")).toHaveText("Documento mobile");
@@ -97,3 +97,40 @@ test("title, headings and body have distinct visual size", async ({ page }) => {
   expect(h2Size).toBeGreaterThan(pSize);
   expect(Number(h1Weight)).toBeGreaterThanOrEqual(600);
 });
+
+test("resizes a selected image and can add a caption", async ({ page }) => {
+  await page.goto("/");
+  const prose = page.locator(".ProseMirror");
+  await expect(prose).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Insert" }).click();
+  await page.getByRole("button", { name: "Image" }).click();
+  await expect(page.getByTestId("image-dialog")).toBeVisible();
+  const tinyPng = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64"
+  );
+  await page.getByTestId("image-file").setInputFiles({
+    name: "dot.png",
+    mimeType: "image/png",
+    buffer: tinyPng
+  });
+  await page.getByTestId("image-insert").click();
+  const figure = prose.locator('[data-testid="doc-figure"]');
+  await expect(figure).toBeVisible();
+  await page.getByTestId("doc-image").click();
+  await expect(page.getByTestId("mobile-image-bar")).toBeVisible();
+  await page.getByTestId("mobile-image-bar").getByTestId("image-caption").fill("Plant photo");
+  await expect(prose.locator("figcaption")).toContainText("Plant photo");
+
+  const handle = page.getByTestId("figure-resize-right");
+  const box = await handle.boundingBox();
+  expect(box).toBeTruthy();
+  const startX = box!.x + box!.width / 2;
+  const startY = box!.y + box!.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX - 90, startY);
+  await page.mouse.up();
+  await expect(figure).not.toHaveAttribute("data-width", "100");
+});
+

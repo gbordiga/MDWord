@@ -385,45 +385,55 @@ html.keyboard-open .mdword-app {
   vertical-align: top;
 }
 
+.md-figure.is-selected .md-figure-box {
+  outline: 2px solid #2f6fed;
+  outline-offset: 2px;
+  touch-action: none;
+}
+
+.md-figure.is-dragging {
+  opacity: 0.55;
+}
+
 .md-figure img,
 .md-figure-box img {
   display: block;
   width: 100%;
   height: auto;
   max-width: 100%;
-}
-
-.md-figure.is-selected .md-figure-box {
-  outline: 2px solid #2f6fed;
-  outline-offset: 2px;
+  -webkit-user-drag: none;
+  user-select: none;
+  touch-action: none;
 }
 
 .md-figure-resize {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 10px;
+  width: 28px;
   padding: 0;
   border: 0;
   background: transparent;
   cursor: ew-resize;
+  touch-action: none;
+  z-index: 2;
 }
 
 .md-figure-resize-left {
-  left: -4px;
+  left: -10px;
 }
 
 .md-figure-resize-right {
-  right: -4px;
+  right: -10px;
 }
 
 .md-figure.is-selected .md-figure-resize::after {
   content: "";
   position: absolute;
   top: 50%;
-  left: 3px;
-  width: 4px;
-  height: 28px;
+  left: 11px;
+  width: 6px;
+  height: 36px;
   border-radius: 2px;
   background: #2f6fed;
   transform: translateY(-50%);
@@ -434,6 +444,21 @@ html.keyboard-open .mdword-app {
   color: #4b5563;
   margin-top: 6px;
   min-height: 1.2em;
+}
+
+.md-figure.is-selected .md-caption {
+  min-height: 2.4em;
+  padding: 8px 6px;
+  border-radius: 6px;
+  border: 1px dashed #c5d4f5;
+}
+
+@media (pointer: coarse) {
+  .md-figure.is-selected .md-caption {
+    min-height: 44px;
+    padding: 10px 8px;
+    font-size: 16px;
+  }
 }
 
 .md-figure:not(.is-selected) .md-caption:empty {
