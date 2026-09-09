@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
+import { displayImageSrc, embedImageFile, isAllowedImageFile } from "@mdword/editor";
 import { Dialog, DialogButton, DialogField, dialogInputClass } from "./Dialog";
 import { insertImage } from "@/lib/editorCommands";
-import { isAllowedImageFile } from "@mdword/editor";
 
 export function ImageDialog({
   open,
@@ -18,6 +18,7 @@ export function ImageDialog({
   const [src, setSrc] = useState("");
   const [alt, setAlt] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -25,35 +26,37 @@ export function ImageDialog({
     setSrc("");
     setAlt("");
     setError("");
+    setBusy(false);
     if (fileRef.current) fileRef.current.value = "";
   }, [open]);
 
-  const canInsert = Boolean(src.trim());
+  const canInsert = Boolean(src.trim()) && !busy;
 
-  const insert = () => {
+  const insert = async () => {
     if (!editor || !canInsert) return;
-    if (insertImage(editor, src, alt)) onClose();
+    setBusy(true);
+    try {
+      if (await insertImage(editor, src, alt)) onClose();
+    } finally {
+      setBusy(false);
+    }
   };
 
   const onPickFile = (file: File | undefined) => {
     if (!file) return;
     if (!isAllowedImageFile(file)) {
-      setError("Choose an image file (PNG, JPEG, GIF, or WebP) smaller than 8 MB.");
+      setError("Choose an image file (PNG, JPEG, GIF, or WebP) smaller than 24 MB.");
       return;
     }
     setError("");
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result ?? "");
-      if (!result.startsWith("data:image/")) {
-        setError("Could not read that image.");
-        return;
-      }
-      setSrc(result);
-      if (!alt.trim()) setAlt(file.name.replace(/\.[^.]+$/, ""));
-    };
-    reader.onerror = () => setError("Could not read that image.");
-    reader.readAsDataURL(file);
+    setBusy(true);
+    void embedImageFile(file)
+      .then((embedded) => {
+        setSrc(embedded);
+        if (!alt.trim()) setAlt(file.name.replace(/\.[^.]+$/, ""));
+      })
+      .catch(() => setError("Could not read that image."))
+      .finally(() => setBusy(false));
   };
 
   return (
@@ -65,8 +68,8 @@ export function ImageDialog({
       footer={
         <>
           <DialogButton onClick={onClose}>Cancel</DialogButton>
-          <DialogButton variant="primary" testId="image-insert" disabled={!canInsert} onClick={insert}>
-            Insert
+          <DialogButton variant="primary" testId="image-insert" disabled={!canInsert} onClick={() => void insert()}>
+            {busy ? "Preparing…" : "Insert"}
           </DialogButton>
         </>
       }
@@ -82,7 +85,7 @@ export function ImageDialog({
         />
       </DialogField>
       {src.startsWith("data:image/") ? (
-        <img src={src} alt="" className="mb-3 max-h-32 rounded-md border border-[#e4e7ec]" />
+        <img src={displayImageSrc(src)} alt="" className="mb-3 max-h-32 rounded-md border border-[#e4e7ec]" />
       ) : null}
       <DialogField label="Image path or URL">
         <input
@@ -97,7 +100,7 @@ export function ImageDialog({
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              insert();
+              void insert();
             }
           }}
         />
@@ -116,7 +119,9 @@ export function ImageDialog({
           {error}
         </p>
       ) : (
-        <p className="text-[12px] text-[#667085]">Local files are embedded in the document so they travel with the Markdown.</p>
+        <p className="text-[12px] text-[#667085]">
+          Local files are embedded in the document. Large photos are resized so the file stays light.
+        </p>
       )}
     </Dialog>
   );

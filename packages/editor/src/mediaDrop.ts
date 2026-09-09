@@ -1,9 +1,11 @@
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
+import { embedImageFile, embedImageSrc } from "./imageEmbed";
 import {
   DEFAULT_IMAGE_LAYOUT,
   DEFAULT_IMAGE_WIDTH,
   isAllowedImageFile,
+  parseHtmlImg,
   type FigureAttrs
 } from "./imageModel";
 
@@ -23,19 +25,6 @@ function collectImageFiles(list: FileList | DataTransferItemList | undefined | n
     }
   }
   return files.filter((file) => isAllowedImageFile(file));
-}
-
-function readDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result ?? "");
-      if (!result.startsWith("data:image/")) reject(new Error("not-image"));
-      else resolve(result);
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("read-failed"));
-    reader.readAsDataURL(file);
-  });
 }
 
 function insertFigure(view: EditorView, pos: number, attrs: FigureAttrs): void {
@@ -82,7 +71,7 @@ async function insertFiles(view: EditorView, event: DragEvent | ClipboardEvent, 
   event.preventDefault();
   for (const file of unique) {
     try {
-      const src = await readDataUrl(file);
+      const src = await embedImageFile(file);
       const alt = file.name.replace(/\.[^.]+$/, "");
       insertFigure(view, pos, {
         src,
@@ -114,8 +103,23 @@ export function mediaDropPlugin(): Plugin {
         const files = collectImageFiles(event.clipboardData?.files).length
           ? collectImageFiles(event.clipboardData?.files)
           : collectImageFiles(event.clipboardData?.items);
-        if (!files.length) return false;
-        void insertFiles(view, event, view.state.selection.from);
+        if (files.length) {
+          void insertFiles(view, event, view.state.selection.from);
+          return true;
+        }
+        const html = event.clipboardData?.getData("text/html") ?? "";
+        const parsed = html ? parseHtmlImg(html) : null;
+        if (!parsed?.src) return false;
+        event.preventDefault();
+        void embedImageSrc(parsed.src).then((src) => {
+          insertFigure(view, view.state.selection.from, {
+            src,
+            alt: parsed.alt,
+            width: parsed.width,
+            layout: parsed.layout,
+            label: null
+          });
+        });
         return true;
       }
     }

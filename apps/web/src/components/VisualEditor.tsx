@@ -11,7 +11,7 @@ import {
   type ReactNode
 } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
-import { editorExtensions, astToTiptap, type PageGapsStorage, type TiptapNode } from "@mdword/editor";
+import { editorExtensions, astToTiptap, isFigureInteracting, onFigureIdle, type PageGapsStorage, type TiptapNode } from "@mdword/editor";
 import {
   countFlowPages,
   PAGE_STACK_GAP_PX,
@@ -128,7 +128,9 @@ function VisualEditorCanvas({
   editorRef: { current: Editor | null };
   onEditor?: (editor: Editor | null) => void;
 }) {
-  const model = useApp((s) => s.model);
+  const frontmatter = useApp((s) => s.model.frontmatter);
+  const mdoc = useApp((s) => s.model.mdoc);
+  const resolvedMdoc = useApp((s) => s.model.resolvedMdoc);
   const patchMdoc = useApp((s) => s.patchMdoc);
   const zoom = useApp((s) => s.zoom);
   const pageLayout = useApp((s) => s.pageLayout);
@@ -139,7 +141,7 @@ function VisualEditorCanvas({
 
   const editor = useEditor({
     extensions: editorExtensions(),
-    content: tiptapContentFromAst(model.ast),
+    content: tiptapContentFromAst(useApp.getState().model.ast),
     immediatelyRender: false,
     editorProps: {
       attributes: {
@@ -201,21 +203,21 @@ function VisualEditorCanvas({
     if (lastGen.current === syncGeneration) return;
     lastGen.current = syncGeneration;
     try {
-      editor.commands.setContent(tiptapContentFromAst(model.ast));
+      editor.commands.setContent(tiptapContentFromAst(useApp.getState().model.ast));
     } catch (error) {
       console.error("Visual editor could not load document content", error);
       editor.commands.setContent({ type: "doc", content: [{ type: "paragraph" }] });
     } finally {
       useApp.getState().finishBusy(["open", "workspace"]);
     }
-  }, [editor, syncGeneration, model.ast]);
+  }, [editor, syncGeneration]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
   const layoutRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [pageCount, setPageCount] = useState(1);
-  const metrics = pageMetrics(model.resolvedMdoc);
+  const metrics = pageMetrics(resolvedMdoc);
   const fit = useFitScale(metrics.widthPx, scrollRef);
   const scale = fit * zoom;
   const padTop = metrics.margins.top;
@@ -224,28 +226,28 @@ function VisualEditorCanvas({
   const spacerH = padTop + padBottom + PAGE_STACK_GAP_PX;
   const pageMinHeight = paged ? metrics.heightPx : metrics.heightPx * 1.15;
   const sheetCount = paged ? pageCount : 1;
-  const body = model.resolvedMdoc.typography?.body;
-  const header = model.resolvedMdoc.header ?? {};
-  const footer = model.resolvedMdoc.footer ?? {};
+  const body = resolvedMdoc.typography?.body;
+  const header = resolvedMdoc.header ?? {};
+  const footer = resolvedMdoc.footer ?? {};
   const vars = {
-    title: documentTitle(model.frontmatter, ""),
-    subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
-    author: Array.isArray(model.frontmatter.authors)
-      ? String((model.frontmatter.authors as { name?: string }[])[0]?.name ?? "")
-      : String(model.frontmatter.author ?? ""),
-    date: documentDate(model.frontmatter),
+    title: documentTitle(frontmatter, ""),
+    subtitle: String(frontmatter.subtitle ?? frontmatter.sottotitolo ?? ""),
+    author: Array.isArray(frontmatter.authors)
+      ? String((frontmatter.authors as { name?: string }[])[0]?.name ?? "")
+      : String(frontmatter.author ?? ""),
+    date: documentDate(frontmatter),
     filename: "",
     page: 1
   };
-  const tocEnabled = Boolean(model.resolvedMdoc.toc?.enabled);
-  const tocDepth = model.resolvedMdoc.toc?.depth ?? 3;
-  const numberedHeadings = Boolean(model.resolvedMdoc.numbering?.headings);
+  const tocEnabled = Boolean(resolvedMdoc.toc?.enabled);
+  const tocDepth = resolvedMdoc.toc?.depth ?? 3;
+  const numberedHeadings = Boolean(resolvedMdoc.numbering?.headings);
   const tocItems = editor ? collectEditorHeadings(editor, tocDepth) : [];
 
-  const typo = model.resolvedMdoc.typography ?? {};
-  const titleText = documentTitle(model.frontmatter, "");
-  const subtitleText = String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? "");
-  const dateText = documentDate(model.frontmatter);
+  const typo = resolvedMdoc.typography ?? {};
+  const titleText = documentTitle(frontmatter, "");
+  const subtitleText = String(frontmatter.subtitle ?? frontmatter.sottotitolo ?? "");
+  const dateText = documentDate(frontmatter);
 
   useLayoutEffect(() => {
     if (!editor) return;
@@ -260,6 +262,7 @@ function VisualEditorCanvas({
     editor.view.dispatch(editor.state.tr.setMeta("pageGapsRefresh", true).setMeta("addToHistory", false));
 
     const measure = () => {
+      if (isFigureInteracting()) return;
       if (!paged || !padded) {
         setPageCount(1);
         return;
@@ -274,7 +277,11 @@ function VisualEditorCanvas({
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(padded ?? prose);
-    return () => ro.disconnect();
+    const stopIdle = onFigureIdle(measure);
+    return () => {
+      ro.disconnect();
+      stopIdle();
+    };
   }, [editor, paged, usableH, spacerH, padTop, padBottom, titleText, subtitleText, tocEnabled, tocItems.length]);
 
   const runningVars = (index: number) => ({ ...vars, page: index + 1, pages: sheetCount });
@@ -288,7 +295,7 @@ function VisualEditorCanvas({
         metrics={metrics}
         scale={scale}
         pageHeightPx={metrics.heightPx}
-        onChange={(margins) => patchMdoc({ ...model.mdoc, margins })}
+        onChange={(margins) => patchMdoc({ ...mdoc, margins })}
       />
       <div
         ref={scrollRef}

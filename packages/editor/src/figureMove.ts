@@ -24,6 +24,43 @@ export function mappedInsertAfterDelete(from: number, nodeSize: number, insertAt
   return insertAt;
 }
 
+let dropMark: HTMLElement | null = null;
+
+export function clearFigureDropMark(): void {
+  dropMark?.remove();
+}
+
+export function updateFigureDropMark(
+  view: EditorView,
+  fromPos: number,
+  nodeSize: number,
+  clientX: number,
+  clientY: number
+): void {
+  const insertAt = figureDropPos(view, fromPos, nodeSize, clientX, clientY);
+  if (insertAt == null) {
+    clearFigureDropMark();
+    return;
+  }
+  let coords: { left: number; right: number; top: number } | null = null;
+  try {
+    coords = view.coordsAtPos(insertAt);
+  } catch {
+    clearFigureDropMark();
+    return;
+  }
+  if (!dropMark) {
+    dropMark = document.createElement("div");
+    dropMark.className = "md-figure-drop-mark";
+    dropMark.dataset.testid = "figure-drop-mark";
+  }
+  const width = Math.max(48, Math.min(view.dom.getBoundingClientRect().width, 420));
+  dropMark.style.top = `${Math.round(coords.top)}px`;
+  dropMark.style.left = `${Math.round(coords.left)}px`;
+  dropMark.style.width = `${Math.round(width)}px`;
+  if (!dropMark.isConnected) document.body.append(dropMark);
+}
+
 export function moveFigureTo(
   view: EditorView,
   fromPos: number,

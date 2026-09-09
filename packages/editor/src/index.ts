@@ -1,6 +1,9 @@
 export { editorExtensions, WikiLink, Callout, PageBreak, Figure, Caption, MystRaw } from "./schema";
 export { figureCaptionText } from "./figure";
-export { moveFigureTo, mappedInsertAfterDelete } from "./figureMove";
+export { moveFigureTo, mappedInsertAfterDelete, updateFigureDropMark, clearFigureDropMark } from "./figureMove";
+export { embedImageFile, embedImageSrc, scaleToMaxEdge, shouldKeepOriginal } from "./imageEmbed";
+export { displayImageSrc } from "./imageDisplay";
+export { isFigureInteracting, onFigureIdle } from "./figureInteraction";
 export { PageGaps, pageGapsKey, snapPageGapPos, collectPageGapPositions } from "./pageGaps";
 export type { PageGapsStorage } from "./pageGaps";
 export { astToTiptap } from "./astToTiptap";
@@ -17,6 +20,7 @@ export {
   FLOAT_IMAGE_WIDTH,
   IMAGE_LAYOUTS,
   IMAGE_MAX_BYTES,
+  IMAGE_MAX_INPUT_BYTES,
   isAllowedImageFile,
   widthForLayoutChange
 } from "./imageModel";

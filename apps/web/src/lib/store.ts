@@ -40,6 +40,18 @@ export interface BusyState {
   blocking: boolean;
 }
 
+const VISUAL_APPLY_MS = 160;
+let pendingTiptap: TiptapNode | null = null;
+let applyTimer: ReturnType<typeof setTimeout> | null = null;
+
+function discardPendingVisual(): void {
+  pendingTiptap = null;
+  if (applyTimer != null) {
+    clearTimeout(applyTimer);
+    applyTimer = null;
+  }
+}
+
 function yieldPaint(): Promise<void> {
   if (typeof requestAnimationFrame !== "function") return Promise.resolve();
   return new Promise((resolve) => {
@@ -136,6 +148,30 @@ export const useApp = create<AppState>((set, get) => {
 
   const beginBusy = (busy: BusyState) => set({ busy });
 
+  const commitTiptap = (doc: TiptapNode) => {
+    try {
+      const ast = tiptapToAst(doc);
+      const current = get().model;
+      set({
+        model: { ...current, ast },
+        dirty: true,
+        editGeneration: get().editGeneration + 1
+      });
+    } catch (error) {
+      console.error("Could not apply visual edits", error);
+    }
+  };
+
+  const flushVisualEdits = () => {
+    if (applyTimer != null) {
+      clearTimeout(applyTimer);
+      applyTimer = null;
+    }
+    const doc = pendingTiptap;
+    pendingTiptap = null;
+    if (doc) commitTiptap(doc);
+  };
+
   const markSaved = (path: string, content: string, model: DocumentModel) => {
     const historyKey = historyKeyFromPath(path, get().historyKey);
     set({
@@ -193,21 +229,17 @@ export const useApp = create<AppState>((set, get) => {
     set({ model, dirty: true, syncGeneration: get().syncGeneration + 1, editGeneration: get().editGeneration + 1 });
   },
   applyTiptap: (doc) => {
-    try {
-      const ast = tiptapToAst(doc);
-      const current = get().model;
-      const next: DocumentModel = { ...current, ast };
-      const source = saveDocument(next);
-      set({
-        model: { ...openDocument(source, { workspaceMdoc: get().workspace?.workspaceMdoc }), ast },
-        dirty: true,
-        editGeneration: get().editGeneration + 1
-      });
-    } catch (error) {
-      console.error("Could not apply visual edits", error);
-    }
+    pendingTiptap = doc;
+    if (applyTimer != null) return;
+    applyTimer = setTimeout(() => {
+      applyTimer = null;
+      flushVisualEdits();
+    }, VISUAL_APPLY_MS);
   },
-  setView: (view) => set({ view }),
+  setView: (view) => {
+    flushVisualEdits();
+    set({ view });
+  },
   setPageLayout: (pageLayout) => {
     try {
       window.localStorage.setItem(PAGE_LAYOUT_KEY, pageLayout);
@@ -222,6 +254,7 @@ export const useApp = create<AppState>((set, get) => {
     set(compact ? { left, mobileSheet: "workspace" } : { left, leftOpen: true });
   },
   newDocument: () => {
+    discardPendingVisual();
     const source = untitledDocument();
     void clearCrashDraft();
     set({
@@ -245,6 +278,7 @@ export const useApp = create<AppState>((set, get) => {
       return;
     }
     if (!result) return;
+    discardPendingVisual();
     beginBusy({ kind: "open", label: "Opening document…", blocking: true });
     await yieldPaint();
     try {
@@ -266,6 +300,7 @@ export const useApp = create<AppState>((set, get) => {
     }
   },
   saveFile: async () => {
+    flushVisualEdits();
     const host = getHost();
     const { model, path } = get();
     const content = saveDocument(model);
@@ -294,6 +329,7 @@ export const useApp = create<AppState>((set, get) => {
     }
   },
   saveFileAs: async () => {
+    flushVisualEdits();
     const host = getHost();
     const content = saveDocument(get().model);
     const next = await host.files.saveAs(content, get().path ?? "document.md");
@@ -321,6 +357,7 @@ export const useApp = create<AppState>((set, get) => {
     }
   },
   openWorkspaceFile: async (filePath) => {
+    discardPendingVisual();
     const host = getHost();
     beginBusy({ kind: "workspace", label: "Opening document…", blocking: true });
     await yieldPaint();
@@ -352,6 +389,7 @@ export const useApp = create<AppState>((set, get) => {
   },
   refreshWorkspace: () => reloadWorkspace(),
   exportPdf: async () => {
+    flushVisualEdits();
     beginBusy({ kind: "export", label: "Preparing PDF…", blocking: true });
     await yieldPaint();
     try {
@@ -373,6 +411,7 @@ export const useApp = create<AppState>((set, get) => {
     }
   },
   exportHtml: async () => {
+    flushVisualEdits();
     beginBusy({ kind: "export", label: "Preparing HTML…", blocking: true });
     await yieldPaint();
     try {
@@ -419,6 +458,7 @@ export const useApp = create<AppState>((set, get) => {
   setPalette: (paletteOpen) => set({ paletteOpen }),
   setFind: (findOpen, query) => set({ findOpen, findQuery: query ?? get().findQuery }),
   saveDraft: async () => {
+    flushVisualEdits();
     const state = get();
     if (!state.dirty) return;
     try {
@@ -433,6 +473,7 @@ export const useApp = create<AppState>((set, get) => {
     }
   },
   restoreHistory: (content) => {
+    discardPendingVisual();
     const model = modelFrom(content, get().workspace?.workspaceMdoc);
     set({
       model,
@@ -442,6 +483,7 @@ export const useApp = create<AppState>((set, get) => {
     });
   },
   applyRecoveredDraft: async (content, path) => {
+    discardPendingVisual();
     let lastSavedContent = get().lastSavedContent;
     if (path) {
       try {

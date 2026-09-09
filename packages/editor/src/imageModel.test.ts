@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   clampImageWidth,
+  IMAGE_MAX_BYTES,
+  isAllowedImageFile,
   layoutFromMyst,
   mystFromLayout,
   parseWidthPercent,
@@ -20,6 +22,11 @@ describe("image model", () => {
     expect(layoutFromMyst("left")).toBe("block-left");
     expect(layoutFromMyst("left", "float")).toBe("float-left");
     expect(mystFromLayout("float-right")).toEqual({ align: "right", className: "float" });
+  });
+
+  it("accepts large camera files that will be compressed on insert", () => {
+    expect(isAllowedImageFile({ type: "image/jpeg", size: IMAGE_MAX_BYTES + 1 })).toBe(true);
+    expect(isAllowedImageFile({ type: "image/jpeg", size: 25 * 1024 * 1024 })).toBe(false);
   });
 
   it("suggests a float width", () => {

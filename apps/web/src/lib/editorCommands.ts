@@ -1,5 +1,5 @@
 import type { Editor } from "@tiptap/react";
-import { collectSearchMatches, nextMatchIndex, normalizeHref } from "@mdword/editor";
+import { collectSearchMatches, embedImageSrc, nextMatchIndex, normalizeHref } from "@mdword/editor";
 
 export function applyBlockStyle(editor: Editor, value: string): void {
   if (value === "p") editor.chain().focus().setParagraph().run();
@@ -46,10 +46,11 @@ export function removeLink(editor: Editor): void {
   editor.chain().focus().extendMarkRange("link").unsetLink().run();
 }
 
-export function insertImage(editor: Editor, src: string, alt?: string): boolean {
+export async function insertImage(editor: Editor, src: string, alt?: string): Promise<boolean> {
   const url = src.trim();
   if (!url) return false;
-  editor.chain().focus().setFigure({ src: url, alt: (alt ?? "").trim() }).run();
+  const embedded = await embedImageSrc(url);
+  editor.chain().focus().setFigure({ src: embedded, alt: (alt ?? "").trim() }).run();
   return true;
 }
 

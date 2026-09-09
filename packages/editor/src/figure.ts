@@ -191,6 +191,15 @@ export const Figure = Node.create({
             width: clampImageWidth(Number(attrs.width ?? figure.attrs.width ?? DEFAULT_IMAGE_WIDTH)),
             layout: isImageLayout(attrs.layout) ? attrs.layout : isImageLayout(figure.attrs.layout) ? figure.attrs.layout : DEFAULT_IMAGE_LAYOUT
           };
+          if (
+            next.width === figure.attrs.width &&
+            next.layout === figure.attrs.layout &&
+            next.alt === figure.attrs.alt &&
+            next.src === figure.attrs.src &&
+            next.label === figure.attrs.label
+          ) {
+            return true;
+          }
           if (dispatch) {
             tr.setNodeMarkup(pos, undefined, next);
             dispatch(tr);
@@ -207,6 +216,8 @@ export const Figure = Node.create({
           const captionType = state.schema.nodes.caption;
           if (!captionType) return false;
           const trimmed = text.trim();
+          const current = figure.firstChild?.type.name === "caption" ? figure.firstChild.textContent : "";
+          if (current === trimmed) return true;
           const next = trimmed
             ? captionType.create(null, trimmed ? state.schema.text(trimmed) : undefined)
             : null;

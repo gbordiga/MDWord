@@ -14,6 +14,8 @@ export const FLOAT_IMAGE_WIDTH = 40;
 export const MIN_IMAGE_WIDTH = 10;
 export const MAX_IMAGE_WIDTH = 100;
 export const IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+/** Phone photos are often larger than the stored cap; we compress on insert. */
+export const IMAGE_MAX_INPUT_BYTES = 24 * 1024 * 1024;
 export const IMAGE_MIME = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
 export type FigureAttrs = {
@@ -79,7 +81,7 @@ export function widthForLayoutChange(currentWidth: number, next: ImageLayout): n
 }
 
 export function isAllowedImageFile(file: { type: string; size: number }): boolean {
-  if (file.size > IMAGE_MAX_BYTES) return false;
+  if (file.size > IMAGE_MAX_INPUT_BYTES) return false;
   if (IMAGE_MIME.has(file.type)) return true;
   return file.type.startsWith("image/");
 }

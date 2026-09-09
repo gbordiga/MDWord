@@ -1,4 +1,5 @@
 import type { Editor } from "@tiptap/core";
+import { NodeSelection } from "@tiptap/pm/state";
 import type { Node as ProseNode } from "@tiptap/pm/model";
 import {
   clampImageWidth,
@@ -7,7 +8,9 @@ import {
   isImageLayout,
   type ImageLayout
 } from "./imageModel";
-import { moveFigureTo } from "./figureMove";
+import { displayImageSrc } from "./imageDisplay";
+import { beginFigureInteraction, endFigureInteraction } from "./figureInteraction";
+import { clearFigureDropMark, moveFigureTo, updateFigureDropMark } from "./figureMove";
 
 function figureClass(layout: ImageLayout, selected: boolean): string {
   return ["md-figure", `md-layout-${layout}`, selected ? "is-selected" : ""].filter(Boolean).join(" ");
@@ -70,6 +73,7 @@ export function createFigureView({
   left.dataset.testid = "figure-resize-left";
   right.dataset.testid = "figure-resize-right";
   img.setAttribute("data-testid", "doc-image");
+  img.decoding = "async";
   img.draggable = false;
   img.setAttribute("draggable", "false");
   dom.setAttribute("data-testid", "doc-figure");
@@ -82,6 +86,7 @@ export function createFigureView({
     return typeof pos === "number" ? pos : null;
   };
 
+  let shownSrc = "";
   const apply = (next: ProseNode) => {
     if (resizing) return;
     const width = clampImageWidth(Number(next.attrs.width ?? DEFAULT_IMAGE_WIDTH));
@@ -93,16 +98,29 @@ export function createFigureView({
     dom.dataset.layout = layout;
     if (next.attrs.label) dom.dataset.label = String(next.attrs.label);
     else delete dom.dataset.label;
-    img.src = String(next.attrs.src ?? "");
-    img.alt = String(next.attrs.alt ?? "");
+    const nextSrc = String(next.attrs.src ?? "");
+    if (nextSrc !== shownSrc) {
+      shownSrc = nextSrc;
+      img.src = displayImageSrc(nextSrc);
+    }
+    const nextAlt = String(next.attrs.alt ?? "");
+    if (img.alt !== nextAlt) img.alt = nextAlt;
     applyWidth(dom, box, layout, width);
   };
 
   apply(node);
+  img.addEventListener("load", () => {
+    if (img.naturalWidth && img.naturalHeight) {
+      img.width = img.naturalWidth;
+      img.height = img.naturalHeight;
+    }
+  });
 
   const selectFigure = () => {
     const pos = posOf();
     if (pos == null) return;
+    const sel = editor.state.selection;
+    if (sel instanceof NodeSelection && sel.from === pos) return;
     editor.chain().setNodeSelection(pos).run();
   };
 
@@ -118,6 +136,7 @@ export function createFigureView({
     }
     selectFigure();
     resizing = true;
+    beginFigureInteraction();
     box.classList.add("is-resizing");
     const pointerId = event.pointerId;
     const startX = event.clientX;
@@ -125,15 +144,22 @@ export function createFigureView({
     const parent = contentWidth(dom);
     let lastPct = clampImageWidth(Number(current.attrs.width ?? DEFAULT_IMAGE_WIDTH));
     const layout = isImageLayout(current.attrs.layout) ? current.attrs.layout : DEFAULT_IMAGE_LAYOUT;
+    let raf = 0;
+    let pendingPct = lastPct;
 
+    const paint = () => {
+      raf = 0;
+      lastPct = pendingPct;
+      applyWidth(dom, box, layout, lastPct);
+      dom.dataset.width = String(lastPct);
+    };
     const onMove = (move: PointerEvent) => {
       if (!samePointer(move, pointerId)) return;
       move.preventDefault();
       const dx = move.clientX - startX;
       const signed = side === "left" ? -dx : dx;
-      lastPct = clampImageWidth(((startWidth + signed) / parent) * 100);
-      applyWidth(dom, box, layout, lastPct);
-      dom.dataset.width = String(lastPct);
+      pendingPct = clampImageWidth(((startWidth + signed) / parent) * 100);
+      if (!raf) raf = requestAnimationFrame(paint);
     };
     const onEnd = (end: PointerEvent) => {
       if (!samePointer(end, pointerId)) return;
@@ -148,9 +174,16 @@ export function createFigureView({
       } catch {
         /* already released */
       }
+      if (raf) {
+        cancelAnimationFrame(raf);
+        paint();
+      }
       resizing = false;
       box.classList.remove("is-resizing");
-      editor.commands.updateFigure({ width: lastPct });
+      endFigureInteraction();
+      if (lastPct !== clampImageWidth(Number(current.attrs.width ?? DEFAULT_IMAGE_WIDTH))) {
+        editor.commands.updateFigure({ width: lastPct });
+      }
     };
     handle.addEventListener("pointermove", onMove);
     handle.addEventListener("pointerup", onEnd);
@@ -173,7 +206,12 @@ export function createFigureView({
     const pointerId = event.pointerId;
     const startX = event.clientX;
     const startY = event.clientY;
+    const startPos = posOf();
+    const startSize = current.nodeSize;
     let dragging = false;
+    let dropRaf = 0;
+    let dropX = startX;
+    let dropY = startY;
     try {
       img.setPointerCapture(pointerId);
     } catch {
@@ -182,9 +220,20 @@ export function createFigureView({
     const onMove = (move: PointerEvent) => {
       if (!samePointer(move, pointerId)) return;
       if (Math.hypot(move.clientX - startX, move.clientY - startY) < 12) return;
-      dragging = true;
-      dom.classList.add("is-dragging");
+      if (!dragging) {
+        dragging = true;
+        beginFigureInteraction();
+        dom.classList.add("is-dragging");
+      }
       move.preventDefault();
+      if (startPos == null) return;
+      dropX = move.clientX;
+      dropY = move.clientY;
+      if (dropRaf) return;
+      dropRaf = requestAnimationFrame(() => {
+        dropRaf = 0;
+        updateFigureDropMark(editor.view, startPos, startSize, dropX, dropY);
+      });
     };
     const onEnd = (end: PointerEvent) => {
       if (!samePointer(end, pointerId)) return;
@@ -199,7 +248,10 @@ export function createFigureView({
       } catch {
         /* ignore */
       }
+      if (dropRaf) cancelAnimationFrame(dropRaf);
+      clearFigureDropMark();
       dom.classList.remove("is-dragging");
+      if (dragging) endFigureInteraction();
       if (!dragging) return;
       const pos = posOf();
       if (pos == null) return;
@@ -254,6 +306,7 @@ export function createFigureView({
     destroy() {
       img.removeEventListener("pointerdown", onImagePointerDown);
       contentDOM.removeEventListener("pointerdown", onCaptionPointerDown);
+      clearFigureDropMark();
     }
   };
 }

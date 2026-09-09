@@ -105,7 +105,7 @@ Schema della pompa.
 :::
 ```
 
-`:align:` is block placement (`left` / `center` / `right`). Add `:class: float` for text wrap. `:width:` is a percent of the column. Simple `![alt](url)` images stay CommonMark. Do not embed base64 unless the user inserts a local file.
+`:align:` is block placement (`left` / `center` / `right`). Add `:class: float` for text wrap. `:width:` is a percent of the column. Simple `![alt](url)` images stay CommonMark. Do not embed base64 unless the user inserts a local file. Embedded photos may be downscaled (1920px long edge) and re-encoded so the Markdown stays portable.
 
 ## Unknown nodes
 

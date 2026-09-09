@@ -383,6 +383,11 @@ html.keyboard-open .mdword-app {
   display: inline-block;
   max-width: 100%;
   vertical-align: top;
+  contain: layout;
+}
+
+.md-figure-box.is-resizing {
+  will-change: width;
 }
 
 .md-figure.is-selected .md-figure-box {
@@ -393,6 +398,17 @@ html.keyboard-open .mdword-app {
 
 .md-figure.is-dragging {
   opacity: 0.55;
+  will-change: opacity;
+}
+
+.md-figure-drop-mark {
+  position: fixed;
+  z-index: 40;
+  height: 3px;
+  pointer-events: none;
+  border-radius: 2px;
+  background: #2f6fed;
+  box-shadow: 0 0 0 1px #ffffff;
 }
 
 .md-figure img,

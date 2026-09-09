@@ -2,6 +2,7 @@ import { Extension } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { isFigureInteracting, onFigureIdle } from "./figureInteraction";
 
 export type PageGapsStorage = {
   enabled: boolean;
@@ -85,6 +86,7 @@ export const PageGaps = Extension.create({
           let last = "";
 
           const refresh = () => {
+            if (isFigureInteracting()) return;
             const cfg = editor.storage.pageGaps as PageGapsStorage | undefined;
             const current = pageGapsKey.getState(view.state) ?? DecorationSet.empty;
             if (!cfg?.enabled || cfg.usableHeight < 48 || !view.dom.isConnected) {
@@ -141,21 +143,30 @@ export const PageGaps = Extension.create({
           };
 
           const schedule = () => {
+            if (isFigureInteracting()) return;
             cancelAnimationFrame(raf);
             raf = requestAnimationFrame(refresh);
           };
 
           const ro = new ResizeObserver(schedule);
           ro.observe(view.dom);
+          const stopIdle = onFigureIdle(schedule);
           schedule();
 
+          let lastCfg = "";
           return {
-            update() {
-              schedule();
+            update(_view, prev) {
+              const cfg = editor.storage.pageGaps as PageGapsStorage | undefined;
+              const sig = `${cfg?.enabled}:${cfg?.usableHeight}:${cfg?.spacerHeight}:${cfg?.contentTop}`;
+              if (view.state.doc !== prev.doc || sig !== lastCfg) {
+                lastCfg = sig;
+                schedule();
+              }
             },
             destroy() {
               cancelAnimationFrame(raf);
               ro.disconnect();
+              stopIdle();
             }
           };
         }
