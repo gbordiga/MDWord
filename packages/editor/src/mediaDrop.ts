@@ -8,6 +8,7 @@ import {
   parseHtmlImg,
   type FigureAttrs
 } from "./imageModel";
+import { insertFigureTransaction } from "./figureInsert";
 
 const key = new PluginKey("mdword-media");
 
@@ -28,32 +29,9 @@ function collectImageFiles(list: FileList | DataTransferItemList | undefined | n
 }
 
 function insertFigure(view: EditorView, pos: number, attrs: FigureAttrs): void {
-  const type = view.state.schema.nodes.figure;
-  if (!type) return;
-  const node = type.createAndFill({
-    src: attrs.src,
-    alt: attrs.alt,
-    width: attrs.width,
-    layout: attrs.layout,
-    label: attrs.label
-  });
-  if (!node) return;
-  const $pos = view.state.doc.resolve(Math.min(Math.max(1, pos), view.state.doc.content.size));
-  let from = $pos.pos;
-  let to = $pos.pos;
-  if ($pos.parent.inlineContent) {
-    const start = $pos.before($pos.depth);
-    const end = $pos.after($pos.depth);
-    if ($pos.parent.content.size === 0) {
-      from = start;
-      to = end;
-    } else {
-      from = end;
-      to = end;
-    }
-  }
-  const tr = view.state.tr.replaceWith(from, to, node);
-  view.dispatch(tr.scrollIntoView());
+  const tr = insertFigureTransaction(view.state, pos, attrs);
+  if (!tr) return;
+  view.dispatch(tr);
   view.focus();
 }
 
@@ -76,6 +54,7 @@ async function insertFiles(view: EditorView, event: DragEvent | ClipboardEvent, 
       insertFigure(view, pos, {
         src,
         alt,
+        caption: "",
         width: DEFAULT_IMAGE_WIDTH,
         layout: DEFAULT_IMAGE_LAYOUT,
         label: null
@@ -115,6 +94,7 @@ export function mediaDropPlugin(): Plugin {
           insertFigure(view, view.state.selection.from, {
             src,
             alt: parsed.alt,
+            caption: "",
             width: parsed.width,
             layout: parsed.layout,
             label: null

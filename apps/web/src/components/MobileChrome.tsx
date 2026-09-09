@@ -33,6 +33,7 @@ import {
   Scissors
 } from "lucide-react";
 import { type ReactNode } from "react";
+import { figurePosFromState } from "@mdword/editor";
 import { displayDocumentTitle } from "@mdword/shared";
 import { useApp } from "@/lib/store";
 import {
@@ -123,7 +124,7 @@ export function MobileFormatBar({ editor }: { editor: Editor | null }) {
   const { openLink } = useEditorUi();
   if (view === "source") return null;
 
-  if (editor?.isActive("figure")) {
+  if (editor && figurePosFromState(editor.state) != null) {
     return (
       <div
         data-testid="mobile-image-bar"

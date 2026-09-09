@@ -129,9 +129,13 @@ function captionFromNodes(nodes: GenericNode[] | undefined): TiptapNode | null {
   return { type: "caption", content };
 }
 
+function inlineText(nodes: TiptapNode[] | undefined): string {
+  return (nodes ?? []).map((node) => node.text ?? inlineText(node.content)).join("").trim();
+}
+
 function figureAttrsFromImage(
   image: GenericNode | undefined,
-  extra?: { url?: unknown; alt?: unknown; width?: unknown; align?: unknown; className?: unknown; label?: unknown }
+  extra?: { url?: unknown; alt?: unknown; width?: unknown; align?: unknown; className?: unknown; label?: unknown; caption?: string }
 ): TiptapNode["attrs"] {
   const src = String(image?.url ?? extra?.url ?? "").trim();
   const width = parseWidthPercent(image?.width ?? extra?.width);
@@ -139,6 +143,7 @@ function figureAttrsFromImage(
   return {
     src,
     alt: String(image?.alt ?? extra?.alt ?? ""),
+    caption: extra?.caption ?? "",
     width: width || DEFAULT_IMAGE_WIDTH,
     layout,
     label: extra?.label != null && String(extra.label) ? String(extra.label) : null
@@ -151,11 +156,11 @@ function figureNode(attrs: TiptapNode["attrs"], caption?: TiptapNode | null): Ti
     attrs: {
       src: String(attrs?.src ?? ""),
       alt: String(attrs?.alt ?? ""),
+      caption: String(attrs?.caption || inlineText(caption?.content) || ""),
       width: attrs?.width ?? DEFAULT_IMAGE_WIDTH,
       layout: attrs?.layout ?? DEFAULT_IMAGE_LAYOUT,
       label: attrs?.label ?? null
-    },
-    content: caption ? [caption] : []
+    }
   };
 }
 

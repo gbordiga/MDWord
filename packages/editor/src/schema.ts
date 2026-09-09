@@ -9,7 +9,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Underline from "@tiptap/extension-underline";
 import { WikiLink, Callout, PageBreak, MystRaw } from "./extensions";
-import { Figure, Caption } from "./figure";
+import { Figure } from "./figure";
 import { PageGaps } from "./pageGaps";
 
 export function editorExtensions() {
@@ -41,13 +41,12 @@ export function editorExtensions() {
     Callout,
     PageBreak,
     Figure,
-    Caption,
     MystRaw,
     PageGaps
   ];
 }
 
-export { WikiLink, Callout, PageBreak, Figure, Caption, MystRaw };
+export { WikiLink, Callout, PageBreak, Figure, MystRaw };
 export type { FigureAttrs, ImageLayout } from "./imageModel";
 export {
   DEFAULT_IMAGE_LAYOUT,

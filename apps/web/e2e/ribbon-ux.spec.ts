@@ -40,6 +40,36 @@ test("choosing a local image embeds it in the document", async ({ page }) => {
   await expect(prose.locator('[data-testid="doc-figure"]')).toHaveAttribute("data-layout", "float-left");
 });
 
+test("can type under an inserted image and move it", async ({ page }) => {
+  await page.goto("/");
+  const prose = page.locator(".ProseMirror");
+  await expect(prose).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Insert" }).click();
+  await page.getByTestId("insert-image").click();
+  await page.getByTestId("image-file").setInputFiles({
+    name: "dot.png",
+    mimeType: "image/png",
+    buffer: TINY_PNG
+  });
+  await page.getByTestId("image-insert").click();
+  await expect(prose.locator('[data-testid="doc-figure"]')).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.type("Text under the photo");
+  await expect(prose.locator("p", { hasText: "Text under the photo" })).toBeVisible();
+  const imageRibbon = page.locator("div.hidden.lg\\:block");
+  const moveDown = imageRibbon.getByTestId("image-move-down");
+  await prose.locator('[data-testid="doc-image"]').click();
+  await expect(moveDown).toBeEnabled();
+  await imageRibbon.getByTestId("image-caption").fill("Schema della pompa");
+  await expect(prose.locator("figcaption")).toContainText("Schema della pompa");
+  await expect(imageRibbon.getByTestId("image-caption")).toHaveValue("Schema della pompa");
+  await moveDown.click();
+  const figureBox = await prose.locator('[data-testid="doc-figure"]').boundingBox();
+  const textBox = await prose.locator("p", { hasText: "Text under the photo" }).boundingBox();
+  expect(figureBox && textBox).toBeTruthy();
+  expect(textBox!.y).toBeLessThan(figureBox!.y);
+});
+
 test("page layout controls stay in Properties", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });

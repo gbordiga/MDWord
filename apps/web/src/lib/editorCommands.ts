@@ -51,6 +51,7 @@ export async function insertImage(editor: Editor, src: string, alt?: string): Pr
   if (!url) return false;
   const embedded = await embedImageSrc(url);
   editor.chain().focus().setFigure({ src: embedded, alt: (alt ?? "").trim() }).run();
+  requestAnimationFrame(() => editor.chain().focus().run());
   return true;
 }
 

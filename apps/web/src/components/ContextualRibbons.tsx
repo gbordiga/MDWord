@@ -6,6 +6,8 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  ArrowDown,
+  ArrowUp,
   Columns3,
   Image as ImageIcon,
   PanelLeft,
@@ -16,6 +18,7 @@ import {
 import {
   IMAGE_LAYOUTS,
   figureCaptionText,
+  figureNodeFromState,
   widthForLayoutChange,
   type ImageLayout
 } from "@mdword/editor";
@@ -73,7 +76,7 @@ function captionText(editor: Editor): string {
 
 export function ImageRibbonTools({ editor, enabled }: { editor: Editor | null; enabled: boolean }) {
   const { openImage } = useEditorUi();
-  const attrs = editor?.getAttributes("figure") ?? {};
+  const attrs = (editor ? figureNodeFromState(editor.state)?.attrs : null) ?? {};
   const layout = IMAGE_LAYOUTS.includes(attrs.layout as ImageLayout)
     ? (attrs.layout as ImageLayout)
     : "block-center";
@@ -134,6 +137,23 @@ export function ImageRibbonTools({ editor, enabled }: { editor: Editor | null; e
         value={enabled ? caption : ""}
         onChange={(e) => editor?.commands.setFigureCaption(e.target.value)}
       />
+      <Divider />
+      <Tool
+        title="Move image up"
+        testId="image-move-up"
+        disabled={!enabled}
+        onClick={() => editor?.commands.moveFigureUp()}
+      >
+        <ArrowUp size={16} />
+      </Tool>
+      <Tool
+        title="Move image down"
+        testId="image-move-down"
+        disabled={!enabled}
+        onClick={() => editor?.commands.moveFigureDown()}
+      >
+        <ArrowDown size={16} />
+      </Tool>
       <Divider />
       <Tool title="Replace image" testId="image-replace" disabled={!enabled} onClick={openImage}>
         <ImageIcon size={16} /> Replace

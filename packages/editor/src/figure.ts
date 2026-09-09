@@ -1,5 +1,5 @@
 import { Node, mergeAttributes } from "@tiptap/core";
-import { NodeSelection, Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
+import { NodeSelection, Plugin, type EditorState, type Transaction } from "@tiptap/pm/state";
 import {
   clampImageWidth,
   DEFAULT_IMAGE_LAYOUT,
@@ -11,6 +11,20 @@ import {
 } from "./imageModel";
 import { mediaDropPlugin } from "./mediaDrop";
 import { createFigureView } from "./figureView";
+import { figureSelectionKey } from "./figureKeys";
+import { figurePosFromSelection, figurePosFromState } from "./figurePos";
+import { captionAttr } from "./figureCaption";
+import {
+  exitFigureAfter,
+  exitFigureBefore,
+  insertFigureTransaction,
+  needsTrailingWritable
+} from "./figureInsert";
+import { moveFigureBy } from "./figureMove";
+import { handleFigureAreaClick } from "./figureClick";
+
+export { figureSelectionKey } from "./figureKeys";
+export { figureCaptionText } from "./figureCaption";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -18,7 +32,10 @@ declare module "@tiptap/core" {
       setFigure: (attrs: Partial<FigureAttrs> & { src: string }) => ReturnType;
       updateFigure: (attrs: Partial<FigureAttrs>) => ReturnType;
       setFigureCaption: (text: string) => ReturnType;
-      ensureFigureCaption: () => ReturnType;
+      exitFigureAfter: () => ReturnType;
+      exitFigureBefore: () => ReturnType;
+      moveFigureUp: () => ReturnType;
+      moveFigureDown: () => ReturnType;
     };
   }
 }
@@ -27,50 +44,19 @@ function figureClass(layout: ImageLayout, selected: boolean): string {
   return ["md-figure", `md-layout-${layout}`, selected ? "is-selected" : ""].filter(Boolean).join(" ");
 }
 
-function figurePosFromSelection(state: EditorState): number | null {
-  const sel = state.selection;
-  if (sel instanceof NodeSelection && sel.node.type.name === "figure") return sel.from;
-  for (let depth = sel.$from.depth; depth > 0; depth -= 1) {
-    if (sel.$from.node(depth).type.name === "figure") return sel.$from.before(depth);
-  }
-  return null;
-}
-
-export const figureSelectionKey = new PluginKey<number | null>("mdword-figure-sel");
-
-function resolveFigurePos(state: EditorState): number | null {
-  return figurePosFromSelection(state) ?? figureSelectionKey.getState(state) ?? null;
-}
-
 function posValid(state: EditorState, pos: number | null | undefined): pos is number {
   return pos != null && state.doc.nodeAt(pos)?.type.name === "figure";
 }
 
 function firstFigurePos(state: EditorState): number | null {
-  const resolved = resolveFigurePos(state);
-  if (posValid(state, resolved)) return resolved;
-  let found: number | null = null;
-  state.doc.descendants((node, pos) => {
-    if (node.type.name === "figure") {
-      found = pos;
-      return false;
-    }
-  });
-  return found;
-}
-
-export function figureCaptionText(state: EditorState): string {
-  const pos = firstFigurePos(state);
-  if (pos == null) return "";
-  const figure = state.doc.nodeAt(pos);
-  const cap = figure?.firstChild;
-  return cap?.type.name === "caption" ? cap.textContent : "";
+  const resolved = figurePosFromState(state);
+  return posValid(state, resolved) ? resolved : null;
 }
 
 export const Figure = Node.create({
   name: "figure",
   group: "block",
-  content: "caption?",
+  atom: true,
   defining: true,
   draggable: false,
   selectable: true,
@@ -78,6 +64,7 @@ export const Figure = Node.create({
     return {
       src: { default: "" },
       alt: { default: "" },
+      caption: { default: "" },
       width: {
         default: DEFAULT_IMAGE_WIDTH,
         parseHTML: (el) => parseWidthPercent(el.getAttribute("data-width") || el.getAttribute("width")),
@@ -107,12 +94,12 @@ export const Figure = Node.create({
           return {
             src,
             alt: img?.getAttribute("alt") || "",
+            caption: captionAttr(el.querySelector("figcaption")?.textContent),
             width: parseWidthPercent(el.getAttribute("data-width") || img?.getAttribute("width")),
             layout: isImageLayout(layout) ? layout : DEFAULT_IMAGE_LAYOUT,
             label: el.getAttribute("data-label")
           };
-        },
-        contentElement: "figcaption"
+        }
       },
       {
         tag: "img[src]",
@@ -124,6 +111,7 @@ export const Figure = Node.create({
           return {
             src,
             alt: el.getAttribute("alt") || "",
+            caption: "",
             width: parseWidthPercent(el.getAttribute("width") || el.style.width),
             layout: DEFAULT_IMAGE_LAYOUT,
             label: null
@@ -135,6 +123,7 @@ export const Figure = Node.create({
   renderHTML({ HTMLAttributes }) {
     const src = String(HTMLAttributes.src ?? "");
     const alt = String(HTMLAttributes.alt ?? "");
+    const caption = captionAttr(HTMLAttributes.caption);
     const width = clampImageWidth(Number(HTMLAttributes.width ?? DEFAULT_IMAGE_WIDTH));
     const layout = isImageLayout(HTMLAttributes.layout) ? HTMLAttributes.layout : DEFAULT_IMAGE_LAYOUT;
     const label = HTMLAttributes.label ? String(HTMLAttributes.label) : "";
@@ -148,7 +137,7 @@ export const Figure = Node.create({
         "data-testid": "doc-figure"
       }),
       ["img", { src, alt, "data-testid": "doc-image" }],
-      ["figcaption", { class: "md-caption" }, 0]
+      ...(caption ? ([["figcaption", { class: "md-caption" }, caption]] as const) : [])
     ];
   },
   addNodeView() {
@@ -158,26 +147,12 @@ export const Figure = Node.create({
     return {
       setFigure:
         (attrs) =>
-        ({ chain }) =>
-          chain()
-            .insertContent({
-              type: this.name,
-              attrs: {
-                src: attrs.src,
-                alt: attrs.alt ?? "",
-                width: clampImageWidth(Number(attrs.width ?? DEFAULT_IMAGE_WIDTH)),
-                layout: isImageLayout(attrs.layout) ? attrs.layout : DEFAULT_IMAGE_LAYOUT,
-                label: attrs.label ?? null
-              }
-            })
-            .command(({ state, commands }) => {
-              let found: number | null = null;
-              state.doc.nodesBetween(0, state.selection.from, (node, pos) => {
-                if (node.type.name === "figure") found = pos;
-              });
-              return found != null ? commands.setNodeSelection(found) : true;
-            })
-            .run(),
+        ({ state, dispatch }) => {
+          const tr = insertFigureTransaction(state, state.selection.from, attrs);
+          if (!tr) return false;
+          dispatch?.(tr);
+          return true;
+        },
       updateFigure:
         (attrs) =>
         ({ state, tr, dispatch }) => {
@@ -188,6 +163,7 @@ export const Figure = Node.create({
           const next = {
             ...figure.attrs,
             ...attrs,
+            caption: attrs.caption != null ? captionAttr(attrs.caption) : captionAttr(figure.attrs.caption),
             width: clampImageWidth(Number(attrs.width ?? figure.attrs.width ?? DEFAULT_IMAGE_WIDTH)),
             layout: isImageLayout(attrs.layout) ? attrs.layout : isImageLayout(figure.attrs.layout) ? figure.attrs.layout : DEFAULT_IMAGE_LAYOUT
           };
@@ -196,6 +172,7 @@ export const Figure = Node.create({
             next.layout === figure.attrs.layout &&
             next.alt === figure.attrs.alt &&
             next.src === figure.attrs.src &&
+            next.caption === captionAttr(figure.attrs.caption) &&
             next.label === figure.attrs.label
           ) {
             return true;
@@ -208,44 +185,62 @@ export const Figure = Node.create({
         },
       setFigureCaption:
         (text) =>
-        ({ state, tr, dispatch }) => {
+        ({ state, dispatch }) => {
           const pos = firstFigurePos(state);
           if (pos == null) return false;
           const figure = state.doc.nodeAt(pos);
           if (!figure || figure.type.name !== "figure") return false;
-          const captionType = state.schema.nodes.caption;
-          if (!captionType) return false;
-          const trimmed = text.trim();
-          const current = figure.firstChild?.type.name === "caption" ? figure.firstChild.textContent : "";
-          if (current === trimmed) return true;
-          const next = trimmed
-            ? captionType.create(null, trimmed ? state.schema.text(trimmed) : undefined)
-            : null;
-          const from = pos + 1;
-          const to = pos + figure.nodeSize - 1;
-          if (dispatch) {
-            if (next) tr.replaceWith(from, to, next);
-            else tr.delete(from, to);
-            dispatch(tr);
-          }
+          const caption = captionAttr(text);
+          if (captionAttr(figure.attrs.caption) === caption) return true;
+          dispatch?.(state.tr.setNodeMarkup(pos, undefined, { ...figure.attrs, caption }));
           return true;
         },
-      ensureFigureCaption:
+      exitFigureAfter:
         () =>
-        ({ state, tr, dispatch }) => {
+        ({ state, dispatch }) =>
+          exitFigureAfter(state, dispatch),
+      exitFigureBefore:
+        () =>
+        ({ state, dispatch }) =>
+          exitFigureBefore(state, dispatch),
+      moveFigureUp:
+        () =>
+        ({ state, dispatch }) => {
           const pos = firstFigurePos(state);
           if (pos == null) return false;
-          const figure = state.doc.nodeAt(pos);
-          if (!figure || figure.type.name !== "figure") return false;
-          if (figure.firstChild?.type.name === "caption") return true;
-          const captionType = state.schema.nodes.caption;
-          if (!captionType) return false;
-          if (dispatch) {
-            tr.insert(pos + 1, captionType.create());
-            dispatch(tr);
-          }
-          return true;
+          return moveFigureBy(state, pos, -1, dispatch);
+        },
+      moveFigureDown:
+        () =>
+        ({ state, dispatch }) => {
+          const pos = firstFigurePos(state);
+          if (pos == null) return false;
+          return moveFigureBy(state, pos, 1, dispatch);
         }
+    };
+  },
+  addKeyboardShortcuts() {
+    return {
+      Enter: ({ editor }) => {
+        if (figurePosFromSelection(editor.state) == null) return false;
+        return editor.commands.exitFigureAfter();
+      },
+      ArrowDown: ({ editor }) => {
+        const sel = editor.state.selection;
+        if (sel instanceof NodeSelection && sel.node.type.name === "figure") {
+          return editor.commands.exitFigureAfter();
+        }
+        return false;
+      },
+      ArrowUp: ({ editor }) => {
+        const sel = editor.state.selection;
+        if (sel instanceof NodeSelection && sel.node.type.name === "figure") {
+          return editor.commands.exitFigureBefore();
+        }
+        return false;
+      },
+      "Alt-ArrowUp": ({ editor }) => editor.commands.moveFigureUp(),
+      "Alt-ArrowDown": ({ editor }) => editor.commands.moveFigureDown()
     };
   },
   addProseMirrorPlugins() {
@@ -258,23 +253,31 @@ export const Figure = Node.create({
           apply(tr, value, _old, state) {
             const pos = figurePosFromSelection(state);
             if (pos != null) return pos;
+            if (tr.selectionSet) return null;
             if (value == null) return null;
             const mapped = tr.docChanged ? tr.mapping.map(value) : value;
             return state.doc.nodeAt(mapped)?.type.name === "figure" ? mapped : null;
           }
+        },
+        appendTransaction(_trs, _old, state) {
+          if (!needsTrailingWritable(state.doc)) return null;
+          const paragraph = state.schema.nodes.paragraph?.create();
+          if (!paragraph) return null;
+          return state.tr.insert(state.doc.content.size, paragraph);
+        },
+        props: {
+          handleTextInput(view, _from, _to, text) {
+            const sel = view.state.selection;
+            if (!(sel instanceof NodeSelection) || sel.node.type.name !== "figure") return false;
+            if (!exitFigureAfter(view.state, (tr: Transaction) => view.dispatch(tr))) return false;
+            view.dispatch(view.state.tr.insertText(text));
+            return true;
+          },
+          handleClick(view, _pos, event) {
+            return handleFigureAreaClick(view, event);
+          }
         }
       })
     ];
-  }
-});
-
-export const Caption = Node.create({
-  name: "caption",
-  content: "inline*",
-  parseHTML() {
-    return [{ tag: "figcaption" }, { tag: "span.md-caption-text" }];
-  },
-  renderHTML() {
-    return ["span", { class: "md-caption-text" }, 0];
   }
 });

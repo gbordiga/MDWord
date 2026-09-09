@@ -85,6 +85,15 @@ html.keyboard-open .mdword-app {
   word-break: break-word;
 }
 
+.ProseMirror > p:last-child.is-empty {
+  min-height: 1.8em;
+}
+
+.ProseMirror > .md-figure[data-layout^="float"] + p {
+  min-height: 0;
+  margin-top: 0;
+}
+
 .md-doc-title {
   font-size: var(--md-title-size, 28pt);
   font-weight: var(--md-title-weight, 700);
@@ -371,11 +380,17 @@ html.keyboard-open .mdword-app {
 .md-figure.md-layout-float-left {
   float: left;
   margin: 0 1em 0.75em 0;
+  line-height: 0;
 }
 
 .md-figure.md-layout-float-right {
   float: right;
   margin: 0 0 0.75em 1em;
+  line-height: 0;
+}
+
+.md-figure[data-layout^="float"] + p {
+  margin-top: 0;
 }
 
 .md-figure-box {
@@ -383,6 +398,7 @@ html.keyboard-open .mdword-app {
   display: inline-block;
   max-width: 100%;
   vertical-align: top;
+  overflow: hidden;
   contain: layout;
 }
 
@@ -456,34 +472,19 @@ html.keyboard-open .mdword-app {
 }
 
 .md-caption {
-  font-size: 10pt;
-  color: #4b5563;
-  margin-top: 6px;
-  min-height: 1.2em;
-}
-
-.md-figure.is-selected .md-caption {
-  min-height: 2.4em;
-  padding: 8px 6px;
-  border-radius: 6px;
-  border: 1px dashed #c5d4f5;
-}
-
-@media (pointer: coarse) {
-  .md-figure.is-selected .md-caption {
-    min-height: 44px;
-    padding: 10px 8px;
-    font-size: 16px;
-  }
-}
-
-.md-figure:not(.is-selected) .md-caption:empty {
   display: none;
+  font-size: 9.5pt;
+  font-style: italic;
+  line-height: 1.35;
+  color: #667085;
+  margin: 8px auto 0;
+  max-width: 36em;
+  text-align: center;
+  pointer-events: none;
 }
 
-.md-caption:empty::before {
-  content: "Caption";
-  color: #98a2b3;
+.md-caption:not(:empty) {
+  display: block;
 }
 
 .ProseMirror td .md-figure,

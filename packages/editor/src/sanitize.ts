@@ -57,31 +57,32 @@ function sanitizeNode(node: TiptapNode): TiptapNode | null {
       attrs: {
         src,
         alt: String(node.attrs?.alt ?? ""),
+        caption: String(node.attrs?.caption ?? "").trim(),
         width: node.attrs?.width ?? 100,
         layout: node.attrs?.layout ?? "block-center",
         label: node.attrs?.label ?? null
-      },
-      content: []
+      }
     };
   }
 
   if (node.type === "figure") {
     const nestedImage = (node.content ?? []).find((child) => child.type === "image");
     const src = String(node.attrs?.src ?? nestedImage?.attrs?.src ?? "").trim();
-    const caption = (node.content ?? [])
-      .map((child) => sanitizeNode(child))
-      .filter((child): child is TiptapNode => child != null && child.type === "caption");
-    if (!src) return caption.length ? { type: "paragraph", content: sanitizeInline(caption[0]?.content) } : EMPTY_PARAGRAPH;
+    const nestedCaption = (node.content ?? []).find((child) => child.type === "caption");
+    const caption =
+      String(node.attrs?.caption ?? "").trim() ||
+      (nestedCaption?.content ?? []).map((child) => child.text ?? "").join("").trim();
+    if (!src) return caption ? { type: "paragraph", content: [{ type: "text", text: caption }] } : EMPTY_PARAGRAPH;
     return {
-      ...node,
+      type: "figure",
       attrs: {
         src,
         alt: String(node.attrs?.alt ?? nestedImage?.attrs?.alt ?? ""),
+        caption,
         width: node.attrs?.width ?? 100,
         layout: node.attrs?.layout ?? "block-center",
         label: node.attrs?.label ?? null
-      },
-      content: caption
+      }
     };
   }
 

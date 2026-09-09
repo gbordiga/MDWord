@@ -52,6 +52,8 @@ function astInline(node: TiptapNode): GenericNode[] {
 }
 
 function captionNodes(node: TiptapNode): GenericNode[] {
+  const fromAttr = String(node.attrs?.caption ?? "").trim();
+  if (fromAttr) return [{ type: "text", value: fromAttr }];
   const caption = (node.content ?? []).find((child) => child.type === "caption");
   if (!caption) return [];
   return (caption.content ?? []).flatMap(astInline);

@@ -45,6 +45,7 @@ import { useEffect, useRef } from "react";
 import { useApp, type RibbonTab } from "@/lib/store";
 import { MARGIN_PRESETS, matchMarginPreset } from "@mdword/layout-engine";
 import { applyBlockStyle, currentBlockStyle, insertCallout, insertPageBreak, insertTable } from "@/lib/editorCommands";
+import { figurePosFromState } from "@mdword/editor";
 import { useEditorTick } from "@/hooks/useEditorTick";
 import { useEditorUi } from "@/lib/editorUi";
 import { Spinner } from "./Spinner";
@@ -116,7 +117,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
   const tocDepth = actions.model.resolvedMdoc.toc?.depth ?? 3;
   const landscape = actions.model.resolvedMdoc.page?.orientation === "landscape";
   const marginPreset = matchMarginPreset(actions.model.resolvedMdoc.margins);
-  const inImage = Boolean(editor?.isActive("figure"));
+  const inImage = Boolean(editor && figurePosFromState(editor.state) != null);
   const inTable = Boolean(editor?.isActive("table"));
   const lastMain = useRef<RibbonTab>("home");
   const prevContext = useRef({ inImage: false, inTable: false });

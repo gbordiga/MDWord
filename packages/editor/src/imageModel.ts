@@ -21,6 +21,7 @@ export const IMAGE_MIME = new Set(["image/png", "image/jpeg", "image/gif", "imag
 export type FigureAttrs = {
   src: string;
   alt: string;
+  caption: string;
   width: number;
   layout: ImageLayout;
   label: string | null;

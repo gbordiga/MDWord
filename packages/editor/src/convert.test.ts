@@ -167,7 +167,7 @@ Schema della pompa.
       width: 40,
       layout: "float-left"
     });
-    expect(json.content?.[0]?.content?.[0]?.type).toBe("caption");
+    expect(json.content?.[0]?.attrs?.caption).toBe("Schema della pompa.");
     const md = serializeMarkdown({ ast: tiptapToAst(json) });
     expect(md).toMatch(/:width:\s*40%/);
     expect(md).toMatch(/:class:\s*float/);

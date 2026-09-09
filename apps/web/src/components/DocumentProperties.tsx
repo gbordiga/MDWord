@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { FONT_SCALES, matchFontScale, matchMarginPreset } from "@mdword/layout-engine";
 import { documentDate, documentTitle, documentTitleKey } from "@mdword/shared";
-import { IMAGE_LAYOUTS, figureCaptionText, widthForLayoutChange, type ImageLayout } from "@mdword/editor";
+import { IMAGE_LAYOUTS, figureCaptionText, figureNodeFromState, figurePosFromState, widthForLayoutChange, type ImageLayout } from "@mdword/editor";
 import { useApp } from "@/lib/store";
 import { useEditorUi } from "@/lib/editorUi";
 import { useEditorTick } from "@/hooks/useEditorTick";
@@ -107,8 +107,8 @@ export function DocumentProperties({
 
   const { editor } = useEditorUi();
   useEditorTick(editor);
-  const inImage = Boolean(editor?.isActive("figure"));
-  const imageAttrs = editor?.getAttributes("figure") ?? {};
+  const inImage = Boolean(editor && figurePosFromState(editor.state) != null);
+  const imageAttrs = (editor ? figureNodeFromState(editor.state)?.attrs : null) ?? {};
   const imageLayout = IMAGE_LAYOUTS.includes(imageAttrs.layout as ImageLayout)
     ? (imageAttrs.layout as ImageLayout)
     : "block-center";

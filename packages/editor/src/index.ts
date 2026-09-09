@@ -1,6 +1,8 @@
-export { editorExtensions, WikiLink, Callout, PageBreak, Figure, Caption, MystRaw } from "./schema";
-export { figureCaptionText } from "./figure";
-export { moveFigureTo, mappedInsertAfterDelete, updateFigureDropMark, clearFigureDropMark } from "./figureMove";
+export { editorExtensions, WikiLink, Callout, PageBreak, Figure, MystRaw } from "./schema";
+export { figureCaptionText, figureNodeFromState } from "./figureCaption";
+export { figurePosFromState } from "./figurePos";
+export { moveFigureTo, moveFigureBy, mappedInsertAfterDelete, updateFigureDropMark, clearFigureDropMark } from "./figureMove";
+export { dropPosFromBlockRects, isNoopFigureMove } from "./figureMove";
 export { embedImageFile, embedImageSrc, scaleToMaxEdge, shouldKeepOriginal } from "./imageEmbed";
 export { displayImageSrc } from "./imageDisplay";
 export { isFigureInteracting, onFigureIdle } from "./figureInteraction";
