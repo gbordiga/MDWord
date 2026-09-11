@@ -1,5 +1,13 @@
 import type { GenericNode } from "@mdword/shared";
-import { decodeWikiHref, parseImageAttrList, WIKI_SCHEME } from "@mdword/shared";
+import {
+  decodeWikiHref,
+  imageNodeUrl,
+  isImageLike,
+  parseImageAttrList,
+  promotePipeParagraphs,
+  resolveImageReferences,
+  WIKI_SCHEME
+} from "@mdword/shared";
 import { sanitizeTiptapDoc } from "./sanitize";
 import { canonicalImageSrc } from "./imageDisplay";
 import {
@@ -99,7 +107,7 @@ function inline(nodes: GenericNode[] | undefined): TiptapNode[] {
 
 function findImageNode(node: GenericNode | undefined): GenericNode | undefined {
   if (!node) return undefined;
-  if (node.type === "image") return node;
+  if (isImageLike(node)) return node;
   for (const child of node.children ?? []) {
     const found = findImageNode(child);
     if (found) return found;
@@ -114,7 +122,7 @@ function looksLikeImageMarkup(text: string): boolean {
 function captionFromNodes(nodes: GenericNode[] | undefined): TiptapNode | null {
   const parts: TiptapNode[] = [];
   for (const node of nodes ?? []) {
-    if (node.type === "image") continue;
+    if (isImageLike(node)) continue;
     if (node.type === "container") {
       const nested = captionFromNodes(node.children);
       if (nested?.content) parts.push(...nested.content);
@@ -151,7 +159,7 @@ function absorbTrailingImageAttrs(nodes: GenericNode[] | undefined): GenericNode
   const out: GenericNode[] = [];
   for (let index = 0; index < list.length; index += 1) {
     const node = list[index] as GenericNode;
-    if (node.type === "image") {
+    if (isImageLike(node)) {
       applyAttrList(node, String(node.title ?? ""));
       const next = list[index + 1];
       if (next?.type === "text") {
@@ -171,7 +179,7 @@ function figureAttrsFromImage(
   image: GenericNode | undefined,
   extra?: { url?: unknown; alt?: unknown; width?: unknown; align?: unknown; className?: unknown; label?: unknown; caption?: string }
 ): TiptapNode["attrs"] {
-  const src = canonicalImageSrc(String(image?.url ?? extra?.url ?? ""));
+  const src = canonicalImageSrc(imageNodeUrl(image) || String(extra?.url ?? ""));
   const listed = parseImageAttrList(String(image?.title ?? ""));
   const width = parseWidthPercent(image?.width ?? extra?.width ?? listed?.width);
   const layout: ImageLayout = layoutFromMyst(
@@ -207,7 +215,7 @@ function figureNode(attrs: TiptapNode["attrs"], caption?: TiptapNode | null): Ti
 }
 
 function figureFromImage(node: GenericNode, extra?: Parameters<typeof figureAttrsFromImage>[1]): TiptapNode | null {
-  const attrs = figureAttrsFromImage(node.type === "image" ? node : findImageNode(node), extra);
+  const attrs = figureAttrsFromImage(isImageLike(node) ? node : findImageNode(node), extra);
   if (!String(attrs?.src ?? "").trim()) return null;
   return figureNode(attrs);
 }
@@ -316,7 +324,7 @@ function leftoverWithoutImage(text: string): string {
     .replace(/```/g, " ")
     .replace(/\{(?:image|figure)\}/gi, " ")
     .replace(/:::/g, " ")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/!\[[^\]]*\](?:\([^)]*\)|\[[^\]]+\])/g, " ")
     .replace(/data:image\/[^\s)]+/g, " ")
     .replace(/blob:[^\s)]+/g, " ")
     .replace(/:\s*(alt|width|align|class)\s*:[^\n]*/gi, " ")
@@ -387,7 +395,7 @@ function figureFromDirective(node: GenericNode): TiptapNode {
 function paragraphBlocks(node: GenericNode): TiptapNode[] {
   const children = absorbTrailingImageAttrs(node.children);
   const loose = figureFromLooseImageText(children.map((child) => String(child.value ?? "")).join("\n"));
-  if (!children.some((c) => c.type === "image" || figureFromHtmlish(c))) {
+  if (!children.some((c) => isImageLike(c) || figureFromHtmlish(c))) {
     if (loose) return [loose];
     return [{ type: "paragraph", content: inline(children) }];
   }
@@ -399,7 +407,7 @@ function paragraphBlocks(node: GenericNode): TiptapNode[] {
     buffer = [];
   };
   for (const child of children) {
-    if (child.type === "image") {
+    if (isImageLike(child)) {
       flush();
       const fig = figureFromImage(child);
       if (fig) out.push(fig);
@@ -501,6 +509,7 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
       };
     }
     case "image":
+    case "imageReference":
       return figureFromImage(node) ?? EMPTY_PARAGRAPH;
     case "container":
       if (node.kind === "figure") return figureFromDirective(node);
@@ -552,7 +561,8 @@ function blocks(nodes: GenericNode[] | undefined): TiptapNode[] {
 
 export function astToTiptap(ast: GenericNode): TiptapNode {
   try {
-    return sanitizeTiptapDoc({ type: "doc", content: blocks(ast.children) });
+    const resolved = promotePipeParagraphs(resolveImageReferences(ast));
+    return sanitizeTiptapDoc({ type: "doc", content: blocks(resolved.children) });
   } catch {
     return { type: "doc", content: [EMPTY_PARAGRAPH] };
   }

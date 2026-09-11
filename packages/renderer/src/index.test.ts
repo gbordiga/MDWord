@@ -17,6 +17,42 @@ describe("renderer security", () => {
     expect(html).not.toMatch(/<img[^>]+onerror/i);
   });
 
+  it("renders a pipe paragraph as a table", () => {
+    const html = astToHtml({
+      type: "root",
+      children: [
+        {
+          type: "paragraph",
+          children: [
+            { type: "image", url: "./a.png", alt: "poster" },
+            {
+              type: "text",
+              value: "| b |\n| --- | --- |\n| 1 | 2 |"
+            }
+          ]
+        }
+      ]
+    });
+    expect(html).toContain("<table>");
+    expect(html).toContain("<td>");
+  });
+
+  it("renders an imageReference the same way as an image", () => {
+    const html = astToHtml({
+      type: "root",
+      children: [
+        {
+          type: "container",
+          kind: "figure",
+          children: [{ type: "imageReference", identifier: "img-x", alt: "pic", url: "data:image/png;base64,AAAA" }]
+        }
+      ]
+    });
+    expect(html).toContain("<figure");
+    expect(html).toContain('src="data:image/png;base64,AAAA"');
+    expect(html).toContain('alt="pic"');
+  });
+
   it("keeps data URL images", () => {
     const html = astToHtml({
       type: "root",

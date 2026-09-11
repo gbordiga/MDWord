@@ -1,6 +1,13 @@
 import sanitizeHtml from "sanitize-html";
 import type { GenericNode } from "@mdword/shared";
-import { decodeWikiHref, WIKI_SCHEME } from "@mdword/shared";
+import {
+  decodeWikiHref,
+  imageNodeUrl,
+  isImageLike,
+  promotePipeParagraphs,
+  resolveImageReferences,
+  WIKI_SCHEME
+} from "@mdword/shared";
 import { pageMetrics, type Mdoc } from "@mdword/layout-engine";
 import { collectTocItems, renderTocHtml } from "./toc";
 import { pageMarginCss, resolvedRunningComments, runningBarsHtml } from "./running";
@@ -27,7 +34,7 @@ function layoutClass(node: GenericNode | { align?: unknown; class?: unknown }): 
 }
 
 function renderImg(node: GenericNode): string {
-  const src = escape(String(node.url ?? node.src ?? ""));
+  const src = escape(imageNodeUrl(node));
   const alt = escape(String(node.alt ?? ""));
   const width = node.width != null && String(node.width) ? ` width="${escape(String(node.width))}"` : "";
   const cls = layoutClass(node);
@@ -35,7 +42,7 @@ function renderImg(node: GenericNode): string {
 }
 
 function findImage(node: GenericNode): GenericNode | undefined {
-  if (node.type === "image") return node;
+  if (isImageLike(node)) return node;
   for (const child of node.children ?? []) {
     const found = findImage(child);
     if (found) return found;
@@ -49,14 +56,14 @@ function renderFigure(node: GenericNode): string {
   const width = image.width ?? options.width;
   const align = image.align ?? options.align ?? node.align;
   const className = image.class ?? options.class ?? node.class;
-  const url = image.url ?? node.args ?? node.url;
+  const url = imageNodeUrl(image) || node.args || node.url;
   const alt = image.alt ?? options.alt ?? "";
   const cls = layoutClass({ type: "image", align, class: className });
   const widthAttr = width != null && String(width) ? ` style="width:${escape(String(width))}"` : "";
   const img = `<img src="${escape(String(url ?? ""))}" alt="${escape(String(alt))}" />`;
   const captionBits: string[] = [];
   const walkCaption = (n: GenericNode) => {
-    if (n.type === "image") return;
+    if (isImageLike(n)) return;
     if (n.type === "caption" || n.type === "paragraph") {
       const text = renderNodes(n.children).trim();
       if (text) captionBits.push(text);
@@ -110,6 +117,7 @@ function renderNode(node: GenericNode): string {
       return `<a href="${escape(safe)}">${renderNodes(node.children)}</a>`;
     }
     case "image":
+    case "imageReference":
       return renderImg(node);
     case "html":
       return String(node.value ?? "");
@@ -170,7 +178,7 @@ function renderNode(node: GenericNode): string {
 }
 
 export function astToHtml(ast: GenericNode): string {
-  const html = renderNode(ast);
+  const html = renderNode(promotePipeParagraphs(resolveImageReferences(ast)));
   return sanitizeHtml(html, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat([
       "img",

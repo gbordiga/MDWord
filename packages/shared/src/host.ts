@@ -1,5 +1,21 @@
 export type ViewMode = "document" | "source" | "split";
 
+function errorName(error: unknown): string {
+  if (!error || typeof error !== "object") return "";
+  return String((error as { name?: unknown }).name ?? "");
+}
+
+/** File/directory picker cancel (and the browser blocking a second dialog). */
+export function isUserAbort(error: unknown): boolean {
+  const name = errorName(error);
+  return name === "AbortError" || name === "NotAllowedError";
+}
+
+/** Write/permission denial — not the same as the user closing a picker. */
+export function isNotAllowedError(error: unknown): boolean {
+  return errorName(error) === "NotAllowedError";
+}
+
 export interface HostFileStat {
   path: string;
   name: string;
@@ -74,6 +90,8 @@ export interface HostApi {
     copyIntoAssets(sourcePath: string, workspaceRoot: string): Promise<string>;
     /** True when save() can write without prompting or downloading. */
     canWrite(path: string): Promise<boolean>;
+    /** Ask for write permission while a click/keypress is still valid (web FS Access). */
+    prepareWrite?(path?: string): Promise<void>;
     watch?(
       path: string,
       onChange: (info: { path: string; kind: "change" | "delete" }) => void

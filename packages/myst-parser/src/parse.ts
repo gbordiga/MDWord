@@ -4,8 +4,11 @@ import {
   type Diagnostic,
   type GenericNode,
   restoreEmbeddedImagesInTree,
+  resolveImageReferences,
   rewriteEmbeddedImageFences,
   rewriteWikiLinksToMarkdown,
+  recoverGfmTableSource,
+  promotePipeParagraphs,
   stubEmbeddedImages
 } from "@mdword/shared";
 import { parseMdoc, type Mdoc } from "@mdword/layout-engine";
@@ -82,7 +85,7 @@ export function parseMarkdown(source: string): ParseResult {
     });
   }
 
-  const rewritten = rewriteWikiLinksToMarkdown(rewriteEmbeddedImageFences(fm.body));
+  const rewritten = recoverGfmTableSource(rewriteWikiLinksToMarkdown(rewriteEmbeddedImageFences(fm.body)));
   const stubbed = stubEmbeddedImages(rewritten);
   const vfile = new VFile();
   let ast: GenericNode = { type: "root", children: [] };
@@ -118,6 +121,7 @@ export function parseMarkdown(source: string): ParseResult {
     };
   }
   restoreEmbeddedImagesInTree(ast, stubbed.restore);
+  ast = promotePipeParagraphs(resolveImageReferences(ast));
 
   for (const msg of vfile.messages) {
     if (isKnownPageBreakMessage(msg.message)) continue;

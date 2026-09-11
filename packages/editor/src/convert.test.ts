@@ -221,6 +221,45 @@ Schema della pompa.
     });
   });
 
+  it("loads a leftover imageReference tree without going through parse", () => {
+    const src =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const json = astToTiptap({
+      type: "root",
+      children: [
+        {
+          type: "paragraph",
+          children: [{ type: "imageReference", identifier: "img-x", label: "img-x", alt: "pic" }]
+        },
+        { type: "definition", identifier: "img-x", label: "img-x", url: src }
+      ]
+    });
+    const figure = json.content?.find((n) => n.type === "figure");
+    expect(figure?.attrs?.src).toBe(src);
+    expect(figure?.attrs?.alt).toBe("pic");
+  });
+
+  it("loads a reference-style figure into the visual document", () => {
+    const src =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const parsed = parseMarkdown(`# Title
+
+:::{figure}
+:width: 40%
+
+![pic][img-x]
+:::
+
+[img-x]: ${src}
+`);
+    const json = astToTiptap(parsed.ast);
+    expect(json.content?.some((n) => n.type === "heading")).toBe(true);
+    const figure = json.content?.find((n) => n.type === "figure");
+    expect(figure?.attrs?.src).toBe(src);
+    expect(figure?.attrs?.alt).toBe("pic");
+    expect(() => serializeMarkdown({ ast: parsed.ast })).not.toThrow();
+  });
+
   it("restores table image width from a reference attr list", () => {
     const src = `data:image/png;base64,${"C".repeat(80)}`;
     const ref = imageReference("pic", src);

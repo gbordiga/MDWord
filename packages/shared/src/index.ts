@@ -9,3 +9,4 @@ export * from "./wikilink";
 export * from "./title";
 export * from "./lineDiff";
 export * from "./workspaceList";
+export * from "./gfmTables";

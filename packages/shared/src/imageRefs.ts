@@ -1,7 +1,18 @@
 import { findDataUrlRanges } from "./dataUrl";
 import { formatImageAttrList, isImageAttrTitle, parseImageAttrList } from "./imageAttrs";
+import type { GenericNode } from "./constants";
 
 const ID_PREFIX = "img-";
+
+/** MyST keeps `![alt][id]` as `imageReference` until we resolve the definition. */
+export function isImageLike(node: { type?: unknown } | undefined | null): boolean {
+  return node?.type === "image" || node?.type === "imageReference";
+}
+
+export function imageNodeUrl(node: GenericNode | undefined | null): string {
+  if (!node) return "";
+  return String(node.url ?? node.urlSource ?? node.src ?? "").trim();
+}
 
 export function normalizeDataUrl(url: string): string {
   const value = url.trim();
@@ -229,4 +240,56 @@ export function rewriteEmbeddedImagesToReferences(md: string): string {
   for (const url of Object.values(assets)) table.idFor(url);
   const next = rewriteInlineDataImages(rewriteShortcutRefs(body, assets, table), table);
   return rewriteImageTitlesToAttrLists(appendDefinitions(next, table.definitions()));
+}
+
+function refKey(node: GenericNode): string {
+  return String(node.identifier ?? node.label ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function walkImageRefs(node: GenericNode, visit: (current: GenericNode) => void): void {
+  visit(node);
+  for (const child of node.children ?? []) walkImageRefs(child, visit);
+}
+
+/**
+ * myst-to-md crashes on `:::figure` whose only child is an `imageReference`
+ * (`node.source.label` when no `image` exists). Resolve refs to concrete images
+ * so visual load and source serialize see the same tree.
+ */
+export function resolveImageReferences(node: GenericNode): GenericNode {
+  const wanted = new Set<string>();
+  walkImageRefs(node, (current) => {
+    if (current.type === "imageReference") {
+      const id = refKey(current);
+      if (id) wanted.add(id);
+    }
+  });
+  const defs = new Map<string, string>();
+  walkImageRefs(node, (current) => {
+    if (current.type !== "definition") return;
+    const id = refKey(current);
+    const url = String(current.url ?? current.urlSource ?? "");
+    if (id && url && (wanted.has(id) || isEmbeddedImageUrl(url))) defs.set(id, url);
+  });
+  if (!defs.size) return node;
+  const rewrite = (current: GenericNode): GenericNode => {
+    if (current.type === "imageReference") {
+      const url = defs.get(refKey(current));
+      if (!url) return current;
+      return {
+        type: "image",
+        url,
+        alt: String(current.alt ?? ""),
+        ...(current.title != null ? { title: current.title } : {})
+      };
+    }
+    if (!current.children) return current;
+    const children = current.children
+      .map(rewrite)
+      .filter((child) => child.type !== "definition" || !defs.has(refKey(child)));
+    return { ...current, children };
+  };
+  return rewrite(node);
 }

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { imageRefId, imageReference, rewriteEmbeddedImagesToReferences } from "./imageRefs";
+import {
+  imageNodeUrl,
+  imageRefId,
+  imageReference,
+  isImageLike,
+  resolveImageReferences,
+  rewriteEmbeddedImagesToReferences
+} from "./imageRefs";
 
 const PNG = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==`;
 const JPEG = `data:image/jpeg;base64,/9j/${"A".repeat(80)}`;
@@ -69,5 +76,31 @@ describe("imageRefs", () => {
     expect(out).toContain(ref.image);
     expect(out).toContain(ref.definition);
     expect(out).not.toMatch(/\[img-[^\]]+\]: data:image\/[^\n]+ "/);
+  });
+
+  it("treats image and imageReference as the same kind of node", () => {
+    expect(isImageLike({ type: "image" })).toBe(true);
+    expect(isImageLike({ type: "imageReference" })).toBe(true);
+    expect(isImageLike({ type: "paragraph" })).toBe(false);
+    expect(imageNodeUrl({ type: "image", urlSource: "./x.png" })).toBe("./x.png");
+  });
+
+  it("turns imageReference nodes into images using the matching definition", () => {
+    const next = resolveImageReferences({
+      type: "root",
+      children: [
+        {
+          type: "container",
+          kind: "figure",
+          children: [{ type: "imageReference", identifier: "img-x", label: "img-x", alt: "pic" }]
+        },
+        { type: "definition", identifier: "img-x", label: "img-x", url: PNG }
+      ]
+    });
+    const image = next.children?.[0]?.children?.[0];
+    expect(image?.type).toBe("image");
+    expect(image?.url).toBe(PNG);
+    expect(image?.alt).toBe("pic");
+    expect(next.children?.some((n) => n.type === "definition")).toBe(false);
   });
 });

@@ -1,5 +1,7 @@
 import {
   defaultPreferences,
+  isNotAllowedError,
+  isUserAbort,
   MAX_WORKSPACE_LIST_DEPTH,
   MAX_WORKSPACE_LIST_ENTRIES,
   shouldSkipWorkspaceDir,
@@ -62,7 +64,11 @@ type FsHandle = {
   name: string;
   kind: "file" | "directory";
   getFile(): Promise<File>;
-  createWritable(): Promise<{ write: (data: string | BufferSource) => Promise<void>; close: () => Promise<void> }>;
+  createWritable(): Promise<{
+    write: (data: string | BufferSource) => Promise<void>;
+    close: () => Promise<void>;
+    abort?: () => Promise<void>;
+  }>;
   move?: (dest: string | DirHandle, newName?: string) => Promise<void>;
   queryPermission?: (opts: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
   requestPermission?: (opts: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
@@ -83,7 +89,7 @@ type DirHandle = {
 type WindowFs = Window & {
   showOpenFilePicker?: (opts?: unknown) => Promise<FsHandle[]>;
   showSaveFilePicker?: (opts?: unknown) => Promise<FsHandle>;
-  showDirectoryPicker?: (opts?: unknown) => Promise<DirHandle>;
+  showDirectoryPicker?: (opts?: { mode?: "read" | "readwrite" }) => Promise<DirHandle>;
 };
 
 const fileHandles = new Map<string, FsHandle>();
@@ -122,12 +128,18 @@ async function collectFolderEntries(
   }
 }
 
+async function queryHandleAccess(handle: FsHandle | DirHandle, mode: "read" | "readwrite"): Promise<boolean> {
+  try {
+    if (typeof handle.queryPermission !== "function") return true;
+    return (await handle.queryPermission({ mode })) === "granted";
+  } catch {
+    return false;
+  }
+}
+
 async function ensureHandleAccess(handle: FsHandle | DirHandle, mode: "read" | "readwrite"): Promise<boolean> {
   try {
-    if (typeof handle.queryPermission === "function") {
-      const current = await handle.queryPermission({ mode });
-      if (current === "granted") return true;
-    }
+    if (await queryHandleAccess(handle, mode)) return true;
     if (typeof handle.requestPermission === "function") {
       return (await handle.requestPermission({ mode })) === "granted";
     }
@@ -135,6 +147,64 @@ async function ensureHandleAccess(handle: FsHandle | DirHandle, mode: "read" | "
   } catch {
     return false;
   }
+}
+
+let writeQueue: Promise<void> = Promise.resolve();
+
+function enqueueWrite<T>(fn: () => Promise<T>): Promise<T> {
+  const run = writeQueue.then(fn, fn);
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
+async function closeWritable(
+  writable: { close: () => Promise<void>; abort?: () => Promise<void> },
+  failed: boolean
+): Promise<void> {
+  try {
+    if (failed && typeof writable.abort === "function") await writable.abort();
+    else await writable.close();
+  } catch {
+    /* already closed */
+  }
+}
+
+/** Chromium rejects createWritable without granted write permission (or a live user gesture). */
+async function writeFileHandle(handle: FsHandle, data: string | BufferSource): Promise<void> {
+  let allowed = await ensureHandleAccess(handle, "readwrite");
+  if (!allowed && folderHandle) allowed = await ensureHandleAccess(folderHandle, "readwrite");
+  if (!allowed) {
+    throw Object.assign(new Error("This browser did not allow writing this file"), { name: "NotAllowedError" });
+  }
+  const writable = await handle.createWritable();
+  try {
+    await writable.write(data);
+    await closeWritable(writable, false);
+  } catch (error) {
+    await closeWritable(writable, true);
+    throw error;
+  }
+}
+
+async function writeFileHandleRetry(handle: FsHandle, data: string | BufferSource): Promise<void> {
+  try {
+    await writeFileHandle(handle, data);
+  } catch (error) {
+    if (!isNotAllowedError(error)) throw error;
+    if (folderHandle) await ensureHandleAccess(folderHandle, "readwrite");
+    await ensureHandleAccess(handle, "readwrite");
+    await writeFileHandle(handle, data);
+  }
+}
+
+async function prepareWriteAccess(path?: string): Promise<void> {
+  if (folderHandle) await ensureHandleAccess(folderHandle, "readwrite");
+  if (!path) return;
+  const handle = fileHandles.get(path) ?? fileHandles.get(path.split("/").pop() ?? path);
+  if (handle) await ensureHandleAccess(handle, "readwrite");
 }
 
 async function textFromHandle(handle: FsHandle, key: string): Promise<string> {
@@ -195,10 +265,7 @@ async function writeBytes(path: string, data: string | BufferSource): Promise<vo
   const parent = await resolveDir(workspaceDirname(path, folderRoot), true);
   const handle = await parent.getFileHandle(workspaceBasename(path), { create: true });
   fileHandles.set(path, handle);
-  await ensureHandleAccess(handle, "readwrite");
-  const writable = await handle.createWritable();
-  await writable.write(data);
-  await writable.close();
+  await enqueueWrite(() => writeFileHandleRetry(handle, data));
   if (typeof data === "string") {
     fileTexts.set(path, data);
     fileTexts.set(handle.name, data);
@@ -243,11 +310,23 @@ function pickFileWithInput(accept = ".md,.markdown,text/markdown"): Promise<Open
     const input = document.createElement("input");
     input.type = "file";
     input.accept = accept;
+    let settled = false;
+    const onWindowFocus = () => {
+      window.setTimeout(() => finish(null), 400);
+    };
+    const finish = (value: OpenDocumentResult | null) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("focus", onWindowFocus);
+      resolve(value);
+    };
+    input.addEventListener("cancel", () => finish(null));
     input.onchange = async () => {
       const file = input.files?.[0];
-      if (!file) return resolve(null);
-      resolve({ path: file.name, content: await file.text() });
+      if (!file) return finish(null);
+      finish({ path: file.name, content: await file.text() });
     };
+    window.addEventListener("focus", onWindowFocus);
     input.click();
   });
 }
@@ -278,7 +357,8 @@ export const webHost: HostApi = {
           const content = await textFromHandle(handle, handle.name);
           fileHandles.set(handle.name, handle);
           return { path: handle.name, content };
-        } catch {
+        } catch (error) {
+          if (isUserAbort(error)) return null;
           return pickFileWithInput();
         }
       }
@@ -295,13 +375,17 @@ export const webHost: HostApi = {
     async save({ path, content }) {
       const handle = fileHandles.get(path);
       if (handle) {
-        await ensureHandleAccess(handle, "readwrite");
-        const writable = await handle.createWritable();
-        await writable.write(content);
-        await writable.close();
-        fileTexts.set(path, content);
-        fileTexts.set(handle.name, content);
-        return;
+        try {
+          await enqueueWrite(() => writeFileHandleRetry(handle, content));
+          fileTexts.set(path, content);
+          fileTexts.set(handle.name, content);
+          return;
+        } catch (error) {
+          if (!isNotAllowedError(error)) throw error;
+          throw Object.assign(new Error("This browser blocked writing the open file. Try Save As."), {
+            name: "NotAllowedError"
+          });
+        }
       }
       if (isNativeApp()) {
         await writeNativeDocument(path || "document.md", content);
@@ -313,15 +397,26 @@ export const webHost: HostApi = {
     async saveAs(content, suggestedName = "document.md") {
       const picker = (window as WindowFs).showSaveFilePicker;
       if (picker) {
-        const handle = await picker({
-          suggestedName,
-          types: [{ description: "Markdown", accept: { "text/markdown": [".md"] } }]
-        });
-        const writable = await handle.createWritable();
-        await writable.write(content);
-        await writable.close();
-        fileHandles.set(handle.name, handle);
-        return handle.name;
+        let handle: FsHandle;
+        try {
+          handle = await picker({
+            suggestedName,
+            types: [{ description: "Markdown", accept: { "text/markdown": [".md"] } }]
+          });
+        } catch (error) {
+          if (isUserAbort(error)) return null;
+          download(suggestedName, content);
+          return suggestedName;
+        }
+        try {
+          await enqueueWrite(() => writeFileHandleRetry(handle, content));
+          fileHandles.set(handle.name, handle);
+          fileTexts.set(handle.name, content);
+          return handle.name;
+        } catch {
+          download(suggestedName, content);
+          return suggestedName;
+        }
       }
       if (isNativeApp()) {
         const name = suggestedName || "document.md";
@@ -336,13 +431,19 @@ export const webHost: HostApi = {
     async openFolder() {
       const picker = (window as WindowFs).showDirectoryPicker;
       if (!picker) return null;
-      const dir = (await picker()) as unknown as DirHandle;
-      await ensureHandleAccess(dir, "read");
-      folderHandle = dir;
-      folderRoot = dir.name;
-      dirHandles.clear();
-      dirHandles.set(dir.name, dir);
-      return dir.name;
+      try {
+        const dir = (await picker({ mode: "readwrite" })) as unknown as DirHandle;
+        const writable = await ensureHandleAccess(dir, "readwrite");
+        if (!writable) await ensureHandleAccess(dir, "read");
+        folderHandle = dir;
+        folderRoot = dir.name;
+        dirHandles.clear();
+        dirHandles.set(dir.name, dir);
+        return dir.name;
+      } catch (error) {
+        if (isUserAbort(error)) return null;
+        throw error;
+      }
     },
     async list(folder) {
       if (!folderHandle) return [];
@@ -452,7 +553,14 @@ export const webHost: HostApi = {
       throw new Error("Copy into assets is available in the desktop app");
     },
     async canWrite(path: string) {
-      return fileHandles.has(path) || nativeWritten.has(path);
+      if (nativeWritten.has(path)) return true;
+      const handle = fileHandles.get(path) ?? fileHandles.get(path.split("/").pop() ?? path);
+      if (handle) return queryHandleAccess(handle, "readwrite");
+      if (folderHandle) return queryHandleAccess(folderHandle, "readwrite");
+      return false;
+    },
+    async prepareWrite(path?: string) {
+      await prepareWriteAccess(path);
     }
   },
   app: {

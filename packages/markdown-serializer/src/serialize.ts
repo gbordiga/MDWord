@@ -4,10 +4,16 @@ import { dumpYaml } from "@mdword/myst-parser";
 import {
   createDataUrlStubber,
   formatImageAttrList,
+  imageNodeUrl,
+  isImageLike,
   parseImageAttrList,
+  padTableColumns,
+  promotePipeParagraphs,
+  resolveImageReferences,
   rewriteEmbeddedImageFences,
   rewriteEmbeddedImagesToReferences,
   rewriteMarkdownToWikiLinks,
+  unescapeGfmTablePipes,
   type GenericNode
 } from "@mdword/shared";
 import type { Document as YamlDocument } from "yaml";
@@ -48,8 +54,8 @@ type TableImage = {
 };
 
 function firstTableImage(node: GenericNode): TableImage | null {
-  if (node.type === "image") {
-    const url = String(node.url ?? node.args ?? "");
+  if (isImageLike(node)) {
+    const url = imageNodeUrl(node) || String(node.args ?? "");
     if (url) {
       return {
         url,
@@ -130,15 +136,19 @@ function unwrapFigureDirective(node: GenericNode): GenericNode {
   const inner = (node.children ?? []).find((child) => child.type === "container" && child.kind === "figure");
   if (inner) {
     const children = (inner.children ?? []).map((child) => {
-      if (child.type === "image") return applyDirectiveOptions(child, options);
-      if (child.type === "paragraph") return { type: "caption", children: child.children ?? [] };
+      if (isImageLike(child)) return applyDirectiveOptions(child, options);
+      if (child.type === "paragraph") {
+        const hasImage = (child.children ?? []).some(isImageLike);
+        if (hasImage) return child;
+        return { type: "caption", children: child.children ?? [] };
+      }
       return child;
     });
     return applyDirectiveOptions({ ...inner, children }, options);
   }
   if (name !== "figure") return node;
-  const image = (node.children ?? []).find((child) => child.type === "image");
-  const url = String(image?.url ?? node.args ?? node.url ?? "");
+  const image = (node.children ?? []).find(isImageLike);
+  const url = imageNodeUrl(image) || String(node.args ?? node.url ?? "");
   if (!url) return node;
   const img = applyDirectiveOptions(
     {
@@ -179,8 +189,29 @@ function flattenEmbeddedImages(node: GenericNode): GenericNode {
   return { ...node, children: node.children.map(flattenEmbeddedImages) };
 }
 
+function figureHasImage(node: GenericNode): boolean {
+  if (isImageLike(node)) return Boolean(imageNodeUrl(node));
+  return (node.children ?? []).some(figureHasImage);
+}
+
+/** myst-to-md reads `node.source.label` when a figure has no image child. */
+function flattenEmptyFigures(node: GenericNode): GenericNode {
+  const children = node.children?.map(flattenEmptyFigures);
+  const next = children ? { ...node, children } : node;
+  if (next.type === "container" && next.kind === "figure" && !figureHasImage(next)) {
+    return { type: "paragraph", children: next.children ?? [] };
+  }
+  return next;
+}
+
 function serializeBody(ast: GenericNode): string {
-  const prepared = structuredClone(flattenEmbeddedImages(unwrapFigureDirectives(ast)));
+  const prepared = structuredClone(
+    flattenEmbeddedImages(
+      flattenEmptyFigures(
+        padTableColumns(unwrapFigureDirectives(promotePipeParagraphs(resolveImageReferences(ast))))
+      )
+    )
+  );
   const stubber = createDataUrlStubber();
   stubber.stubTree(prepared as { [key: string]: unknown });
   const file = new VFile();
@@ -189,7 +220,7 @@ function serializeBody(ast: GenericNode): string {
   const raw = (typeof result === "string" ? result : String(file.value ?? "")).trim();
   // CommonMark reference images: short `![alt][img-…]` in the body, data URLs at the end.
   const restored = rewriteTickFigureFences(rewriteEmbeddedImageFences(stubber.restore(raw)));
-  return rewriteMarkdownToWikiLinks(rewriteEmbeddedImagesToReferences(restored));
+  return unescapeGfmTablePipes(rewriteMarkdownToWikiLinks(rewriteEmbeddedImagesToReferences(restored)));
 }
 
 export function serializeMarkdown(options: {

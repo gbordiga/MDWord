@@ -108,7 +108,12 @@ export function openDocument(
 }
 
 export function saveDocument(model: DocumentModel): string {
-  return serializeMarkdown({ ast: model.ast, yaml: model.yamlCst });
+  try {
+    return serializeMarkdown({ ast: model.ast, yaml: model.yamlCst });
+  } catch (error) {
+    console.error("Could not serialize document", error);
+    return model.source ?? "";
+  }
 }
 
 function ensureYaml(model: DocumentModel, plain: Record<string, unknown>) {

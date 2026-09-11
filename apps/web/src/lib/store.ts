@@ -7,7 +7,13 @@ import {
   setFrontmatterValues,
   type DocumentModel
 } from "@mdword/document-model";
-import { displayDocumentTitle, documentDate, isMarkdownFileName, type ViewMode } from "@mdword/shared";
+import {
+  displayDocumentTitle,
+  documentDate,
+  isMarkdownFileName,
+  isNotAllowedError,
+  type ViewMode
+} from "@mdword/shared";
 import type { Mdoc } from "@mdword/layout-engine";
 import { parseDocument } from "yaml";
 import { getHost } from "./host";
@@ -61,6 +67,22 @@ let pendingTiptap: TiptapNode | null = null;
 let applyTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSource: string | null = null;
 let sourceTimer: ReturnType<typeof setTimeout> | null = null;
+let filePickerOpen = false;
+
+async function withFilePicker<T>(run: () => Promise<T>): Promise<T | undefined> {
+  if (filePickerOpen) return undefined;
+  filePickerOpen = true;
+  try {
+    return await run();
+  } finally {
+    filePickerOpen = false;
+  }
+}
+
+async function primeWrite(path?: string): Promise<void> {
+  const host = getHost();
+  if (typeof host.files.prepareWrite === "function") await host.files.prepareWrite(path);
+}
 
 function discardPendingVisual(): void {
   pendingTiptap = null;
@@ -340,14 +362,14 @@ export const useApp = create<AppState>((set, get) => {
     });
   },
   openFile: async () => {
-    const host = getHost();
-    let result: Awaited<ReturnType<typeof host.files.open>>;
-    try {
-      result = await host.files.open();
-    } catch (error) {
-      console.error("Could not open document", error);
-      return;
-    }
+    const result = await withFilePicker(async () => {
+      try {
+        return await getHost().files.open();
+      } catch (error) {
+        console.error("Could not open document", error);
+        return null;
+      }
+    });
     if (!result) return;
     discardPendingVisual();
     discardPendingSource();
@@ -378,7 +400,14 @@ export const useApp = create<AppState>((set, get) => {
     const { model, path } = get();
     const content = serializedDocument(model);
     if (!path) {
-      const next = await host.files.saveAs(content, "document.md");
+      const next = await withFilePicker(async () => {
+        try {
+          return await host.files.saveAs(content, "document.md");
+        } catch (error) {
+          console.error("Could not save document", error);
+          return null;
+        }
+      });
       if (!next) return;
       beginBusy({ kind: "save", label: "Saving…", blocking: false });
       try {
@@ -390,13 +419,29 @@ export const useApp = create<AppState>((set, get) => {
       return;
     }
     beginBusy({ kind: "save", label: "Saving…", blocking: false });
-    await yieldPaint();
     try {
+      await primeWrite(path);
+      await yieldPaint();
       await host.files.save({ path, content });
       markSaved(path, content, model);
       await reloadWorkspace();
     } catch (error) {
-      console.error("Could not save document", error);
+      if (isNotAllowedError(error)) {
+        const next = await withFilePicker(async () => {
+          try {
+            return await host.files.saveAs(content, path);
+          } catch (fallback) {
+            console.error("Could not save document", fallback);
+            return null;
+          }
+        });
+        if (next) {
+          markSaved(next, content, model);
+          await reloadWorkspace();
+        }
+      } else {
+        console.error("Could not save document", error);
+      }
     } finally {
       set({ busy: null });
     }
@@ -404,9 +449,15 @@ export const useApp = create<AppState>((set, get) => {
   saveFileAs: async () => {
     flushVisualEdits();
     flushSourceEdits();
-    const host = getHost();
     const content = serializedDocument(get().model);
-    const next = await host.files.saveAs(content, get().path ?? "document.md");
+    const next = await withFilePicker(async () => {
+      try {
+        return await getHost().files.saveAs(content, get().path ?? "document.md");
+      } catch (error) {
+        console.error("Could not save document", error);
+        return null;
+      }
+    });
     if (!next) return;
     beginBusy({ kind: "save", label: "Saving…", blocking: false });
     try {
@@ -417,13 +468,19 @@ export const useApp = create<AppState>((set, get) => {
     }
   },
   openFolder: async () => {
-    const host = getHost();
-    const root = await host.files.openFolder();
+    const root = await withFilePicker(async () => {
+      try {
+        return await getHost().files.openFolder();
+      } catch (error) {
+        console.error("Could not open folder", error);
+        return null;
+      }
+    });
     if (!root) return;
     beginBusy({ kind: "folder", label: "Indexing workspace…", blocking: true });
     await yieldPaint();
     try {
-      const workspace = await loadWorkspace(host, root);
+      const workspace = await loadWorkspace(getHost(), root);
       set({ workspace, busy: null });
     } catch (error) {
       console.error("Could not open folder", error);
@@ -474,6 +531,7 @@ export const useApp = create<AppState>((set, get) => {
     const dest = joinWorkspacePath(parentPath, unique);
     const host = getHost();
     const content = isMarkdownFileName(unique) ? untitledDocument() : "";
+    await primeWrite(dest);
     await host.files.write(dest, content);
     set({
       workspace: {
@@ -493,6 +551,7 @@ export const useApp = create<AppState>((set, get) => {
     if (!isValidWorkspaceEntryName(folderName)) throw new Error("Enter a valid folder name");
     const unique = uniqueChildName(childNamesInFolder(workspace.files, parentPath, workspace.root), folderName);
     const dest = joinWorkspacePath(parentPath, unique);
+    await primeWrite(dest);
     await getHost().files.mkdir(dest);
     set({
       workspace: {
@@ -520,6 +579,7 @@ export const useApp = create<AppState>((set, get) => {
     if (taken.some((n) => n.toLowerCase() === nextName.toLowerCase() && n !== currentName)) {
       throw new Error("A file or folder with that name already exists");
     }
+    await primeWrite(fromPath);
     await getHost().files.rename(fromPath, dest);
     const current = get().path;
     if (current) {
@@ -539,6 +599,7 @@ export const useApp = create<AppState>((set, get) => {
     const name = fromPath.split(/[/\\]/).pop() || fromPath;
     const unique = uniqueChildName(childNamesInFolder(workspace.files, toParentPath, workspace.root), name);
     const dest = joinWorkspacePath(toParentPath, unique);
+    await primeWrite(fromPath);
     await getHost().files.copy(fromPath, dest);
     await reloadWorkspace();
     return dest;
@@ -549,6 +610,7 @@ export const useApp = create<AppState>((set, get) => {
     const workspace = get().workspace;
     if (!workspace?.root) throw new Error("Open a folder first");
     if (targetPath === workspace.root) throw new Error("Cannot delete the open folder");
+    await primeWrite(targetPath);
     await getHost().files.remove(targetPath);
     const current = get().path;
     if (current && isPathOrDescendant(current, targetPath)) {

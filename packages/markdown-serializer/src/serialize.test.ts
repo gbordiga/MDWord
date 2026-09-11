@@ -140,6 +140,41 @@ Schema della pompa.
     expect(out).not.toContain("{image}");
   });
 
+  it("flattens a table cell that only has an imageReference", () => {
+    const src = `data:image/png;base64,${"B".repeat(80)}`;
+    const out = serializeMarkdown({
+      ast: {
+        type: "root",
+        children: [
+          {
+            type: "table",
+            children: [
+              {
+                type: "tableRow",
+                children: [
+                  {
+                    type: "tableCell",
+                    children: [
+                      {
+                        type: "paragraph",
+                        children: [{ type: "imageReference", identifier: "img-x", label: "img-x", alt: "pic" }]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          { type: "definition", identifier: "img-x", label: "img-x", url: src }
+        ]
+      }
+    });
+    const ref = imageReference("pic", src);
+    expect(out).toContain(ref.image);
+    expect(out).toContain(ref.definition);
+    expect(out).not.toContain("{image}");
+  });
+
   it("does not save a sized data-URL photo as a {image} fence", () => {
     const src = `data:image/png;base64,${"iVBORw0KGgoAAAANSU"}${"A".repeat(200)}`;
     const out = serializeMarkdown({
@@ -162,5 +197,39 @@ Schema della pompa.
     expect(out).toContain("![Alt text](./images/demo.png)");
     expect(out).not.toContain("data:image/");
     expect(out).not.toMatch(/^\[img-/m);
+  });
+
+  it("serializes a figure that only has an imageReference child", () => {
+    const src =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    expect(() =>
+      serializeMarkdown({
+        ast: {
+          type: "root",
+          children: [
+            {
+              type: "container",
+              kind: "figure",
+              children: [{ type: "imageReference", identifier: "img-x", label: "img-x", alt: "pic" }]
+            },
+            { type: "definition", identifier: "img-x", label: "img-x", url: src }
+          ]
+        }
+      })
+    ).not.toThrow();
+    const out = serializeMarkdown({
+      ast: {
+        type: "root",
+        children: [
+          {
+            type: "container",
+            kind: "figure",
+            children: [{ type: "imageReference", identifier: "img-x", label: "img-x", alt: "pic" }]
+          },
+          { type: "definition", identifier: "img-x", label: "img-x", url: src }
+        ]
+      }
+    });
+    expectEmbedded(out, "pic", src);
   });
 });
