@@ -3,7 +3,10 @@ import { VFile } from "vfile";
 import {
   type Diagnostic,
   type GenericNode,
-  rewriteWikiLinksToMarkdown
+  restoreEmbeddedImagesInTree,
+  rewriteEmbeddedImageFences,
+  rewriteWikiLinksToMarkdown,
+  stubEmbeddedImages
 } from "@mdword/shared";
 import { parseMdoc, type Mdoc } from "@mdword/layout-engine";
 import { extractFrontmatter, yamlToPlain } from "./frontmatter";
@@ -79,11 +82,12 @@ export function parseMarkdown(source: string): ParseResult {
     });
   }
 
-  const rewritten = rewriteWikiLinksToMarkdown(fm.body);
+  const rewritten = rewriteWikiLinksToMarkdown(rewriteEmbeddedImageFences(fm.body));
+  const stubbed = stubEmbeddedImages(rewritten);
   const vfile = new VFile();
   let ast: GenericNode = { type: "root", children: [] };
   try {
-    ast = mystParse(rewritten, {
+    ast = mystParse(stubbed.display, {
       vfile,
       extensions: {
         strikethrough: true,
@@ -108,11 +112,12 @@ export function parseMarkdown(source: string): ParseResult {
         {
           type: "code",
           lang: "markdown",
-          value: fm.body
+          value: stubbed.display
         }
       ]
     };
   }
+  restoreEmbeddedImagesInTree(ast, stubbed.restore);
 
   for (const msg of vfile.messages) {
     if (isKnownPageBreakMessage(msg.message)) continue;

@@ -23,6 +23,7 @@ import {
   type ImageLayout
 } from "@mdword/editor";
 import { useEditorUi } from "@/lib/editorUi";
+import { FigureTextInput, FigureWidthInput } from "./FigureAttrInputs";
 
 function Tool({
   title,
@@ -81,7 +82,6 @@ export function ImageRibbonTools({ editor, enabled }: { editor: Editor | null; e
     ? (attrs.layout as ImageLayout)
     : "block-center";
   const width = Number(attrs.width ?? 100);
-  const alt = String(attrs.alt ?? "");
   const inTable = Boolean(editor?.isActive("table"));
   const caption = editor && enabled ? captionText(editor) : "";
 
@@ -109,33 +109,22 @@ export function ImageRibbonTools({ editor, enabled }: { editor: Editor | null; e
       <Divider />
       <label className="inline-flex items-center gap-1 text-[12px] text-[#667085]">
         Width
-        <input
-          data-testid="image-width"
-          type="number"
-          min={10}
-          max={100}
-          disabled={!enabled}
+        <FigureWidthInput
+          editor={editor}
+          enabled={enabled}
+          width={width}
+          testId="image-width"
           className="h-8 w-16 rounded-md border border-[#e4e7ec] bg-white px-1 text-[13px] text-[#1c1f24] disabled:opacity-40"
-          value={enabled ? width : ""}
-          onChange={(e) => editor?.commands.updateFigure({ width: Number(e.target.value) })}
         />
         %
       </label>
-      <input
-        data-testid="image-alt"
-        disabled={!enabled}
-        className="h-8 w-40 rounded-md border border-[#e4e7ec] bg-white px-2 text-[13px] disabled:opacity-40"
-        placeholder="Alternative text"
-        value={enabled ? alt : ""}
-        onChange={(e) => editor?.commands.updateFigure({ alt: e.target.value })}
-      />
-      <input
-        data-testid="image-caption"
-        disabled={!enabled}
+      <FigureTextInput
+        enabled={enabled}
+        value={enabled ? caption : ""}
+        testId="image-caption"
         className="h-8 w-44 rounded-md border border-[#e4e7ec] bg-white px-2 text-[13px] disabled:opacity-40"
         placeholder="Caption"
-        value={enabled ? caption : ""}
-        onChange={(e) => editor?.commands.setFigureCaption(e.target.value)}
+        onCommit={(value) => editor?.commands.setFigureCaption(value)}
       />
       <Divider />
       <Tool

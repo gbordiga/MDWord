@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   APPLICATION_DEFAULTS,
+  NEW_DOCUMENT_MDOC,
   resolveMdoc,
   parseMdoc,
   pageMetrics,
@@ -27,6 +28,15 @@ describe("mdoc schema", () => {
   it("rejects raw CSS-like invalid lengths", () => {
     const { issues } = parseMdoc({ margins: { top: "20px" } });
     expect(issues.length).toBeGreaterThan(0);
+  });
+});
+
+describe("new document defaults", () => {
+  it("names a font scale so new files do not rely on implied typography", () => {
+    expect(NEW_DOCUMENT_MDOC.fontScale).toBe("medium");
+    expect(NEW_DOCUMENT_MDOC.toc?.enabled).toBe(false);
+    expect(NEW_DOCUMENT_MDOC.numbering?.figures).toBe(true);
+    expect(APPLICATION_DEFAULTS.fontScale).toBeUndefined();
   });
 });
 

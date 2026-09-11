@@ -36,6 +36,11 @@ describe("round-trip fixtures", () => {
     if (file === "page-break.md") {
       expect(serialized).toContain("page-break");
     }
+    if (file === "figures.md") {
+      expect(serialized).toContain(":::{figure} ./images/pump.png");
+      expect(serialized).toContain("Schema della pompa.");
+      expect(serialized).not.toMatch(/```\{figure\}/);
+    }
     expect(equal || JSON.stringify(second.ast).length > 0).toBe(true);
     void first;
   });

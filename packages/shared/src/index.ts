@@ -1,3 +1,6 @@
+export * from "./dataUrl";
+export * from "./imageAttrs";
+export * from "./imageRefs";
 export * from "./units";
 export * from "./paths";
 export * from "./host";

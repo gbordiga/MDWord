@@ -1,10 +1,10 @@
 import type { GenericNode } from "@mdword/shared";
-import { encodeWikiHref } from "@mdword/shared";
+import { encodeWikiHref, formatImageAttrList } from "@mdword/shared";
 import type { TiptapNode } from "./astToTiptap";
+import { canonicalImageSrc } from "./imageDisplay";
 import {
   DEFAULT_IMAGE_LAYOUT,
   DEFAULT_IMAGE_WIDTH,
-  escapeHtmlAttr,
   isDefaultFigureLayout,
   isImageLayout,
   mystFromLayout,
@@ -51,38 +51,35 @@ function astInline(node: TiptapNode): GenericNode[] {
   return (node.content ?? []).flatMap(astInline);
 }
 
-function captionNodes(node: TiptapNode): GenericNode[] {
-  const fromAttr = String(node.attrs?.caption ?? "").trim();
-  if (fromAttr) return [{ type: "text", value: fromAttr }];
-  const caption = (node.content ?? []).find((child) => child.type === "caption");
-  if (!caption) return [];
-  return (caption.content ?? []).flatMap(astInline);
-}
-
 function figureToAst(node: TiptapNode, inTable: boolean): GenericNode {
-  const src = String(node.attrs?.src ?? node.content?.find((c) => c.type === "image")?.attrs?.src ?? "");
-  const alt = String(node.attrs?.alt ?? node.content?.find((c) => c.type === "image")?.attrs?.alt ?? "");
+  const src = canonicalImageSrc(
+    String(node.attrs?.src ?? node.content?.find((c) => c.type === "image")?.attrs?.src ?? "")
+  );
+  const alt = String(
+    node.attrs?.caption ||
+      node.attrs?.alt ||
+      node.content?.find((c) => c.type === "image")?.attrs?.alt ||
+      ""
+  ).trim();
   const width = parseWidthPercent(node.attrs?.width ?? DEFAULT_IMAGE_WIDTH);
   const layout: ImageLayout = isImageLayout(node.attrs?.layout) ? node.attrs.layout : DEFAULT_IMAGE_LAYOUT;
-  const label = node.attrs?.label != null && String(node.attrs.label) ? String(node.attrs.label) : undefined;
-  const caption = captionNodes(node);
-  const myst = mystFromLayout(layout);
-  const simple = isDefaultFigureLayout(width, layout) && !caption.length && !label;
-
   if (inTable) {
-    const tableLayout = layout.startsWith("float")
-      ? layout === "float-right"
-        ? "block-right"
-        : "block-left"
-      : layout;
-    if (isDefaultFigureLayout(width, tableLayout) && !label) {
-      return { type: "image", url: src, alt };
-    }
+    const myst = mystFromLayout(layout.startsWith("float") ? "block-center" : layout);
+    const attrs = formatImageAttrList({
+      width: width !== DEFAULT_IMAGE_WIDTH ? `${width}%` : undefined,
+      align: myst.align
+    });
     return {
-      type: "html",
-      value: `<img src="${escapeHtmlAttr(src)}" alt="${escapeHtmlAttr(alt)}" width="${width}%" class="md-layout-${tableLayout}" />`
+      type: "image",
+      url: src,
+      alt,
+      ...(attrs ? { title: attrs.slice(1, -1) } : {})
     };
   }
+  const label = node.attrs?.label != null && String(node.attrs.label) ? String(node.attrs.label) : undefined;
+  const myst = mystFromLayout(layout);
+  const embedded = src.startsWith("data:image/") || src.startsWith("blob:");
+  const simple = isDefaultFigureLayout(width, layout) && !label;
 
   if (simple) {
     return { type: "image", url: src, alt };
@@ -93,10 +90,10 @@ function figureToAst(node: TiptapNode, inTable: boolean): GenericNode {
   if (myst.align !== "center") image.align = myst.align;
   if (myst.className) image.class = myst.className;
 
-  if (!caption.length && !label) return image;
+  if (!label && (embedded || !alt)) return image;
 
   const children: GenericNode[] = [image];
-  if (caption.length) children.push({ type: "caption", children: caption });
+  if (!embedded && alt) children.push({ type: "caption", children: [{ type: "text", value: alt }] });
   const container: GenericNode = { type: "container", kind: "figure", children };
   if (label) container.label = label;
   return container;

@@ -10,9 +10,11 @@ import { Spinner } from "./Spinner";
 export function SourcePane() {
   const parentRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<ReturnType<typeof createSourceEditor> | null>(null);
+  const fromSourceRef = useRef(false);
   const model = useApp((s) => s.model);
   const applySource = useApp((s) => s.applySource);
   const syncGeneration = useApp((s) => s.syncGeneration);
+  const lastSync = useRef(syncGeneration);
   const [ready, setReady] = useState(false);
 
   useLayoutEffect(() => {
@@ -20,7 +22,10 @@ export function SourcePane() {
     viewRef.current = createSourceEditor({
       parent: parentRef.current,
       doc: saveDocument(model),
-      onChange: (value) => applySource(value)
+      onChange: (value) => {
+        fromSourceRef.current = true;
+        applySource(value);
+      }
     });
     registerSourceView(viewRef.current);
     setReady(true);
@@ -34,7 +39,13 @@ export function SourcePane() {
 
   useEffect(() => {
     if (!viewRef.current) return;
-    setSource(viewRef.current, saveDocument(model));
+    if (fromSourceRef.current) {
+      fromSourceRef.current = false;
+      return;
+    }
+    lastSync.current = syncGeneration;
+    useApp.getState().flushPendingEdits();
+    setSource(viewRef.current, saveDocument(useApp.getState().model));
   }, [syncGeneration, model]);
 
   useEffect(() => {

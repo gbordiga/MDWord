@@ -16,6 +16,45 @@ export function dropPosFromBlockRects(blocks: BlockRect[], clientY: number): num
   return blocks[blocks.length - 1]?.end ?? null;
 }
 
+function nearestBlock(blocks: BlockRect[], clientY: number): BlockRect | null {
+  let best: BlockRect | null = null;
+  let bestDist = Infinity;
+  for (const block of blocks) {
+    const mid = (block.top + block.bottom) / 2;
+    const dist =
+      clientY < block.top ? block.top - clientY : clientY > block.bottom ? clientY - block.bottom : Math.abs(clientY - mid);
+    if (dist < bestDist) {
+      best = block;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
+/**
+ * Drop slot for a moving figure. The figure itself is ignored so releasing on the
+ * neighboring paragraph (the usual second drop) is not treated as a no-op.
+ */
+export function resolveFigureInsertAt(
+  blocks: BlockRect[],
+  fromPos: number,
+  nodeSize: number,
+  clientY: number
+): number | null {
+  const others = blocks.filter((block) => block.pos !== fromPos);
+  const insertAt = dropPosFromBlockRects(others.length ? others : blocks, clientY);
+  if (insertAt == null) return null;
+  if (!isNoopFigureMove(fromPos, nodeSize, insertAt)) return insertAt;
+  const nearest = nearestBlock(others, clientY);
+  if (!nearest) return null;
+  const mid = (nearest.top + nearest.bottom) / 2;
+  const preferred = clientY < mid ? nearest.pos : nearest.end;
+  const flipped = preferred === nearest.pos ? nearest.end : nearest.pos;
+  if (!isNoopFigureMove(fromPos, nodeSize, preferred)) return preferred;
+  if (!isNoopFigureMove(fromPos, nodeSize, flipped)) return flipped;
+  return null;
+}
+
 export function isNoopFigureMove(from: number, nodeSize: number, insertAt: number): boolean {
   return insertAt === from || insertAt === from + nodeSize;
 }
@@ -44,9 +83,7 @@ export function figureDropPos(
   _clientX: number,
   clientY: number
 ): number | null {
-  const insertAt = dropPosFromBlockRects(collectBlockRects(view), clientY);
-  if (insertAt == null || isNoopFigureMove(fromPos, nodeSize, insertAt)) return null;
-  return insertAt;
+  return resolveFigureInsertAt(collectBlockRects(view), fromPos, nodeSize, clientY);
 }
 
 export function dropMarkY(blocks: BlockRect[], insertAt: number): number | null {
@@ -71,10 +108,16 @@ export function updateFigureDropMark(
   clientY: number
 ): void {
   const blocks = collectBlockRects(view);
-  const insertAt = dropPosFromBlockRects(blocks, clientY);
-  if (insertAt == null) return;
+  const insertAt = resolveFigureInsertAt(blocks, fromPos, nodeSize, clientY);
+  if (insertAt == null) {
+    dropMark?.remove();
+    return;
+  }
   const y = dropMarkY(blocks, insertAt);
-  if (y == null) return;
+  if (y == null) {
+    dropMark?.remove();
+    return;
+  }
   if (!dropMark) {
     dropMark = document.createElement("div");
     dropMark.className = "md-figure-drop-mark";

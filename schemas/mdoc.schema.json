@@ -10,6 +10,10 @@
     "template": { "type": "string" },
     "page": { "$ref": "#/$defs/page" },
     "margins": { "$ref": "#/$defs/margins" },
+    "fontScale": {
+      "type": "string",
+      "enum": ["extra-small", "small", "medium", "large", "extra-large"]
+    },
     "typography": {
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/textStyle" }

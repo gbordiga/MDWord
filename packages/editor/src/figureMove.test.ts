@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { Schema } from "@tiptap/pm/model";
 import { EditorState, NodeSelection } from "@tiptap/pm/state";
-import { dropPosFromBlockRects, isNoopFigureMove, mappedInsertAfterDelete, moveFigureBy } from "./figureMove";
+import {
+  dropPosFromBlockRects,
+  isNoopFigureMove,
+  mappedInsertAfterDelete,
+  moveFigureBy,
+  resolveFigureInsertAt
+} from "./figureMove";
 
 const schema = new Schema({
   nodes: {
@@ -53,6 +59,24 @@ describe("dropPosFromBlockRects", () => {
     expect(isNoopFigureMove(10, 30, 40)).toBe(true);
     expect(isNoopFigureMove(10, 30, 0)).toBe(false);
     expect(isNoopFigureMove(10, 30, 50)).toBe(false);
+  });
+
+  it("moves a figure back above the previous paragraph on a second drop", () => {
+    const afterMove = [
+      { pos: 0, end: 10, top: 0, bottom: 40 },
+      { pos: 10, end: 40, top: 40, bottom: 340 }
+    ];
+    expect(resolveFigureInsertAt(afterMove, 10, 30, 30)).toBe(0);
+    expect(resolveFigureInsertAt(afterMove, 10, 30, 10)).toBe(0);
+  });
+
+  it("moves a figure past the following paragraph even on that paragraph's top half", () => {
+    const beforeMove = [
+      { pos: 0, end: 30, top: 0, bottom: 300 },
+      { pos: 30, end: 40, top: 300, bottom: 340 }
+    ];
+    expect(resolveFigureInsertAt(beforeMove, 0, 30, 310)).toBe(40);
+    expect(resolveFigureInsertAt(beforeMove, 0, 30, 335)).toBe(40);
   });
 });
 

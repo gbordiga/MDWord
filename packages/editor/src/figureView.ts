@@ -9,20 +9,24 @@ import {
 } from "./imageModel";
 import { displayImageSrc } from "./imageDisplay";
 import { beginFigureInteraction, endFigureInteraction } from "./figureInteraction";
-import { captionAttr } from "./figureCaption";
+import { figureText } from "./figureCaption";
+import { clearFigureDropMark, moveFigureTo, updateFigureDropMark } from "./figureMove";
+
+const DRAG_THRESHOLD_PX = 8;
 
 function figureClass(layout: ImageLayout, selected: boolean): string {
   return ["md-figure", `md-layout-${layout}`, selected ? "is-selected" : ""].filter(Boolean).join(" ");
 }
 
 function applyWidth(dom: HTMLElement, box: HTMLElement, layout: ImageLayout, width: number): void {
-  if (layout.startsWith("float")) {
+  const inTable = Boolean(dom.closest("td, th"));
+  if (inTable || layout.startsWith("float")) {
     dom.style.width = `${width}%`;
     box.style.width = "100%";
-  } else {
-    dom.style.width = "";
-    box.style.width = `${width}%`;
+    return;
   }
+  dom.style.width = "";
+  box.style.width = `${width}%`;
 }
 
 function contentWidth(dom: HTMLElement): number {
@@ -49,10 +53,12 @@ export function createFigureView({
   selectNode: () => void;
   deselectNode: () => void;
   stopEvent: (event: Event) => boolean;
+  ignoreMutation: () => boolean;
   destroy: () => void;
 } {
   let current = node;
   let resizing = false;
+  let dragging = false;
   let selected = false;
   const dom = document.createElement("figure");
   const box = document.createElement("div");
@@ -74,6 +80,8 @@ export function createFigureView({
   img.decoding = "async";
   img.draggable = false;
   img.setAttribute("draggable", "false");
+  dom.draggable = false;
+  dom.setAttribute("draggable", "false");
   caption.dataset.testid = "doc-caption";
   dom.setAttribute("data-testid", "doc-figure");
   box.append(img, left, right);
@@ -87,7 +95,7 @@ export function createFigureView({
 
   let shownSrc = "";
   const apply = (next: ProseNode) => {
-    if (resizing) return;
+    if (resizing || dragging) return;
     const width = clampImageWidth(Number(next.attrs.width ?? DEFAULT_IMAGE_WIDTH));
     const layout = isImageLayout(next.attrs.layout) ? next.attrs.layout : DEFAULT_IMAGE_LAYOUT;
     dom.className = figureClass(layout, selected);
@@ -100,10 +108,9 @@ export function createFigureView({
       shownSrc = nextSrc;
       img.src = displayImageSrc(nextSrc);
     }
-    const nextAlt = String(next.attrs.alt ?? "");
-    if (img.alt !== nextAlt) img.alt = nextAlt;
+    const text = figureText(next.attrs.alt, next.attrs.caption);
+    if (img.alt !== text) img.alt = text;
     applyWidth(dom, box, layout, width);
-    const text = captionAttr(next.attrs.caption);
     caption.textContent = text;
     caption.hidden = !text;
   };
@@ -183,6 +190,82 @@ export function createFigureView({
   left.addEventListener("pointerdown", startResize("left"), { passive: false });
   right.addEventListener("pointerdown", startResize("right"), { passive: false });
 
+  let dragCleanup: (() => void) | null = null;
+
+  const finishDrag = (from: number | null, clientX: number, clientY: number, moved: boolean) => {
+    dragCleanup?.();
+    dragCleanup = null;
+    if (!dragging && !moved) return;
+    dragging = false;
+    dom.classList.remove("is-dragging");
+    clearFigureDropMark();
+    endFigureInteraction();
+    if (moved && from != null) moveFigureTo(editor.view, from, clientX, clientY);
+  };
+
+  const startDrag = (event: PointerEvent) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (dragging) finishDrag(null, 0, 0, false);
+    dragCleanup?.();
+    dragCleanup = null;
+    const target = event.target as Node | null;
+    if (target && (left.contains(target) || right.contains(target))) return;
+    const origin = posOf();
+    if (origin == null) return;
+    // A NodeSelection makes the browser/ProseMirror start native drag (black caret + ghost).
+    if (selected) event.preventDefault();
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let armed = false;
+
+    const onMove = (move: PointerEvent) => {
+      if (!samePointer(move, pointerId)) return;
+      const dx = move.clientX - startX;
+      const dy = move.clientY - startY;
+      if (!armed) {
+        if (dx * dx + dy * dy < DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) return;
+        armed = true;
+        dragging = true;
+        beginFigureInteraction();
+        dom.classList.add("is-dragging");
+        editor.chain().focus().setNodeSelection(origin).run();
+        try {
+          dom.setPointerCapture(pointerId);
+        } catch {
+          /* ignore */
+        }
+      }
+      move.preventDefault();
+      const from = posOf() ?? origin;
+      updateFigureDropMark(editor.view, from, current.nodeSize, move.clientX, move.clientY);
+    };
+    const onEnd = (end: PointerEvent) => {
+      if (!samePointer(end, pointerId)) return;
+      try {
+        dom.releasePointerCapture(pointerId);
+      } catch {
+        /* ignore */
+      }
+      finishDrag(posOf() ?? origin, end.clientX, end.clientY, armed);
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onEnd);
+    window.addEventListener("pointercancel", onEnd);
+    dragCleanup = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onEnd);
+      window.removeEventListener("pointercancel", onEnd);
+    };
+  };
+
+  dom.addEventListener("pointerdown", startDrag, { passive: false });
+  dom.addEventListener("dragstart", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+
   return {
     dom,
     update(updated) {
@@ -202,12 +285,17 @@ export function createFigureView({
     stopEvent(event) {
       const target = event.target as Node | null;
       if (target && (left.contains(target) || right.contains(target))) return true;
-      if (resizing) return true;
-      if (event.type === "dragstart") return true;
+      if (resizing || dragging) return true;
+      if (event.type === "dragstart" || event.type === "drag" || event.type === "dragend") return true;
+      if (selected && (event.type === "mousedown" || event.type === "pointerdown")) return true;
       return false;
     },
+    ignoreMutation() {
+      return true;
+    },
     destroy() {
-      /* listeners are on nodes that go away with the view */
+      finishDrag(null, 0, 0, false);
+      clearFigureDropMark();
     }
   };
 }

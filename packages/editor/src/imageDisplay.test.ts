@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { displayImageSrc, objectUrlFromDataUrl, srcFingerprint } from "./imageDisplay";
+import {
+  canonicalImageSrc,
+  displayImageSrc,
+  objectUrlFromDataUrl,
+  rewriteDisplayBlobsInTree,
+  srcFingerprint
+} from "./imageDisplay";
 
 const TINY_PNG =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
@@ -26,5 +32,13 @@ describe("image display", () => {
 
   it("builds a blob URL from a data URL", () => {
     expect(objectUrlFromDataUrl(TINY_PNG).startsWith("blob:")).toBe(true);
+  });
+
+  it("maps a display blob back to the embedded data URL", () => {
+    const blob = displayImageSrc(TINY_PNG);
+    expect(canonicalImageSrc(blob)).toBe(TINY_PNG);
+    const tree = { type: "image", url: blob, alt: "pic" };
+    expect(rewriteDisplayBlobsInTree(tree)).toBe(true);
+    expect(tree.url).toBe(TINY_PNG);
   });
 });

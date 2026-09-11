@@ -78,6 +78,24 @@ html.keyboard-open .mdword-app {
   outline-offset: 2px;
 }
 
+.page-inner {
+  cursor: text;
+  display: flex;
+  flex-direction: column;
+}
+
+.md-editor-fill {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 8em;
+}
+
+.md-editor-fill .ProseMirror {
+  flex: 1 1 auto;
+  min-height: 100%;
+}
+
 .ProseMirror {
   outline: none;
   min-height: 100%;
@@ -410,11 +428,13 @@ html.keyboard-open .mdword-app {
   outline: 2px solid #2f6fed;
   outline-offset: 2px;
   touch-action: none;
+  cursor: grab;
 }
 
 .md-figure.is-dragging {
   opacity: 0.55;
   will-change: opacity;
+  cursor: grabbing;
 }
 
 .md-figure-drop-mark {
@@ -491,7 +511,7 @@ html.keyboard-open .mdword-app {
 .ProseMirror th .md-figure {
   float: none !important;
   margin: 4px 0;
-  width: auto !important;
+  max-width: 100%;
 }
 
 .cm-data-url-fold {

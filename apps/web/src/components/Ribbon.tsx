@@ -43,7 +43,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useApp, type RibbonTab } from "@/lib/store";
-import { MARGIN_PRESETS, matchMarginPreset } from "@mdword/layout-engine";
+import { FONT_SCALES, MARGIN_PRESETS, matchFontScale, matchMarginPreset } from "@mdword/layout-engine";
 import { applyBlockStyle, currentBlockStyle, insertCallout, insertPageBreak, insertTable } from "@/lib/editorCommands";
 import { figurePosFromState } from "@mdword/editor";
 import { useEditorTick } from "@/hooks/useEditorTick";
@@ -117,6 +117,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
   const tocDepth = actions.model.resolvedMdoc.toc?.depth ?? 3;
   const landscape = actions.model.resolvedMdoc.page?.orientation === "landscape";
   const marginPreset = matchMarginPreset(actions.model.resolvedMdoc.margins);
+  const fontScale = matchFontScale(actions.model.resolvedMdoc);
   const inImage = Boolean(editor && figurePosFromState(editor.state) != null);
   const inTable = Boolean(editor?.isActive("table"));
   const lastMain = useRef<RibbonTab>("home");
@@ -361,6 +362,27 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
                 </option>
               ))}
               {marginPreset === "custom" ? <option value="custom">Custom margins</option> : null}
+            </select>
+            <select
+              aria-label="Font size"
+              data-testid="ribbon-font-scale"
+              className="h-8 rounded-md border border-[#e4e7ec] bg-white px-2 text-[13px]"
+              value={fontScale}
+              onChange={(e) => {
+                const id = e.target.value;
+                if (id === "custom") return;
+                actions.patchMdoc({
+                  ...actions.model.mdoc,
+                  fontScale: id as (typeof FONT_SCALES)[number]["id"]
+                });
+              }}
+            >
+              {FONT_SCALES.map((scale) => (
+                <option key={scale.id} value={scale.id} title={scale.description}>
+                  {scale.name}
+                </option>
+              ))}
+              {fontScale === "custom" ? <option value="custom">Custom</option> : null}
             </select>
           </>
         )}

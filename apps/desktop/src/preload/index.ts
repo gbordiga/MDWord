@@ -14,6 +14,9 @@ const api = {
     write: (path: string, content: string) => ipcRenderer.invoke("files.write", { path, content }),
     exists: (path: string) => ipcRenderer.invoke("files.exists", path),
     rename: (from: string, to: string) => ipcRenderer.invoke("files.rename", { from, to }),
+    mkdir: (path: string) => ipcRenderer.invoke("files.mkdir", path),
+    copy: (from: string, to: string) => ipcRenderer.invoke("files.copy", { from, to }),
+    remove: (path: string) => ipcRenderer.invoke("files.remove", path),
     copyIntoAssets: (sourcePath: string, workspaceRoot: string) =>
       ipcRenderer.invoke("files.copyIntoAssets", { sourcePath, workspaceRoot }),
     canWrite: async () => true

@@ -5,7 +5,19 @@ import { markdown } from "@codemirror/lang-markdown";
 import { yaml } from "@codemirror/lang-yaml";
 import { highlightSelectionMatches } from "@codemirror/search";
 import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
-import { dataUrlFold } from "./dataUrlFold";
+import { dataUrlFold, setImagePayloads, setSourceAnnotation, stubEmbeddedImagesForDisplay } from "./dataUrlFold";
+
+const restoreByView = new WeakMap<EditorView, (display: string) => string>();
+
+function bindStub(view: EditorView, source: string): { display: string; urls: string[] } {
+  const stub = stubEmbeddedImagesForDisplay(source);
+  restoreByView.set(view, stub.restore);
+  return { display: stub.display, urls: stub.urls };
+}
+
+function restoreSource(view: EditorView, display: string): string {
+  return (restoreByView.get(view) ?? ((value) => value))(display);
+}
 
 export function createSourceEditor(options: {
   parent: HTMLElement;
@@ -13,10 +25,11 @@ export function createSourceEditor(options: {
   onChange: (value: string) => void;
   readOnly?: boolean;
 }): EditorView {
+  const stub = stubEmbeddedImagesForDisplay(options.doc);
   const view = new EditorView({
     parent: options.parent,
     state: EditorState.create({
-      doc: options.doc,
+      doc: stub.display,
       extensions: [
         lineNumbers(),
         highlightActiveLine(),
@@ -27,7 +40,9 @@ export function createSourceEditor(options: {
         highlightSelectionMatches(),
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
         EditorView.updateListener.of((update) => {
-          if (update.docChanged) options.onChange(update.state.doc.toString());
+          if (!update.docChanged) return;
+          if (update.transactions.some((tr) => tr.annotation(setSourceAnnotation))) return;
+          options.onChange(restoreSource(update.view, update.state.doc.toString()));
         }),
         EditorView.lineWrapping,
         EditorView.editable.of(!options.readOnly),
@@ -39,13 +54,20 @@ export function createSourceEditor(options: {
       ]
     })
   });
+  restoreByView.set(view, stub.restore);
+  if (stub.urls.length) {
+    view.dispatch({ effects: setImagePayloads.of(stub.urls), annotations: setSourceAnnotation.of(true) });
+  }
   return view;
 }
 
 export function setSource(view: EditorView, doc: string): void {
-  if (view.state.doc.toString() === doc) return;
+  const { display, urls } = bindStub(view, doc);
+  if (view.state.doc.toString() === display) return;
   view.dispatch({
-    changes: { from: 0, to: view.state.doc.length, insert: doc }
+    changes: { from: 0, to: view.state.doc.length, insert: display },
+    effects: setImagePayloads.of(urls),
+    annotations: setSourceAnnotation.of(true)
   });
 }
 
@@ -89,4 +111,9 @@ export function findInSource(
   return { count: matches.length, index };
 }
 
-export { findDataUrlRanges } from "./dataUrlFold";
+export {
+  findDataUrlRanges,
+  foldEmbeddedDataUrls,
+  stubEmbeddedImages,
+  stubEmbeddedImagesForDisplay
+} from "./dataUrlFold";

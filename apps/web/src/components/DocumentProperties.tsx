@@ -8,6 +8,7 @@ import { IMAGE_LAYOUTS, figureCaptionText, figureNodeFromState, figurePosFromSta
 import { useApp } from "@/lib/store";
 import { useEditorUi } from "@/lib/editorUi";
 import { useEditorTick } from "@/hooks/useEditorTick";
+import { FigureTextInput, FigureWidthInput } from "./FigureAttrInputs";
 import { FrontmatterEditor } from "./FrontmatterEditor";
 import { MarginEditor } from "./MarginEditor";
 
@@ -132,11 +133,10 @@ export function DocumentProperties({
               value={imageLayout}
               onChange={(e) => {
                 const next = e.target.value as ImageLayout;
-                editor
-                  .chain()
-                  .focus()
-                  .updateFigure({ layout: next, width: widthForLayoutChange(imageWidth, next) })
-                  .run();
+                editor.commands.updateFigure({
+                  layout: next,
+                  width: widthForLayoutChange(imageWidth, next)
+                });
               }}
             >
               <option value="block-left">Left</option>
@@ -147,31 +147,22 @@ export function DocumentProperties({
             </select>
           </Field>
           <Field label="Width (%)">
-            <input
-              data-testid={testIds ? "prop-image-width" : undefined}
+            <FigureWidthInput
+              editor={editor}
+              enabled
+              width={imageWidth}
+              testId={testIds ? "prop-image-width" : undefined}
               className={fieldClass}
-              type="number"
-              min={10}
-              max={100}
-              value={imageWidth}
-              onChange={(e) => editor.chain().focus().updateFigure({ width: Number(e.target.value) }).run()}
             />
           </Field>
           <Field label="Caption">
-            <input
-              data-testid={testIds ? "prop-image-caption" : "image-caption"}
-              className={fieldClass}
+            <FigureTextInput
+              enabled
               value={imageCaption}
-              placeholder="Caption"
-              onChange={(e) => editor.commands.setFigureCaption(e.target.value)}
-            />
-          </Field>
-          <Field label="Alternative text">
-            <input
-              data-testid={testIds ? "prop-image-alt" : undefined}
+              testId={testIds ? "prop-image-caption" : "image-caption"}
               className={fieldClass}
-              value={String(imageAttrs.alt ?? "")}
-              onChange={(e) => editor.chain().focus().updateFigure({ alt: e.target.value }).run()}
+              placeholder="Caption"
+              onCommit={(value) => editor.commands.setFigureCaption(value)}
             />
           </Field>
         </PropertySection>

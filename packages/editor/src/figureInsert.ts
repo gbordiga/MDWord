@@ -12,10 +12,11 @@ import { figurePosFromSelection } from "./figurePos";
 export function createFigureNode(state: EditorState, attrs: Partial<FigureAttrs> & { src: string }): ProseNode | null {
   const type = state.schema.nodes.figure;
   if (!type) return null;
+  const text = String(attrs.caption ?? attrs.alt ?? "").trim();
   return type.createAndFill({
     src: attrs.src,
-    alt: attrs.alt ?? "",
-    caption: attrs.caption ?? "",
+    alt: text,
+    caption: text,
     width: clampImageWidth(Number(attrs.width ?? DEFAULT_IMAGE_WIDTH)),
     layout: isImageLayout(attrs.layout) ? attrs.layout : DEFAULT_IMAGE_LAYOUT,
     label: attrs.label ?? null
@@ -33,10 +34,10 @@ export function insertRangeForFigure(state: EditorState, pos: number): { from: n
   return { from: $pos.pos, to: $pos.pos };
 }
 
-export function ensureParagraphAfter(tr: Transaction, figurePos: number): Transaction {
-  const figure = tr.doc.nodeAt(figurePos);
-  if (!figure || figure.type.name !== "figure") return tr;
-  const after = figurePos + figure.nodeSize;
+export function ensureParagraphAfter(tr: Transaction, blockPos: number): Transaction {
+  const node = tr.doc.nodeAt(blockPos);
+  if (!node || (node.type.name !== "figure" && node.type.name !== "pageBreak")) return tr;
+  const after = blockPos + node.nodeSize;
   const next = after < tr.doc.content.size ? tr.doc.nodeAt(after) : null;
   if (next?.type.name === "paragraph") return tr;
   const paragraph = tr.doc.type.schema.nodes.paragraph?.create();

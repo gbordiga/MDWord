@@ -1,8 +1,9 @@
 import { IMAGE_MAX_BYTES } from "./imageModel";
 
-export const IMAGE_MAX_EDGE = 1920;
+export const IMAGE_MAX_EDGE = 1600;
 export const IMAGE_KEEP_BYTES = 450_000;
-export const IMAGE_JPEG_QUALITY = 0.84;
+export const IMAGE_JPEG_QUALITY = 0.75;
+export const IMAGE_JPEG_RETRY_QUALITY = 0.6;
 
 export function scaleToMaxEdge(
   width: number,
@@ -26,6 +27,9 @@ export function shouldKeepOriginal(input: {
   type: string;
 }): boolean {
   if (input.type === "image/gif" || input.type === "image/svg+xml") return true;
+  if (input.type === "image/png" || input.type === "image/webp" || input.type === "image/bmp") {
+    return false;
+  }
   if (Math.max(input.width, input.height) > IMAGE_MAX_EDGE) return false;
   return input.bytes <= IMAGE_KEEP_BYTES;
 }
@@ -118,17 +122,16 @@ export async function embedImageFile(file: Blob, type = file.type): Promise<stri
   }
 
   const sized = scaleToMaxEdge(srcW, srcH);
-  const photo = type === "image/jpeg" || type === "image/webp" || file.size > 250_000;
-  const mime = outputMime(type, photo && type !== "image/png");
-  let encoded = canvasDataUrl(bitmap, sized.width, sized.height, mime, IMAGE_JPEG_QUALITY);
+  let encoded = canvasDataUrl(bitmap, sized.width, sized.height, "image/jpeg", IMAGE_JPEG_QUALITY);
   if (!encoded || encoded.length >= original.length) {
     if (sized.scale < 1) {
-      encoded = canvasDataUrl(bitmap, sized.width, sized.height, "image/jpeg", 0.72) ?? encoded;
+      encoded =
+        canvasDataUrl(bitmap, sized.width, sized.height, "image/jpeg", IMAGE_JPEG_RETRY_QUALITY) ?? encoded;
     }
   }
   const maxChars = Math.floor(IMAGE_MAX_BYTES * (4 / 3)) + 128;
   if (encoded && encoded.length > maxChars) {
-    const retry = canvasDataUrl(bitmap, sized.width, sized.height, "image/jpeg", 0.72);
+    const retry = canvasDataUrl(bitmap, sized.width, sized.height, "image/jpeg", IMAGE_JPEG_RETRY_QUALITY);
     if (retry && retry.length < encoded.length) encoded = retry;
   }
   closeBitmap(bitmap);

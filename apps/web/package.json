@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "copy-paged": "node ./scripts/copy-paged.mjs",
-    "dev": "node ./scripts/copy-paged.mjs && next dev --port 3000",
+    "dev": "node ./scripts/free-port.mjs 3000 && node ./scripts/copy-paged.mjs && next dev --port 3000",
     "build": "node ./scripts/copy-paged.mjs && next build",
     "start": "next start",
     "lint": "next lint",

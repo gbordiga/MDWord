@@ -1,4 +1,5 @@
 import type { TiptapNode } from "./astToTiptap";
+import { canonicalImageSrc } from "./imageDisplay";
 
 const EMPTY_PARAGRAPH: TiptapNode = { type: "paragraph" };
 
@@ -50,14 +51,14 @@ function sanitizeNode(node: TiptapNode): TiptapNode | null {
   }
 
   if (node.type === "image") {
-    const src = String(node.attrs?.src ?? "").trim();
-    if (!src) return null;
+    const src = canonicalImageSrc(String(node.attrs?.src ?? ""));
+    if (!src || src.startsWith("blob:")) return null;
     return {
       type: "figure",
       attrs: {
         src,
-        alt: String(node.attrs?.alt ?? ""),
-        caption: String(node.attrs?.caption ?? "").trim(),
+        alt: String(node.attrs?.caption || node.attrs?.alt || "").trim(),
+        caption: String(node.attrs?.caption || node.attrs?.alt || "").trim(),
         width: node.attrs?.width ?? 100,
         layout: node.attrs?.layout ?? "block-center",
         label: node.attrs?.label ?? null
@@ -67,17 +68,18 @@ function sanitizeNode(node: TiptapNode): TiptapNode | null {
 
   if (node.type === "figure") {
     const nestedImage = (node.content ?? []).find((child) => child.type === "image");
-    const src = String(node.attrs?.src ?? nestedImage?.attrs?.src ?? "").trim();
+    const src = canonicalImageSrc(String(node.attrs?.src ?? nestedImage?.attrs?.src ?? ""));
     const nestedCaption = (node.content ?? []).find((child) => child.type === "caption");
     const caption =
       String(node.attrs?.caption ?? "").trim() ||
-      (nestedCaption?.content ?? []).map((child) => child.text ?? "").join("").trim();
+      (nestedCaption?.content ?? []).map((child) => child.text ?? "").join("").trim() ||
+      String(node.attrs?.alt ?? nestedImage?.attrs?.alt ?? "").trim();
     if (!src) return caption ? { type: "paragraph", content: [{ type: "text", text: caption }] } : EMPTY_PARAGRAPH;
     return {
       type: "figure",
       attrs: {
         src,
-        alt: String(node.attrs?.alt ?? nestedImage?.attrs?.alt ?? ""),
+        alt: caption,
         caption,
         width: node.attrs?.width ?? 100,
         layout: node.attrs?.layout ?? "block-center",

@@ -17,15 +17,30 @@ export function useCrashDraft(): void {
   }, [editGeneration]);
 }
 
+function flushDraftIfDirty(): void {
+  if (!useApp.getState().dirty) return;
+  void useApp.getState().saveDraft();
+}
+
 export function useUnsavedCloseGuard(): void {
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!useApp.getState().dirty) return;
       event.preventDefault();
       event.returnValue = "";
+      flushDraftIfDirty();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flushDraftIfDirty();
     };
     window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("pagehide", flushDraftIfDirty);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("pagehide", flushDraftIfDirty);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 }
 

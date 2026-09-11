@@ -11,7 +11,16 @@ import {
   type ReactNode
 } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
-import { editorExtensions, astToTiptap, isFigureInteracting, onFigureIdle, type PageGapsStorage, type TiptapNode } from "@mdword/editor";
+import {
+  editorExtensions,
+  astToTiptap,
+  focusEditorAtPagePoint,
+  isBlankPageClickTarget,
+  isFigureInteracting,
+  onFigureIdle,
+  type PageGapsStorage,
+  type TiptapNode
+} from "@mdword/editor";
 import {
   countFlowPages,
   PAGE_STACK_GAP_PX,
@@ -138,6 +147,7 @@ function VisualEditorCanvas({
   const paged = pageLayout === "pages" && !compact;
   const applyTiptap = useApp((s) => s.applyTiptap);
   const syncGeneration = useApp((s) => s.syncGeneration);
+  const sourceGeneration = useApp((s) => s.sourceGeneration);
 
   const editor = useEditor({
     extensions: editorExtensions(),
@@ -198,10 +208,12 @@ function VisualEditorCanvas({
   }, [editor]);
 
   const lastGen = useRef(syncGeneration);
+  const lastSourceGen = useRef(sourceGeneration);
   useEffect(() => {
     if (!editor) return;
-    if (lastGen.current === syncGeneration) return;
+    if (lastGen.current === syncGeneration && lastSourceGen.current === sourceGeneration) return;
     lastGen.current = syncGeneration;
+    lastSourceGen.current = sourceGeneration;
     try {
       editor.commands.setContent(tiptapContentFromAst(useApp.getState().model.ast));
     } catch (error) {
@@ -210,7 +222,7 @@ function VisualEditorCanvas({
     } finally {
       useApp.getState().finishBusy(["open", "workspace"]);
     }
-  }, [editor, syncGeneration]);
+  }, [editor, syncGeneration, sourceGeneration]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -332,6 +344,12 @@ function VisualEditorCanvas({
       >
         <div
           className={`page-inner relative ${paged ? "" : "bg-white shadow-page"}`}
+          onMouseDown={(event) => {
+            if (!editor || event.button !== 0) return;
+            if (!isBlankPageClickTarget(event.target)) return;
+            event.preventDefault();
+            focusEditorAtPagePoint(editor.view, event.clientX, event.clientY);
+          }}
           style={{
             width: metrics.widthPx,
             minHeight: paged ? pageStackHeightPx(sheetCount, metrics.heightPx) : pageMinHeight,
@@ -420,7 +438,7 @@ function VisualEditorCanvas({
             )}
           <div
             ref={contentRef}
-            className="relative z-10"
+            className="relative z-10 flex flex-1 flex-col"
             style={{
               paddingTop: padTop,
               paddingRight: metrics.margins.right,
@@ -450,7 +468,10 @@ function VisualEditorCanvas({
                 onJump={(index) => editor && jumpToHeading(editor, index, tocDepth)}
               />
             ) : null}
-            <EditorContent editor={editor} className={numberedHeadings ? "md-numbered-headings" : undefined} />
+            <EditorContent
+              editor={editor}
+              className={numberedHeadings ? "md-editor-fill md-numbered-headings" : "md-editor-fill"}
+            />
           </div>
         </div>
       </div>

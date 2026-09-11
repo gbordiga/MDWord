@@ -48,10 +48,22 @@ export function resolveMdoc(input: CascadeInput): Mdoc {
   return applyFontScale(mdocSchema.parse(acc));
 }
 
-export const APPLICATION_DEFAULTS: Mdoc = {
+/** Fields written into every new document so layout is explicit, not implied. */
+export const NEW_DOCUMENT_MDOC: Mdoc = {
   version: 1,
   page: { size: "A4", orientation: "portrait" },
   margins: { top: "20mm", right: "20mm", bottom: "20mm", left: "25mm" },
+  fontScale: "medium",
+  header: { left: "{{title}}", center: "", right: "{{page}} / {{pages}}" },
+  footer: { left: "", center: "", right: "{{date}}" },
+  numbering: { headings: false, figures: true, tables: true },
+  toc: { enabled: false, depth: 3 }
+};
+
+export const APPLICATION_DEFAULTS: Mdoc = {
+  version: 1,
+  page: NEW_DOCUMENT_MDOC.page,
+  margins: NEW_DOCUMENT_MDOC.margins,
   typography: {
     body: {
       "font-family": "Aptos, Calibri, Carlito, 'Segoe UI', system-ui, sans-serif",
@@ -68,8 +80,8 @@ export const APPLICATION_DEFAULTS: Mdoc = {
     quote: { "font-size": "11pt" },
     code: { "font-family": "Consolas, 'Liberation Mono', ui-monospace, monospace" }
   },
-  header: { left: "{{title}}", center: "", right: "{{page}} / {{pages}}" },
-  footer: { left: "", center: "", right: "{{date}}" },
-  numbering: { headings: false, figures: true, tables: true },
-  toc: { enabled: false, depth: 3 }
+  header: NEW_DOCUMENT_MDOC.header,
+  footer: NEW_DOCUMENT_MDOC.footer,
+  numbering: NEW_DOCUMENT_MDOC.numbering,
+  toc: NEW_DOCUMENT_MDOC.toc
 };

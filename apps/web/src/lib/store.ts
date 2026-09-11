@@ -7,15 +7,30 @@ import {
   setFrontmatterValues,
   type DocumentModel
 } from "@mdword/document-model";
-import { displayDocumentTitle, documentDate, type ViewMode } from "@mdword/shared";
+import { displayDocumentTitle, documentDate, isMarkdownFileName, type ViewMode } from "@mdword/shared";
 import type { Mdoc } from "@mdword/layout-engine";
 import { parseDocument } from "yaml";
 import { getHost } from "./host";
 import { untitledDocument } from "./untitled";
 import { addHistorySnapshot, historyKeyFromPath, newUntitledHistoryKey } from "./documentHistory";
 import { clearCrashDraft, writeCrashDraft } from "./recovery";
-import { loadWorkspace, applySavedDocument, resolveWikiTarget, type WorkspaceState } from "@mdword/workspace";
-import { tiptapToAst, type TiptapNode } from "@mdword/editor";
+import {
+  applySavedDocument,
+  childNamesInFolder,
+  isPathOrDescendant,
+  isValidWorkspaceEntryName,
+  joinWorkspacePath,
+  loadWorkspace,
+  normalizeNewFileName,
+  resolveWikiTarget,
+  rewriteWorkspacePath,
+  uniqueChildName,
+  upsertWorkspaceFile,
+  workspaceEntryName,
+  workspaceParentPath,
+  type WorkspaceState
+} from "@mdword/workspace";
+import { rewriteDisplayBlobsInTree, tiptapToAst, type TiptapNode } from "@mdword/editor";
 import { renderPrintDocument } from "@mdword/renderer";
 
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view" | "image" | "table";
@@ -41,14 +56,25 @@ export interface BusyState {
 }
 
 const VISUAL_APPLY_MS = 160;
+const SOURCE_APPLY_MS = 220;
 let pendingTiptap: TiptapNode | null = null;
 let applyTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingSource: string | null = null;
+let sourceTimer: ReturnType<typeof setTimeout> | null = null;
 
 function discardPendingVisual(): void {
   pendingTiptap = null;
   if (applyTimer != null) {
     clearTimeout(applyTimer);
     applyTimer = null;
+  }
+}
+
+function discardPendingSource(): void {
+  pendingSource = null;
+  if (sourceTimer != null) {
+    clearTimeout(sourceTimer);
+    sourceTimer = null;
   }
 }
 
@@ -69,7 +95,7 @@ function webPagedScriptUrl(platform: string): string | undefined {
   return `${window.location.origin}/paged.polyfill.min.js`;
 }
 
-interface AppState {
+export interface AppState {
   model: DocumentModel;
   path: string | null;
   dirty: boolean;
@@ -87,6 +113,7 @@ interface AppState {
   workspace: WorkspaceState | null;
   externalDialog: { path: string; incoming: string } | null;
   syncGeneration: number;
+  sourceGeneration: number;
   editGeneration: number;
   lastSavedAt: number | null;
   lastDraftAt: number | null;
@@ -107,6 +134,11 @@ interface AppState {
   openWorkspaceFile: (filePath: string) => Promise<void>;
   openWorkspaceFileByTitle: (title: string) => Promise<boolean>;
   refreshWorkspace: () => Promise<void>;
+  createWorkspaceFile: (parentPath: string, name: string) => Promise<string>;
+  createWorkspaceFolder: (parentPath: string, name: string) => Promise<string>;
+  renameWorkspaceEntry: (fromPath: string, newName: string) => Promise<string>;
+  copyWorkspaceEntry: (fromPath: string, toParentPath: string) => Promise<string>;
+  deleteWorkspaceEntry: (targetPath: string) => Promise<void>;
   exportPdf: () => Promise<void>;
   exportHtml: () => Promise<void>;
   patchMdoc: (mdoc: Mdoc) => void;
@@ -119,13 +151,21 @@ interface AppState {
   setPalette: (open: boolean) => void;
   setFind: (open: boolean, query?: string) => void;
   finishBusy: (kinds?: BusyKind[]) => void;
+  flushPendingEdits: () => void;
   saveDraft: () => Promise<void>;
-  restoreHistory: (content: string) => void;
+  restoreHistory: (content: string) => Promise<void>;
   applyRecoveredDraft: (content: string, path: string | null) => Promise<void>;
 }
 
 function modelFrom(source: string, workspaceMdoc?: Mdoc): DocumentModel {
-  return openDocument(source, { workspaceMdoc });
+  const model = openDocument(source, { workspaceMdoc });
+  rewriteDisplayBlobsInTree(model.ast as { [key: string]: unknown });
+  return model;
+}
+
+function serializedDocument(model: DocumentModel): string {
+  rewriteDisplayBlobsInTree(model.ast as { [key: string]: unknown });
+  return saveDocument(model);
 }
 
 export const useApp = create<AppState>((set, get) => {
@@ -172,6 +212,26 @@ export const useApp = create<AppState>((set, get) => {
     if (doc) commitTiptap(doc);
   };
 
+  const commitSource = (source: string) => {
+    const model = modelFrom(source, get().workspace?.workspaceMdoc);
+    set({
+      model,
+      dirty: true,
+      sourceGeneration: get().sourceGeneration + 1,
+      editGeneration: get().editGeneration + 1
+    });
+  };
+
+  const flushSourceEdits = () => {
+    if (sourceTimer != null) {
+      clearTimeout(sourceTimer);
+      sourceTimer = null;
+    }
+    const source = pendingSource;
+    pendingSource = null;
+    if (source != null) commitSource(source);
+  };
+
   const markSaved = (path: string, content: string, model: DocumentModel) => {
     const historyKey = historyKeyFromPath(path, get().historyKey);
     set({
@@ -213,20 +273,29 @@ export const useApp = create<AppState>((set, get) => {
   workspace: null,
   externalDialog: null,
   syncGeneration: 0,
+  sourceGeneration: 0,
   editGeneration: 0,
   lastSavedAt: null,
   lastDraftAt: null,
   lastSavedContent: initialSource,
   historyKey: newUntitledHistoryKey(),
   busy: null,
+  flushPendingEdits: () => {
+    flushVisualEdits();
+    flushSourceEdits();
+  },
   finishBusy: (kinds) => {
     const busy = get().busy;
     if (!busy) return;
     if (!kinds || kinds.includes(busy.kind)) set({ busy: null });
   },
   applySource: (source) => {
-    const model = modelFrom(source, get().workspace?.workspaceMdoc);
-    set({ model, dirty: true, syncGeneration: get().syncGeneration + 1, editGeneration: get().editGeneration + 1 });
+    pendingSource = source;
+    if (sourceTimer != null) return;
+    sourceTimer = setTimeout(() => {
+      sourceTimer = null;
+      flushSourceEdits();
+    }, SOURCE_APPLY_MS);
   },
   applyTiptap: (doc) => {
     pendingTiptap = doc;
@@ -238,6 +307,7 @@ export const useApp = create<AppState>((set, get) => {
   },
   setView: (view) => {
     flushVisualEdits();
+    flushSourceEdits();
     set({ view });
   },
   setPageLayout: (pageLayout) => {
@@ -255,6 +325,7 @@ export const useApp = create<AppState>((set, get) => {
   },
   newDocument: () => {
     discardPendingVisual();
+    discardPendingSource();
     const source = untitledDocument();
     void clearCrashDraft();
     set({
@@ -279,6 +350,7 @@ export const useApp = create<AppState>((set, get) => {
     }
     if (!result) return;
     discardPendingVisual();
+    discardPendingSource();
     beginBusy({ kind: "open", label: "Opening document…", blocking: true });
     await yieldPaint();
     try {
@@ -301,9 +373,10 @@ export const useApp = create<AppState>((set, get) => {
   },
   saveFile: async () => {
     flushVisualEdits();
+    flushSourceEdits();
     const host = getHost();
     const { model, path } = get();
-    const content = saveDocument(model);
+    const content = serializedDocument(model);
     if (!path) {
       const next = await host.files.saveAs(content, "document.md");
       if (!next) return;
@@ -330,8 +403,9 @@ export const useApp = create<AppState>((set, get) => {
   },
   saveFileAs: async () => {
     flushVisualEdits();
+    flushSourceEdits();
     const host = getHost();
-    const content = saveDocument(get().model);
+    const content = serializedDocument(get().model);
     const next = await host.files.saveAs(content, get().path ?? "document.md");
     if (!next) return;
     beginBusy({ kind: "save", label: "Saving…", blocking: false });
@@ -358,6 +432,7 @@ export const useApp = create<AppState>((set, get) => {
   },
   openWorkspaceFile: async (filePath) => {
     discardPendingVisual();
+    discardPendingSource();
     const host = getHost();
     beginBusy({ kind: "workspace", label: "Opening document…", blocking: true });
     await yieldPaint();
@@ -388,8 +463,102 @@ export const useApp = create<AppState>((set, get) => {
     return true;
   },
   refreshWorkspace: () => reloadWorkspace(),
+  createWorkspaceFile: async (parentPath, name) => {
+    flushVisualEdits();
+    flushSourceEdits();
+    const workspace = get().workspace;
+    if (!workspace?.root) throw new Error("Open a folder first");
+    const fileName = normalizeNewFileName(name);
+    if (!isValidWorkspaceEntryName(fileName)) throw new Error("Enter a valid file name");
+    const unique = uniqueChildName(childNamesInFolder(workspace.files, parentPath, workspace.root), fileName);
+    const dest = joinWorkspacePath(parentPath, unique);
+    const host = getHost();
+    const content = isMarkdownFileName(unique) ? untitledDocument() : "";
+    await host.files.write(dest, content);
+    set({
+      workspace: {
+        ...workspace,
+        files: upsertWorkspaceFile(workspace.files, { path: dest, name: unique, isDirectory: false })
+      }
+    });
+    await reloadWorkspace();
+    return dest;
+  },
+  createWorkspaceFolder: async (parentPath, name) => {
+    flushVisualEdits();
+    flushSourceEdits();
+    const workspace = get().workspace;
+    if (!workspace?.root) throw new Error("Open a folder first");
+    const folderName = name.trim();
+    if (!isValidWorkspaceEntryName(folderName)) throw new Error("Enter a valid folder name");
+    const unique = uniqueChildName(childNamesInFolder(workspace.files, parentPath, workspace.root), folderName);
+    const dest = joinWorkspacePath(parentPath, unique);
+    await getHost().files.mkdir(dest);
+    set({
+      workspace: {
+        ...workspace,
+        files: upsertWorkspaceFile(workspace.files, { path: dest, name: unique, isDirectory: true })
+      }
+    });
+    await reloadWorkspace();
+    return dest;
+  },
+  renameWorkspaceEntry: async (fromPath, newName) => {
+    flushVisualEdits();
+    flushSourceEdits();
+    const workspace = get().workspace;
+    if (!workspace?.root) throw new Error("Open a folder first");
+    const nextName = newName.trim();
+    if (!isValidWorkspaceEntryName(nextName)) throw new Error("Enter a valid name");
+    const parent = workspaceParentPath(fromPath, workspace.root);
+    const dest = joinWorkspacePath(parent, nextName);
+    const destNorm = dest.replace(/\\/g, "/");
+    const fromNorm = fromPath.replace(/\\/g, "/");
+    if (destNorm === fromNorm) return fromPath;
+    const currentName = workspaceEntryName(fromPath);
+    const taken = childNamesInFolder(workspace.files, parent, workspace.root);
+    if (taken.some((n) => n.toLowerCase() === nextName.toLowerCase() && n !== currentName)) {
+      throw new Error("A file or folder with that name already exists");
+    }
+    await getHost().files.rename(fromPath, dest);
+    const current = get().path;
+    if (current) {
+      const nextPath = rewriteWorkspacePath(current, fromPath, dest);
+      if (nextPath !== current) {
+        set({ path: nextPath, historyKey: historyKeyFromPath(nextPath, get().historyKey) });
+      }
+    }
+    await reloadWorkspace();
+    return dest;
+  },
+  copyWorkspaceEntry: async (fromPath, toParentPath) => {
+    flushVisualEdits();
+    flushSourceEdits();
+    const workspace = get().workspace;
+    if (!workspace?.root) throw new Error("Open a folder first");
+    const name = fromPath.split(/[/\\]/).pop() || fromPath;
+    const unique = uniqueChildName(childNamesInFolder(workspace.files, toParentPath, workspace.root), name);
+    const dest = joinWorkspacePath(toParentPath, unique);
+    await getHost().files.copy(fromPath, dest);
+    await reloadWorkspace();
+    return dest;
+  },
+  deleteWorkspaceEntry: async (targetPath) => {
+    flushVisualEdits();
+    flushSourceEdits();
+    const workspace = get().workspace;
+    if (!workspace?.root) throw new Error("Open a folder first");
+    if (targetPath === workspace.root) throw new Error("Cannot delete the open folder");
+    await getHost().files.remove(targetPath);
+    const current = get().path;
+    if (current && isPathOrDescendant(current, targetPath)) {
+      get().newDocument();
+    }
+    await reloadWorkspace();
+  },
   exportPdf: async () => {
     flushVisualEdits();
+    flushSourceEdits();
     beginBusy({ kind: "export", label: "Preparing PDF…", blocking: true });
     await yieldPaint();
     try {
@@ -412,6 +581,7 @@ export const useApp = create<AppState>((set, get) => {
   },
   exportHtml: async () => {
     flushVisualEdits();
+    flushSourceEdits();
     beginBusy({ kind: "export", label: "Preparing HTML…", blocking: true });
     await yieldPaint();
     try {
@@ -439,7 +609,7 @@ export const useApp = create<AppState>((set, get) => {
     let yaml = current.yamlCst;
     if (yaml) yaml.set("mdoc", mdoc);
     else yaml = parseDocument(`mdoc: {}\n`);
-    const next = openDocument(saveDocument({ ...current, yamlCst: yaml, frontmatter }), {
+    const next = openDocument(serializedDocument({ ...current, yamlCst: yaml, frontmatter }), {
       workspaceMdoc: get().workspace?.workspaceMdoc
     });
     set({ model: next, dirty: true, syncGeneration: get().syncGeneration + 1, editGeneration: get().editGeneration + 1 });
@@ -459,10 +629,11 @@ export const useApp = create<AppState>((set, get) => {
   setFind: (findOpen, query) => set({ findOpen, findQuery: query ?? get().findQuery }),
   saveDraft: async () => {
     flushVisualEdits();
+    flushSourceEdits();
     const state = get();
     if (!state.dirty) return;
     try {
-      const content = saveDocument(state.model);
+      const content = serializedDocument(state.model);
       await writeCrashDraft(content, {
         path: state.path,
         title: displayDocumentTitle(state.model.frontmatter, state.path)
@@ -472,18 +643,30 @@ export const useApp = create<AppState>((set, get) => {
       console.error("Crash draft failed", error);
     }
   },
-  restoreHistory: (content) => {
+  restoreHistory: async (content) => {
     discardPendingVisual();
-    const model = modelFrom(content, get().workspace?.workspaceMdoc);
-    set({
-      model,
-      dirty: content !== get().lastSavedContent,
-      syncGeneration: get().syncGeneration + 1,
-      editGeneration: get().editGeneration + 1
-    });
+    discardPendingSource();
+    beginBusy({ kind: "open", label: "Restoring…", blocking: true });
+    await yieldPaint();
+    try {
+      const parsed = modelFrom(content, get().workspace?.workspaceMdoc);
+      const cleaned = serializedDocument(parsed);
+      const model = cleaned === content ? parsed : { ...modelFrom(cleaned, get().workspace?.workspaceMdoc), source: cleaned };
+      set({
+        model,
+        dirty: cleaned !== get().lastSavedContent,
+        syncGeneration: get().syncGeneration + 1,
+        editGeneration: get().editGeneration + 1
+      });
+    } finally {
+      if (get().view === "source") set({ busy: null });
+    }
   },
   applyRecoveredDraft: async (content, path) => {
     discardPendingVisual();
+    discardPendingSource();
+    beginBusy({ kind: "open", label: "Restoring…", blocking: true });
+    await yieldPaint();
     let lastSavedContent = get().lastSavedContent;
     if (path) {
       try {
@@ -492,17 +675,28 @@ export const useApp = create<AppState>((set, get) => {
         /* keep the session baseline if the original file is unavailable */
       }
     }
-    const model = modelFrom(content, get().workspace?.workspaceMdoc);
-    set({
-      model,
-      path,
-      dirty: content !== lastSavedContent,
-      lastSavedContent,
-      historyKey: historyKeyFromPath(path, get().historyKey),
-      lastDraftAt: Date.now(),
-      syncGeneration: get().syncGeneration + 1,
-      editGeneration: get().editGeneration + 1
-    });
-  }
+    try {
+      const parsed = modelFrom(content, get().workspace?.workspaceMdoc);
+      const cleaned = serializedDocument(parsed);
+      const model =
+        cleaned === content ? parsed : { ...modelFrom(cleaned, get().workspace?.workspaceMdoc), source: cleaned };
+      set({
+        model,
+        path,
+        dirty: cleaned !== lastSavedContent,
+        lastSavedContent,
+        historyKey: historyKeyFromPath(path, get().historyKey),
+        lastDraftAt: Date.now(),
+        syncGeneration: get().syncGeneration + 1,
+        editGeneration: get().editGeneration + 1
+      });
+    } finally {
+      if (get().view === "source") set({ busy: null });
+    }
+    }
   };
 });
+
+if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
+  (window as Window & { __MDWORD_APP__?: typeof useApp }).__MDWORD_APP__ = useApp;
+}

@@ -43,6 +43,16 @@ margins:
 
 Units: `mm`, `cm`, `in`, `pt`. All lengths in mdoc must include a unit.
 
+## Font size
+
+Named type scale. New documents write this explicitly.
+
+```yaml
+fontScale: medium   # extra-small | small | medium | large | extra-large
+```
+
+`medium` is 11pt body. The scale sets title, subtitle, headings, caption and quote together. A processor that ignores `fontScale` still uses `typography` if present.
+
 ## Typography
 
 Semantic styles only. No raw CSS.

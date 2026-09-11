@@ -220,9 +220,10 @@ app.whenReady().then(() => {
   });
 
   const sess = session.defaultSession;
-  sess.setPermissionCheckHandler((_contents, permission) => permission === "fileSystem");
+  const allowFileSystem = (permission: string) => permission === "fileSystem";
+  sess.setPermissionCheckHandler((_contents, permission) => allowFileSystem(permission));
   sess.setPermissionRequestHandler((_contents, permission, callback) => {
-    callback(permission === "fileSystem");
+    callback(allowFileSystem(permission));
   });
 
   Menu.setApplicationMenu(null);
@@ -335,6 +336,27 @@ function registerIpc(): void {
     const from = assertSafePath(parsed.from, [...allowedRoots]);
     const to = assertSafePath(parsed.to, [...allowedRoots]);
     await fs.rename(from, to);
+  });
+
+  ipcMain.handle("files.mkdir", async (_e, filePath: unknown) => {
+    const resolved = assertSafePath(z.string().parse(filePath), [...allowedRoots]);
+    await fs.mkdir(resolved, { recursive: true });
+  });
+
+  ipcMain.handle("files.copy", async (_e, payload: unknown) => {
+    const parsed = z.object({ from: z.string(), to: z.string() }).parse(payload);
+    const from = assertSafePath(parsed.from, [...allowedRoots]);
+    const to = assertSafePath(parsed.to, [...allowedRoots]);
+    if (from === to) return;
+    await fs.cp(from, to, { recursive: true, errorOnExist: true, force: false });
+  });
+
+  ipcMain.handle("files.remove", async (_e, filePath: unknown) => {
+    const resolved = assertSafePath(z.string().parse(filePath), [...allowedRoots]);
+    if ([...allowedRoots].some((root) => path.resolve(root) === resolved)) {
+      throw new Error("Cannot delete the open folder");
+    }
+    await fs.rm(resolved, { recursive: true, force: false });
   });
 
   ipcMain.handle("files.copyIntoAssets", async (_e, payload: unknown) => {

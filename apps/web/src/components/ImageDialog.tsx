@@ -105,7 +105,7 @@ export function ImageDialog({
           }}
         />
       </DialogField>
-      <DialogField label="Alternative text">
+      <DialogField label="Caption">
         <input
           data-testid="image-alt"
           className={dialogInputClass}

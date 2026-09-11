@@ -4,10 +4,11 @@ export { figurePosFromState } from "./figurePos";
 export { moveFigureTo, moveFigureBy, mappedInsertAfterDelete, updateFigureDropMark, clearFigureDropMark } from "./figureMove";
 export { dropPosFromBlockRects, isNoopFigureMove } from "./figureMove";
 export { embedImageFile, embedImageSrc, scaleToMaxEdge, shouldKeepOriginal } from "./imageEmbed";
-export { displayImageSrc } from "./imageDisplay";
+export { displayImageSrc, canonicalImageSrc, rewriteDisplayBlobsInTree } from "./imageDisplay";
 export { isFigureInteracting, onFigureIdle } from "./figureInteraction";
 export { PageGaps, pageGapsKey, snapPageGapPos, collectPageGapPositions } from "./pageGaps";
 export type { PageGapsStorage } from "./pageGaps";
+export { placeCaretAtEnd, placeCaretInLastParagraph, focusEditorAtPagePoint, isBlankPageClickTarget } from "./figureClick";
 export { astToTiptap } from "./astToTiptap";
 export type { TiptapNode } from "./astToTiptap";
 export { sanitizeTiptapDoc } from "./sanitize";
@@ -23,6 +24,7 @@ export {
   IMAGE_LAYOUTS,
   IMAGE_MAX_BYTES,
   IMAGE_MAX_INPUT_BYTES,
+  clampImageWidth,
   isAllowedImageFile,
   widthForLayoutChange
 } from "./imageModel";

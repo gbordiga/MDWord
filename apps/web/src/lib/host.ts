@@ -62,7 +62,8 @@ type FsHandle = {
   name: string;
   kind: "file" | "directory";
   getFile(): Promise<File>;
-  createWritable(): Promise<{ write: (data: string) => Promise<void>; close: () => Promise<void> }>;
+  createWritable(): Promise<{ write: (data: string | BufferSource) => Promise<void>; close: () => Promise<void> }>;
+  move?: (dest: string | DirHandle, newName?: string) => Promise<void>;
   queryPermission?: (opts: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
   requestPermission?: (opts: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
 };
@@ -71,6 +72,10 @@ type DirHandle = {
   name: string;
   kind?: "directory";
   entries(): AsyncIterable<[string, FsHandle | DirHandle]>;
+  getDirectoryHandle(name: string, opts?: { create?: boolean }): Promise<DirHandle>;
+  getFileHandle(name: string, opts?: { create?: boolean }): Promise<FsHandle>;
+  removeEntry(name: string, opts?: { recursive?: boolean }): Promise<void>;
+  move?: (dest: string | DirHandle, newName?: string) => Promise<void>;
   queryPermission?: (opts: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
   requestPermission?: (opts: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
 };
@@ -83,6 +88,9 @@ type WindowFs = Window & {
 
 const fileHandles = new Map<string, FsHandle>();
 const fileTexts = new Map<string, string>();
+const dirHandles = new Map<string, DirHandle>();
+let folderHandle: DirHandle | null = null;
+let folderRoot: string | null = null;
 
 function isDirectoryHandle(handle: FsHandle | DirHandle): handle is DirHandle {
   return handle.kind === "directory";
@@ -104,6 +112,7 @@ async function collectFolderEntries(
     const filePath = `${prefix}/${name}`;
     out.push({ path: filePath, name, isDirectory });
     if (isDirectory) {
+      dirHandles.set(filePath, handle);
       await collectFolderEntries(handle, filePath, depth + 1, out);
       continue;
     }
@@ -136,6 +145,97 @@ async function textFromHandle(handle: FsHandle, key: string): Promise<string> {
   const text = await file.text();
   fileTexts.set(key, text);
   return text;
+}
+
+function workspaceDirname(full: string, root: string): string {
+  const idx = Math.max(full.lastIndexOf("/"), full.lastIndexOf("\\"));
+  if (idx <= 0) return root;
+  const parent = full.slice(0, idx);
+  return parent.length >= root.length ? parent : root;
+}
+
+function workspaceBasename(full: string): string {
+  return full.split(/[/\\]/).pop() || full;
+}
+
+function splitRel(full: string, root: string): string[] {
+  if (full === root) return [];
+  const rest = full.startsWith(`${root}/`)
+    ? full.slice(root.length + 1)
+    : full.startsWith(`${root}\\`)
+      ? full.slice(root.length + 1)
+      : "";
+  return rest.split(/[/\\]/).filter(Boolean);
+}
+
+async function ensureFolderWritable(): Promise<void> {
+  if (!folderHandle) throw new Error("No folder is open");
+  const ok = await ensureHandleAccess(folderHandle, "readwrite");
+  if (!ok) throw new Error("This browser did not allow writing in the folder");
+}
+
+async function resolveDir(path: string, create: boolean): Promise<DirHandle> {
+  if (!folderHandle || !folderRoot) throw new Error("No folder is open");
+  if (path === folderRoot) return folderHandle;
+  const cached = !create ? dirHandles.get(path) : undefined;
+  if (cached) return cached;
+  let dir = folderHandle;
+  let acc = folderRoot;
+  for (const part of splitRel(path, folderRoot)) {
+    dir = await dir.getDirectoryHandle(part, { create });
+    acc = `${acc}/${part}`;
+    dirHandles.set(acc, dir);
+  }
+  return dir;
+}
+
+async function writeBytes(path: string, data: string | BufferSource): Promise<void> {
+  await ensureFolderWritable();
+  if (!folderRoot) throw new Error("No folder is open");
+  const parent = await resolveDir(workspaceDirname(path, folderRoot), true);
+  const handle = await parent.getFileHandle(workspaceBasename(path), { create: true });
+  fileHandles.set(path, handle);
+  await ensureHandleAccess(handle, "readwrite");
+  const writable = await handle.createWritable();
+  await writable.write(data);
+  await writable.close();
+  if (typeof data === "string") {
+    fileTexts.set(path, data);
+    fileTexts.set(handle.name, data);
+  }
+}
+
+async function copyFileBytes(from: string, to: string): Promise<void> {
+  const handle = fileHandles.get(from) ?? fileHandles.get(workspaceBasename(from));
+  if (handle) {
+    await ensureHandleAccess(handle, "read");
+    const file = await handle.getFile();
+    await writeBytes(to, await file.arrayBuffer());
+    return;
+  }
+  const text = fileTexts.get(from) ?? fileTexts.get(workspaceBasename(from));
+  if (text === undefined) throw new Error("File handle missing");
+  await writeBytes(to, text);
+}
+
+async function copyPath(from: string, to: string): Promise<void> {
+  const fromDir = dirHandles.get(from) ?? (await resolveDirIfExists(from));
+  if (fromDir) {
+    await resolveDir(to, true);
+    for await (const [name] of fromDir.entries()) {
+      await copyPath(`${from}/${name}`, `${to}/${name}`);
+    }
+    return;
+  }
+  await copyFileBytes(from, to);
+}
+
+async function resolveDirIfExists(path: string): Promise<DirHandle | null> {
+  try {
+    return await resolveDir(path, false);
+  } catch {
+    return null;
+  }
 }
 
 function pickFileWithInput(accept = ".md,.markdown,text/markdown"): Promise<OpenDocumentResult | null> {
@@ -239,10 +339,16 @@ export const webHost: HostApi = {
       const dir = (await picker()) as unknown as DirHandle;
       await ensureHandleAccess(dir, "read");
       folderHandle = dir;
+      folderRoot = dir.name;
+      dirHandles.clear();
+      dirHandles.set(dir.name, dir);
       return dir.name;
     },
     async list(folder) {
       if (!folderHandle) return [];
+      folderRoot = folder;
+      dirHandles.clear();
+      dirHandles.set(folder, folderHandle);
       const out: { path: string; name: string; isDirectory: boolean }[] = [];
       await collectFolderEntries(folderHandle, folder, 0, out);
       return out;
@@ -255,13 +361,92 @@ export const webHost: HostApi = {
       return textFromHandle(handle, path);
     },
     async write(path, content) {
+      if (fileHandles.has(path)) {
+        await this.save({ path, content });
+        return;
+      }
+      if (folderHandle && folderRoot) {
+        await writeBytes(path, content);
+        return;
+      }
       await this.save({ path, content });
     },
     async exists(path) {
-      return fileHandles.has(path);
+      if (!folderHandle || !folderRoot) return fileHandles.has(path);
+      if (path === folderRoot) return true;
+      try {
+        const parent = await resolveDir(workspaceDirname(path, folderRoot), false);
+        const name = workspaceBasename(path);
+        try {
+          await parent.getFileHandle(name);
+          return true;
+        } catch {
+          /* not a file */
+        }
+        try {
+          await parent.getDirectoryHandle(name);
+          return true;
+        } catch {
+          return false;
+        }
+      } catch {
+        return fileHandles.has(path) || dirHandles.has(path);
+      }
     },
-    async rename() {
-      throw new Error("Rename is available in the desktop app");
+    async rename(from, to) {
+      if (from === to) return;
+      await ensureFolderWritable();
+      if (!folderRoot) throw new Error("No folder is open");
+      const fromParent = workspaceDirname(from, folderRoot);
+      const toParent = workspaceDirname(to, folderRoot);
+      const newName = workspaceBasename(to);
+      const oldName = workspaceBasename(from);
+      if (fromParent === toParent) {
+        const file = fileHandles.get(from);
+        if (file && typeof file.move === "function") {
+          await file.move(newName);
+          fileHandles.delete(from);
+          fileHandles.set(to, file);
+          const text = fileTexts.get(from);
+          if (text !== undefined) {
+            fileTexts.delete(from);
+            fileTexts.set(to, text);
+          }
+          return;
+        }
+        const dir = dirHandles.get(from);
+        if (dir && typeof dir.move === "function") {
+          await dir.move(newName);
+          dirHandles.delete(from);
+          dirHandles.set(to, dir);
+          return;
+        }
+      }
+      await copyPath(from, to);
+      const parent = await resolveDir(fromParent, false);
+      await parent.removeEntry(oldName, { recursive: true });
+      fileHandles.delete(from);
+      dirHandles.delete(from);
+      fileTexts.delete(from);
+    },
+    async mkdir(path) {
+      await ensureFolderWritable();
+      await resolveDir(path, true);
+    },
+    async copy(from, to) {
+      if (from === to) return;
+      await ensureFolderWritable();
+      await copyPath(from, to);
+    },
+    async remove(path) {
+      await ensureFolderWritable();
+      if (!folderRoot) throw new Error("No folder is open");
+      if (path === folderRoot) throw new Error("Cannot delete the open folder");
+      const parent = await resolveDir(workspaceDirname(path, folderRoot), false);
+      await parent.removeEntry(workspaceBasename(path), { recursive: true });
+      fileHandles.delete(path);
+      dirHandles.delete(path);
+      fileTexts.delete(path);
     },
     async copyIntoAssets() {
       throw new Error("Copy into assets is available in the desktop app");
@@ -344,7 +529,6 @@ export const webHost: HostApi = {
   }
 };
 
-let folderHandle: DirHandle | null = null;
 const nativeWritten = new Set<string>();
 
 const capacitorHost: HostApi = {

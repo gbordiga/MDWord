@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { countLineChanges, diffLines } from "@mdword/shared";
+import { countLineChanges, diffLines, foldEmbeddedDataUrls } from "@mdword/shared";
 import { saveDocument as serializeDocument } from "@mdword/document-model";
 import { listHistory, readHistory, type HistoryListItem } from "@/lib/documentHistory";
 import { useApp } from "@/lib/store";
+
+const DIFF_LINE_MAX = 240;
+
+function displayDiffLine(text: string): string {
+  const folded = foldEmbeddedDataUrls(text);
+  return folded.length > DIFF_LINE_MAX ? `${folded.slice(0, DIFF_LINE_MAX)}…` : folded;
+}
 
 type Selection = { kind: "unsaved" } | { kind: "snapshot"; id: string };
 
@@ -21,13 +28,18 @@ export function HistoryPane() {
   const dirty = useApp((s) => s.dirty);
   const historyKey = useApp((s) => s.historyKey);
   const lastSavedContent = useApp((s) => s.lastSavedContent);
-  const model = useApp((s) => s.model);
+  const source = useApp((s) => s.model.source);
+  const ast = useApp((s) => s.model.ast);
   const lastSavedAt = useApp((s) => s.lastSavedAt);
   const [items, setItems] = useState<HistoryListItem[]>([]);
   const [selection, setSelection] = useState<Selection>(dirty ? { kind: "unsaved" } : { kind: "unsaved" });
   const [baseContent, setBaseContent] = useState(lastSavedContent);
 
-  const current = serializeDocument(model);
+  const current = useMemo(() => {
+    const raw = dirty ? serializeDocument(useApp.getState().model) : source;
+    return foldEmbeddedDataUrls(raw);
+  }, [ast, dirty, lastSavedContent, source]);
+  const foldedBase = useMemo(() => foldEmbeddedDataUrls(baseContent), [baseContent]);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,13 +65,13 @@ export function HistoryPane() {
     };
   }, [selection, lastSavedContent]);
 
-  const changes = useMemo(() => diffLines(baseContent, current), [baseContent, current]);
+  const changes = useMemo(() => diffLines(foldedBase, current), [foldedBase, current]);
   const counts = useMemo(() => countLineChanges(changes), [changes]);
-  const hasUnsaved = dirty && current !== lastSavedContent;
+  const hasUnsaved = dirty && current !== foldEmbeddedDataUrls(lastSavedContent);
 
   const restore = () => {
     if (selection.kind !== "snapshot") return;
-    useApp.getState().restoreHistory(baseContent);
+    void useApp.getState().restoreHistory(baseContent);
   };
 
   return (
@@ -136,7 +148,7 @@ export function HistoryPane() {
                     : "bg-[#fef3f2] text-[#b42318]"
                 }
               >
-                {change.kind === "add" ? "+" : "-"} {change.text || " "}
+                {change.kind === "add" ? "+" : "-"} {displayDiffLine(change.text || " ")}
               </div>
             ))
         )}

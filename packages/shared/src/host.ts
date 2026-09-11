@@ -68,6 +68,9 @@ export interface HostApi {
     write(path: string, content: string): Promise<void>;
     exists(path: string): Promise<boolean>;
     rename(from: string, to: string): Promise<void>;
+    mkdir(path: string): Promise<void>;
+    copy(from: string, to: string): Promise<void>;
+    remove(path: string): Promise<void>;
     copyIntoAssets(sourcePath: string, workspaceRoot: string): Promise<string>;
     /** True when save() can write without prompting or downloading. */
     canWrite(path: string): Promise<boolean>;

@@ -13,7 +13,7 @@ import { mediaDropPlugin } from "./mediaDrop";
 import { createFigureView } from "./figureView";
 import { figureSelectionKey } from "./figureKeys";
 import { figurePosFromSelection, figurePosFromState } from "./figurePos";
-import { captionAttr } from "./figureCaption";
+import { captionAttr, figureText } from "./figureCaption";
 import {
   exitFigureAfter,
   exitFigureBefore,
@@ -22,6 +22,7 @@ import {
 } from "./figureInsert";
 import { moveFigureBy } from "./figureMove";
 import { handleFigureAreaClick } from "./figureClick";
+import { canonicalImageSrc } from "./imageDisplay";
 
 export { figureSelectionKey } from "./figureKeys";
 export { figureCaptionText } from "./figureCaption";
@@ -88,13 +89,15 @@ export const Figure = Node.create({
         getAttrs: (el) => {
           if (!(el instanceof HTMLElement)) return false;
           const img = el.querySelector("img");
-          const src = img?.getAttribute("src") || el.getAttribute("data-src") || "";
-          if (!src) return false;
+          const src = canonicalImageSrc(
+            img?.getAttribute("data-src") || el.getAttribute("data-src") || img?.getAttribute("src") || ""
+          );
+          if (!src || src.startsWith("blob:")) return false;
           const layout = el.getAttribute("data-layout") || "";
           return {
             src,
-            alt: img?.getAttribute("alt") || "",
-            caption: captionAttr(el.querySelector("figcaption")?.textContent),
+            alt: figureText(img?.getAttribute("alt"), el.querySelector("figcaption")?.textContent),
+            caption: figureText(img?.getAttribute("alt"), el.querySelector("figcaption")?.textContent),
             width: parseWidthPercent(el.getAttribute("data-width") || img?.getAttribute("width")),
             layout: isImageLayout(layout) ? layout : DEFAULT_IMAGE_LAYOUT,
             label: el.getAttribute("data-label")
@@ -106,12 +109,12 @@ export const Figure = Node.create({
         getAttrs: (el) => {
           if (!(el instanceof HTMLElement)) return false;
           if (el.closest("figure")) return false;
-          const src = el.getAttribute("src") || "";
-          if (!src) return false;
+          const src = canonicalImageSrc(el.getAttribute("data-src") || el.getAttribute("src") || "");
+          if (!src || src.startsWith("blob:")) return false;
           return {
             src,
-            alt: el.getAttribute("alt") || "",
-            caption: "",
+            alt: captionAttr(el.getAttribute("alt")),
+            caption: captionAttr(el.getAttribute("alt")),
             width: parseWidthPercent(el.getAttribute("width") || el.style.width),
             layout: DEFAULT_IMAGE_LAYOUT,
             label: null
@@ -122,8 +125,8 @@ export const Figure = Node.create({
   },
   renderHTML({ HTMLAttributes }) {
     const src = String(HTMLAttributes.src ?? "");
-    const alt = String(HTMLAttributes.alt ?? "");
-    const caption = captionAttr(HTMLAttributes.caption);
+    const alt = figureText(HTMLAttributes.alt, HTMLAttributes.caption);
+    const caption = alt;
     const width = clampImageWidth(Number(HTMLAttributes.width ?? DEFAULT_IMAGE_WIDTH));
     const layout = isImageLayout(HTMLAttributes.layout) ? HTMLAttributes.layout : DEFAULT_IMAGE_LAYOUT;
     const label = HTMLAttributes.label ? String(HTMLAttributes.label) : "";
@@ -160,10 +163,17 @@ export const Figure = Node.create({
           if (pos == null) return false;
           const figure = state.doc.nodeAt(pos);
           if (!figure || figure.type.name !== "figure") return false;
+          const text =
+            attrs.alt != null
+              ? captionAttr(attrs.alt)
+              : attrs.caption != null
+                ? captionAttr(attrs.caption)
+                : figureText(figure.attrs.alt, figure.attrs.caption);
           const next = {
             ...figure.attrs,
             ...attrs,
-            caption: attrs.caption != null ? captionAttr(attrs.caption) : captionAttr(figure.attrs.caption),
+            alt: text,
+            caption: text,
             width: clampImageWidth(Number(attrs.width ?? figure.attrs.width ?? DEFAULT_IMAGE_WIDTH)),
             layout: isImageLayout(attrs.layout) ? attrs.layout : isImageLayout(figure.attrs.layout) ? figure.attrs.layout : DEFAULT_IMAGE_LAYOUT
           };
@@ -191,8 +201,8 @@ export const Figure = Node.create({
           const figure = state.doc.nodeAt(pos);
           if (!figure || figure.type.name !== "figure") return false;
           const caption = captionAttr(text);
-          if (captionAttr(figure.attrs.caption) === caption) return true;
-          dispatch?.(state.tr.setNodeMarkup(pos, undefined, { ...figure.attrs, caption }));
+          if (figureText(figure.attrs.alt, figure.attrs.caption) === caption) return true;
+          dispatch?.(state.tr.setNodeMarkup(pos, undefined, { ...figure.attrs, alt: caption, caption }));
           return true;
         },
       exitFigureAfter:
@@ -260,10 +270,21 @@ export const Figure = Node.create({
           }
         },
         appendTransaction(_trs, _old, state) {
-          if (!needsTrailingWritable(state.doc)) return null;
+          let tr: Transaction | null = null;
+          state.doc.descendants((node, pos) => {
+            if (node.type.name !== "figure") return;
+            const src = String(node.attrs.src ?? "");
+            if (!src.startsWith("blob:")) return;
+            const next = canonicalImageSrc(src);
+            if (next === src || next.startsWith("blob:")) return;
+            tr = (tr ?? state.tr).setNodeMarkup(pos, undefined, { ...node.attrs, src: next });
+          });
+          const pending = tr as Transaction | null;
+          const doc = pending?.doc ?? state.doc;
+          if (!needsTrailingWritable(doc)) return tr;
           const paragraph = state.schema.nodes.paragraph?.create();
-          if (!paragraph) return null;
-          return state.tr.insert(state.doc.content.size, paragraph);
+          if (!paragraph) return tr;
+          return (tr ?? state.tr).insert(doc.content.size, paragraph);
         },
         props: {
           handleTextInput(view, _from, _to, text) {

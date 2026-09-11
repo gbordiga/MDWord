@@ -6,6 +6,11 @@ export function captionAttr(value: unknown): string {
   return String(value ?? "").trim();
 }
 
+/** One user-facing string: caption is the alternative text. */
+export function figureText(alt?: unknown, caption?: unknown): string {
+  return captionAttr(caption) || captionAttr(alt);
+}
+
 export function figureNodeFromState(state: EditorState): ProseNode | null {
   const pos = figurePosFromState(state);
   if (pos == null) return null;
@@ -16,8 +21,8 @@ export function figureNodeFromState(state: EditorState): ProseNode | null {
 export function figureCaptionText(state: EditorState): string {
   const figure = figureNodeFromState(state);
   if (!figure) return "";
-  const fromAttr = captionAttr(figure.attrs.caption);
-  if (fromAttr) return fromAttr;
+  const fromAttrs = figureText(figure.attrs.alt, figure.attrs.caption);
+  if (fromAttrs) return fromAttrs;
   const cap = figure.firstChild;
   return cap?.type.name === "caption" ? cap.textContent : "";
 }

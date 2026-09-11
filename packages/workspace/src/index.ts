@@ -60,4 +60,16 @@ export {
   workspaceFolderName,
   type FileTreeNode
 } from "./tree";
+export {
+  childNamesInFolder,
+  isPathOrDescendant,
+  isValidWorkspaceEntryName,
+  joinWorkspacePath,
+  normalizeNewFileName,
+  rewriteWorkspacePath,
+  targetFolderPath,
+  uniqueChildName,
+  workspaceEntryName,
+  workspaceParentPath
+} from "./mutations";
 export type { IndexedDocument, WorkspaceIndex };

@@ -56,6 +56,7 @@ mdoc:
     right: 20mm
     bottom: 20mm
     left: 25mm
+  fontScale: medium
 ```
 
 A processor that ignores `mdoc` still reads the Markdown body normally.
@@ -90,7 +91,11 @@ This is a MyST directive in the `page-break` name. Automatic pagination must not
 
 ## Figures and images
 
-Images use relative paths when a file is on disk, or a `data:` URL when the user embeds a local file. Prefer:
+Two kinds of image. Do not mix their file forms.
+
+### Path on disk
+
+Relative URLs stay CommonMark or MyST. Copying only the `.md` can break these links.
 
 ```markdown
 ![Alt text](./images/demo.png)
@@ -105,7 +110,42 @@ Schema della pompa.
 :::
 ```
 
-`:align:` is block placement (`left` / `center` / `right`). Add `:class: float` for text wrap. `:width:` is a percent of the column. Simple `![alt](url)` images stay CommonMark. Do not embed base64 unless the user inserts a local file. Embedded photos may be downscaled (1920px long edge) and re-encoded so the Markdown stays portable.
+`:align:` is block placement (`left` / `center` / `right`). Add `:class: float` for text wrap. `:width:` is a percent of the column.
+
+### Embedded photo (single file)
+
+When the user inserts a local file, the bytes live in the same `.md`. Use CommonMark reference images: a short label in the body, the `data:` URL as a link reference definition at the end. This is standard CommonMark, not an MDWord extension.
+
+```markdown
+![Schema della pompa][img-a1b2c3d4c8]
+
+:::{figure}
+:width: 40%
+:align: left
+:class: float
+
+![Schema della pompa][img-a1b2c3d4c8]
+
+Dettaglio.
+:::
+
+| Pezzo | Foto |
+| --- | --- |
+| A | ![x][img-a1b2c3d4c8] |
+
+[img-a1b2c3d4c8]: data:image/jpeg;base64,/9j/4AAQ...
+```
+
+Rules:
+
+- Labels are `img-` plus a content hash of the payload. The same photo reuses one definition.
+- Width and layout of an embedded photo live on a `:::figure` whose **child** is the reference image. Never put a `data:` URL in the figure/image argument.
+- Caption is the image alternative text (`![caption][id]`). Do not store a second caption on the definition or as a figure-body paragraph.
+- In GFM tables only `![alt][id]` is allowed (no figure fence).
+- Never use a sidecar path for an inserted photo (`./images/…` is only for files the user already keeps on disk).
+- A processor that does not know MDWord still sees valid Markdown. Viewers that allow `data:` image URLs can render the photo.
+- Embedded stills (PNG, WebP, large JPEG) are downscaled to 1600px long edge and re-encoded as JPEG q75. GIF and SVG stay as-is.
+- Opening a legacy file that still has `![alt](data:…)` or leftover `{image}` fences must parse the photo and rewrite to this form on save.
 
 ## Unknown nodes
 
