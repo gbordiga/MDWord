@@ -676,8 +676,8 @@ html.keyboard-open .mdword-app {
   margin: 0;
 }
 
-/* GFM requires a header row; empty ones are dummy separators, not content. */
-.ProseMirror table tr:first-child:has(> th):not(:has(p:not(:empty))) {
+/* GFM requires a header row; hide it only when it is a dummy separator. */
+.ProseMirror table tr:first-child:has(> th):not(:has(p:not(:empty), figure, img)) {
   display: none;
 }
 

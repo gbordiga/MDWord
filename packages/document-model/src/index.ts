@@ -1,4 +1,4 @@
-import { parseMarkdown, type ParseResult } from "@mdword/myst-parser";
+import { parseMarkdown, splitMarkdownSource, type ParseResult, type SourceSpan } from "@mdword/myst-parser";
 import { serializeMarkdown } from "@mdword/markdown-serializer";
 import {
   APPLICATION_DEFAULTS,
@@ -6,7 +6,12 @@ import {
   resolveMdoc,
   type Mdoc
 } from "@mdword/layout-engine";
-import type { Diagnostic, GenericNode } from "@mdword/shared";
+import {
+  canonicalizeEmbeddedImages,
+  shouldRepairEmbeddedImages,
+  type Diagnostic,
+  type GenericNode
+} from "@mdword/shared";
 import { parseDocument, stringify as stringifyYaml, type Document as YamlDocument } from "yaml";
 import {
   initialFrontmatterValue,
@@ -14,6 +19,9 @@ import {
   LAYOUT_FRONTMATTER_KEY,
   type FrontmatterValueKind
 } from "./frontmatterEdit";
+import { composeMarkdown, composeWithYaml } from "./sourceCompose";
+import { semanticAstEqual } from "./semantic";
+import { applyVisualAst, type ApplyVisualOptions } from "./applyVisual";
 
 export {
   DOCUMENT_PROPERTY_KEYS,
@@ -33,15 +41,22 @@ export {
   parseFrontmatterObject
 } from "./frontmatterEdit";
 export type { FrontmatterValueKind } from "./frontmatterEdit";
+export { semanticAstEqual } from "./semantic";
+export { applyVisualAst } from "./applyVisual";
+export type { ApplyVisualOptions, VisualOrigin } from "./applyVisual";
+export { composeMarkdown, composeWithYaml } from "./sourceCompose";
 
 export interface DocumentModel {
   source: string;
+  head: string;
+  body: string;
   ast: GenericNode;
   frontmatter: Record<string, unknown>;
   mdoc: Mdoc;
   resolvedMdoc: Mdoc;
   diagnostics: Diagnostic[];
   yamlCst: ParseResult["yaml"];
+  blockSpans: SourceSpan[];
 }
 
 export interface OpenDocumentOptions {
@@ -60,6 +75,8 @@ function fallbackDocument(
   });
   return {
     source,
+    head: "",
+    body: source,
     ast: {
       type: "root",
       children: [{ type: "code", lang: "markdown", value: source }]
@@ -74,7 +91,8 @@ function fallbackDocument(
         code: "open-failed"
       }
     ],
-    yamlCst: null
+    yamlCst: null,
+    blockSpans: []
   };
 }
 
@@ -83,7 +101,11 @@ export function openDocument(
   options: OpenDocumentOptions = {}
 ): DocumentModel {
   try {
-    const parsed = parseMarkdown(source);
+    const { head, rest } = splitMarkdownSource(source);
+    const opened = shouldRepairEmbeddedImages(rest)
+      ? composeMarkdown(head, canonicalizeEmbeddedImages(rest))
+      : source;
+    const parsed = parseMarkdown(opened);
     const template = getTemplate(
       typeof parsed.mdoc.template === "string" ? parsed.mdoc.template : undefined
     );
@@ -94,13 +116,16 @@ export function openDocument(
       document: parsed.mdoc
     });
     return {
-      source,
+      source: opened,
+      head: parsed.head,
+      body: parsed.body,
       ast: parsed.ast,
       frontmatter: parsed.frontmatter,
       mdoc: parsed.mdoc,
       resolvedMdoc,
       diagnostics: parsed.diagnostics,
-      yamlCst: parsed.yaml
+      yamlCst: parsed.yaml,
+      blockSpans: parsed.blockSpans
     };
   } catch (error) {
     return fallbackDocument(source, options, error);
@@ -108,6 +133,11 @@ export function openDocument(
 }
 
 export function saveDocument(model: DocumentModel): string {
+  return model.source ?? "";
+}
+
+/** Canonical MyST serialization — used for new regions, fallback, and serializer tests. */
+export function serializeDocument(model: DocumentModel): string {
   try {
     return serializeMarkdown({ ast: model.ast, yaml: model.yamlCst });
   } catch (error) {
@@ -127,7 +157,8 @@ function commitFrontmatter(
   frontmatter: Record<string, unknown>,
   workspaceMdoc?: Mdoc
 ): DocumentModel {
-  return openDocument(saveDocument({ ...model, yamlCst: yaml, frontmatter }), { workspaceMdoc });
+  const source = composeWithYaml(yaml, model.body, Boolean(model.head));
+  return openDocument(source, { workspaceMdoc });
 }
 
 export function setFrontmatterValues(
@@ -197,24 +228,6 @@ export function updateFrontmatter(
   return setFrontmatterValues(model, patch);
 }
 
-export function semanticAstEqual(a: GenericNode, b: GenericNode): boolean {
-  return JSON.stringify(strip(a)) === JSON.stringify(strip(b));
-}
-
-function strip(node: GenericNode): unknown {
-  const { position, data, ...rest } = node;
-  void position;
-  void data;
-  const children = node.children?.map(strip);
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(rest)) {
-    if (v === undefined || k === "children") continue;
-    out[k] = v;
-  }
-  if (children) out.children = children;
-  return out;
-}
-
 export function roundTrip(source: string): {
   first: DocumentModel;
   serialized: string;
@@ -222,7 +235,7 @@ export function roundTrip(source: string): {
   equal: boolean;
 } {
   const first = openDocument(source);
-  const serialized = saveDocument(first);
+  const serialized = serializeDocument(first);
   const second = openDocument(serialized);
   return {
     first,
@@ -230,4 +243,14 @@ export function roundTrip(source: string): {
     second,
     equal: semanticAstEqual(first.ast, second.ast)
   };
+}
+
+export function applyVisualDocument(
+  model: DocumentModel,
+  nextAst: GenericNode,
+  options: ApplyVisualOptions
+): DocumentModel {
+  return applyVisualAst(model, nextAst, options, (source, workspaceMdoc) =>
+    openDocument(source, { workspaceMdoc })
+  );
 }

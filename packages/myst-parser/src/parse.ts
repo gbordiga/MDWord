@@ -12,17 +12,20 @@ import {
   stubEmbeddedImages
 } from "@mdword/shared";
 import { parseMdoc, type Mdoc } from "@mdword/layout-engine";
-import { extractFrontmatter, yamlToPlain } from "./frontmatter";
+import { extractFrontmatter, splitMarkdownSource, yamlToPlain } from "./frontmatter";
+import { blockSpansFromAst, type SourceSpan } from "./blockSpans";
 import type { Document as YamlDocument } from "yaml";
 
 export interface ParseResult {
   source: string;
+  head: string;
   body: string;
   ast: GenericNode;
   frontmatter: Record<string, unknown>;
   yaml: YamlDocument | null;
   mdoc: Mdoc;
   diagnostics: Diagnostic[];
+  blockSpans: SourceSpan[];
 }
 
 function isKnownPageBreakMessage(message: string): boolean {
@@ -136,13 +139,22 @@ export function parseMarkdown(source: string): ParseResult {
 
   collectUnknown(ast, diagnostics);
 
+  const split = splitMarkdownSource(source);
+  const parseBody = fm.body;
+  const prefix = split.rest.endsWith(parseBody) ? split.rest.length - parseBody.length : 0;
+  const parsedSpans = blockSpansFromAst(ast, parseBody, stubbed.display);
+  const blockSpans =
+    prefix === 0 ? parsedSpans : parsedSpans.map((span) => ({ start: span.start + prefix, end: span.end + prefix }));
+
   return {
     source,
-    body: fm.body,
+    head: split.head,
+    body: split.rest,
     ast,
     frontmatter: plain,
     yaml: fm.yaml,
     mdoc,
-    diagnostics
+    diagnostics,
+    blockSpans
   };
 }

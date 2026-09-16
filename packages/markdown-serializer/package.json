@@ -12,6 +12,7 @@
   "dependencies": {
     "@mdword/shared": "workspace:*",
     "@mdword/layout-engine": "workspace:*",
+    "@mdword/myst-parser": "workspace:*",
     "myst-to-md": "^1.0.16",
     "unified": "^10.1.2",
     "vfile": "^5.3.7",

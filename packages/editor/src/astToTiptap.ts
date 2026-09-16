@@ -9,6 +9,7 @@ import {
   WIKI_SCHEME
 } from "@mdword/shared";
 import { sanitizeTiptapDoc } from "./sanitize";
+import { tiptapToAst } from "./tiptapToAst";
 import { canonicalImageSrc } from "./imageDisplay";
 import {
   DEFAULT_IMAGE_LAYOUT,
@@ -540,7 +541,15 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
   }
 }
 
-function blocks(nodes: GenericNode[] | undefined): TiptapNode[] {
+export interface VisualOrigin {
+  from: number;
+  to: number;
+}
+
+function blocks(
+  nodes: GenericNode[] | undefined,
+  origins?: VisualOrigin[]
+): TiptapNode[] {
   const list = absorbTrailingImageAttrs(nodes);
   const out: TiptapNode[] = [];
   let index = 0;
@@ -548,15 +557,80 @@ function blocks(nodes: GenericNode[] | undefined): TiptapNode[] {
     const consumed = consumeLooseFigure(list, index);
     if (consumed) {
       out.push(consumed.node);
+      origins?.push({ from: index, to: consumed.next });
       index = consumed.next;
       continue;
     }
     const rendered = block(list[index] as GenericNode);
-    if (Array.isArray(rendered)) out.push(...rendered);
-    else out.push(rendered);
+    if (Array.isArray(rendered)) {
+      out.push(...rendered);
+      for (let count = 0; count < rendered.length; count++) {
+        origins?.push({ from: index, to: index + 1 });
+      }
+    } else {
+      out.push(rendered);
+      origins?.push({ from: index, to: index + 1 });
+    }
     index += 1;
   }
-  return out.length ? out : [EMPTY_PARAGRAPH];
+  if (!out.length) {
+    out.push(EMPTY_PARAGRAPH);
+    origins?.push({ from: 0, to: 0 });
+  }
+  return out;
+}
+
+function definitionKey(node: GenericNode): string {
+  return String(node.identifier ?? node.label ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function isResolvedAway(node: GenericNode, resolved: GenericNode[]): boolean {
+  if (node.type !== "definition") return false;
+  const id = definitionKey(node);
+  return !resolved.some((child) => child.type === "definition" && definitionKey(child) === id);
+}
+
+function mapResolvedToParse(parseKids: GenericNode[], resolvedKids: GenericNode[]): number[] {
+  const map: number[] = [];
+  let parseIndex = 0;
+  for (let resolvedIndex = 0; resolvedIndex < resolvedKids.length; resolvedIndex++) {
+    while (parseIndex < parseKids.length && isResolvedAway(parseKids[parseIndex]!, resolvedKids)) {
+      parseIndex += 1;
+    }
+    map[resolvedIndex] = Math.min(parseIndex, Math.max(0, parseKids.length - 1));
+    parseIndex += 1;
+  }
+  return map;
+}
+
+function remapOrigins(origins: VisualOrigin[], resolvedToParse: number[]): VisualOrigin[] {
+  return origins.map((origin) => {
+    if (origin.to <= origin.from) return { from: 0, to: 0 };
+    const from = resolvedToParse[origin.from] ?? origin.from;
+    const last = resolvedToParse[origin.to - 1] ?? origin.to - 1;
+    return { from, to: last + 1 };
+  });
+}
+
+export function visualProjection(ast: GenericNode): { ast: GenericNode; origins: VisualOrigin[] } {
+  try {
+    const parseKids = ast.children ?? [];
+    const resolved = promotePipeParagraphs(resolveImageReferences(ast));
+    const resolvedKids = resolved.children ?? [];
+    const rawOrigins: VisualOrigin[] = [];
+    const content = blocks(resolvedKids, rawOrigins);
+    const doc = sanitizeTiptapDoc({ type: "doc", content });
+    const sanitized = doc.content ?? [];
+    const resolvedToParse = mapResolvedToParse(parseKids, resolvedKids);
+    const mapped = remapOrigins(rawOrigins, resolvedToParse);
+    const origins =
+      rawOrigins.length === sanitized.length ? mapped : mapped.slice(0, sanitized.length);
+    return { ast: tiptapToAst(doc), origins };
+  } catch {
+    return { ast: { type: "root", children: [{ type: "paragraph" }] }, origins: [] };
+  }
 }
 
 export function astToTiptap(ast: GenericNode): TiptapNode {

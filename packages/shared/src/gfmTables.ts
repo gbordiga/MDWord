@@ -250,6 +250,121 @@ export function padTableColumns(node: GenericNode): GenericNode {
   return { ...node, children: node.children.map(padTableColumns) };
 }
 
+const DEF_LINE = /^\[[^\]]+\]:\s/;
+const LEADING_TABLE_IMAGE = /^(!\[[^\]]*\]\[[^\]]+\])\|(.*)$/;
+
+function isDefLine(line: string): boolean {
+  return DEF_LINE.test(line.trim());
+}
+
+function isTableStart(lines: string[], index: number): boolean {
+  const line = lines[index] ?? "";
+  const delim = lines[index + 1] ?? "";
+  return line.trim().startsWith("|") && isDelimLine(delim);
+}
+
+function tableBlockEnd(lines: string[], start: number): number {
+  let index = start + 2;
+  while (index < lines.length) {
+    const line = lines[index] ?? "";
+    if (!line.trim() || isDefLine(line) || !line.includes("|")) break;
+    index += 1;
+  }
+  return index;
+}
+
+function tableSignature(tableLines: string[]): string {
+  return tableLines
+    .map((line) => {
+      if (isDelimLine(line)) return "---";
+      return splitTableCells(line)
+        .map((cell) =>
+          cell
+            .replace(/!\[[^\]]*\]\[([^\]]+)\]/g, "![][$1]")
+            .replace(/\s+/g, " ")
+            .trim()
+        )
+        .join("\t");
+    })
+    .join("\n");
+}
+
+/**
+ * myst-to-md writes a leading header photo as `![alt][id]| ![][id] |` on the
+ * same line. Put the pipe back so it stays a table row, not a glued paragraph.
+ * A photo on its own line above the table is a real figure — leave it.
+ */
+export function wrapLeadingTableImages(md: string): string {
+  const lines = md.split("\n");
+  let fence: string | null = null;
+  return lines
+    .map((line, index) => {
+      if (fence) {
+        if (line.trimStart().startsWith(fence)) fence = null;
+        return line;
+      }
+      const opened = isFenceOpen(line);
+      if (opened) {
+        fence = opened;
+        return line;
+      }
+      if (!isDelimLine(lines[index + 1] ?? "")) return line;
+      const match = line.match(LEADING_TABLE_IMAGE);
+      if (!match) return line;
+      const rest = match[2] ?? "";
+      return `| ${match[1]} |${rest.startsWith(" ") || rest.startsWith("|") ? rest : ` ${rest}`}`;
+    })
+    .join("\n");
+}
+
+/** Two identical tables separated only by blanks or image defs are a rewrite leak. */
+export function collapseDuplicateTables(md: string): string {
+  const lines = md.split("\n");
+  const out: string[] = [];
+  let fence: string | null = null;
+  let lastSig: string | null = null;
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index] ?? "";
+    if (fence) {
+      out.push(line);
+      if (line.trimStart().startsWith(fence)) fence = null;
+      index += 1;
+      continue;
+    }
+    const opened = isFenceOpen(line);
+    if (opened) {
+      fence = opened;
+      lastSig = null;
+      out.push(line);
+      index += 1;
+      continue;
+    }
+    if (!line.trim() || isDefLine(line)) {
+      out.push(line);
+      index += 1;
+      continue;
+    }
+    if (isTableStart(lines, index)) {
+      const end = tableBlockEnd(lines, index);
+      const tableLines = lines.slice(index, end);
+      const sig = tableSignature(tableLines);
+      if (lastSig === sig) {
+        index = end;
+        continue;
+      }
+      lastSig = sig;
+      out.push(...tableLines);
+      index = end;
+      continue;
+    }
+    lastSig = null;
+    out.push(line);
+    index += 1;
+  }
+  return out.join("\n");
+}
+
 /** Source that was already “restored” with `\\|` must be unescaped before GFM can see a table. */
 export function recoverGfmTableSource(md: string): string {
   return normalizeGfmTables(unescapeGfmTablePipes(md));

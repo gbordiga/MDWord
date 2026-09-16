@@ -148,6 +148,7 @@ function VisualEditorCanvas({
   const applyTiptap = useApp((s) => s.applyTiptap);
   const syncGeneration = useApp((s) => s.syncGeneration);
   const sourceGeneration = useApp((s) => s.sourceGeneration);
+  const skipProgrammaticUpdate = useRef(true);
 
   const editor = useEditor({
     extensions: editorExtensions(),
@@ -164,11 +165,21 @@ function VisualEditorCanvas({
         mousedown: (_view, event) => preventBrowserLinkOpen(event)
       }
     },
-    onUpdate: ({ editor: ed }) => {
+    onUpdate: ({ editor: ed, transaction }) => {
+      if (skipProgrammaticUpdate.current) return;
+      if (transaction && !transaction.docChanged) return;
       applyTiptap(ed.getJSON() as never);
     }
   });
   useEditorTick(editor);
+
+  useEffect(() => {
+    if (!editor) return;
+    const id = requestAnimationFrame(() => {
+      skipProgrammaticUpdate.current = false;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [editor]);
 
   editorRef.current = editor;
   useEffect(() => {
@@ -214,12 +225,20 @@ function VisualEditorCanvas({
     if (lastGen.current === syncGeneration && lastSourceGen.current === sourceGeneration) return;
     lastGen.current = syncGeneration;
     lastSourceGen.current = sourceGeneration;
+    skipProgrammaticUpdate.current = true;
+    const load = (content: TiptapNode) => {
+      const setContent = editor.commands.setContent as (doc: TiptapNode, emitUpdate?: boolean) => boolean;
+      setContent(content, false);
+    };
     try {
-      editor.commands.setContent(tiptapContentFromAst(useApp.getState().model.ast));
+      load(tiptapContentFromAst(useApp.getState().model.ast));
     } catch (error) {
       console.error("Visual editor could not load document content", error);
-      editor.commands.setContent({ type: "doc", content: [{ type: "paragraph" }] });
+      load({ type: "doc", content: [{ type: "paragraph" }] });
     } finally {
+      requestAnimationFrame(() => {
+        skipProgrammaticUpdate.current = false;
+      });
       useApp.getState().finishBusy(["open", "workspace"]);
     }
   }, [editor, syncGeneration, sourceGeneration]);

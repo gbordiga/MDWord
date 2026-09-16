@@ -13,6 +13,7 @@
     "@mdword/shared": "workspace:*",
     "@mdword/layout-engine": "workspace:*",
     "@mdword/myst-parser": "workspace:*",
+    "@mdword/markdown-serializer": "workspace:*",
     "yaml": "^2.7.0"
   }
 }

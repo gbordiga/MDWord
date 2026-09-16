@@ -1,6 +1,6 @@
 # Architecture
 
-MDWord is a TypeScript pnpm monorepo. The Markdown file on disk is the source of truth. Every other representation is derived.
+MDWord is a TypeScript pnpm monorepo. The Markdown string (`DocumentModel.source`) is the source of truth. Every other representation is derived. Save writes that string; it does not re-serialize the AST.
 
 ## Runtime topology
 
@@ -40,16 +40,24 @@ Web and desktop share packages. Desktop never exposes Node to document HTML.
 ## Pipeline
 
 ```
-Markdown source
-    → extract YAML CST + body
+Markdown source (canonical)
+    → extract YAML CST + body + block source spans
     → mystParse(body) + wikilink rewrite
-    → DocumentModel { frontmatter, mdoc, ast, source, diagnostics }
+    → DocumentModel { source, head, body, ast, yamlCst, blockSpans, … }
     → TipTap document  |  CodeMirror  |  HTML/PDF renderer
-    → serialize(ast) + YAML CST dump
-    → Markdown source
+         │                    │
+         │ visual patch       │ typed source
+         └────────┬───────────┘
+                  ↓
+            model.source
 ```
 
 There is **one** document model. Document, Source, and Split are views of it.
+
+- **Source** edits `model.source` and re-parses.
+- **Document** writes a textual patch: unchanged block spans are copied; dirty blocks are serialized and spliced.
+- **YAML / mdoc** dumps the CST and keeps the original body bytes.
+- Full `serializeMarkdown(ast)` is fallback only.
 
 ## Pagination
 

@@ -1,4 +1,5 @@
 import { findDataUrlRanges } from "./dataUrl";
+import { collapseDuplicateTables, wrapLeadingTableImages } from "./gfmTables";
 import { formatImageAttrList, isImageAttrTitle, parseImageAttrList } from "./imageAttrs";
 import type { GenericNode } from "./constants";
 
@@ -240,6 +241,31 @@ export function rewriteEmbeddedImagesToReferences(md: string): string {
   for (const url of Object.values(assets)) table.idFor(url);
   const next = rewriteInlineDataImages(rewriteShortcutRefs(body, assets, table), table);
   return rewriteImageTitlesToAttrLists(appendDefinitions(next, table.definitions()));
+}
+
+function uniqueEmbeddedUrls(md: string): Set<string> {
+  const urls = new Set<string>();
+  const { assets } = splitBodyAndDataDefs(md);
+  for (const url of Object.values(assets)) urls.add(normalizeDataUrl(url));
+  for (const range of findDataUrlRanges(md, 1)) {
+    urls.add(normalizeDataUrl(md.slice(range.from, range.to)));
+  }
+  return urls;
+}
+
+/** Same photo pasted into several cells must stay one `data:image` definition. */
+export function shouldRepairEmbeddedImages(md: string): boolean {
+  const urls = uniqueEmbeddedUrls(md);
+  if (!urls.size) return false;
+  return (md.match(/data:image\//g) ?? []).length > urls.size;
+}
+
+/**
+ * One `data:image` per payload. Does not glue a figure that sits above a table
+ * into the header — that photo is its own block.
+ */
+export function canonicalizeEmbeddedImages(md: string): string {
+  return rewriteEmbeddedImagesToReferences(collapseDuplicateTables(wrapLeadingTableImages(md)));
 }
 
 function refKey(node: GenericNode): string {

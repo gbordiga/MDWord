@@ -2,6 +2,8 @@
 
 import { create } from "zustand";
 import {
+  applyVisualDocument,
+  composeWithYaml,
   openDocument,
   saveDocument,
   setFrontmatterValues,
@@ -36,7 +38,7 @@ import {
   workspaceParentPath,
   type WorkspaceState
 } from "@mdword/workspace";
-import { rewriteDisplayBlobsInTree, tiptapToAst, type TiptapNode } from "@mdword/editor";
+import { rewriteDisplayBlobsInTree, tiptapToAst, visualProjection, type TiptapNode } from "@mdword/editor";
 import { renderPrintDocument } from "@mdword/renderer";
 
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view" | "image" | "table";
@@ -186,7 +188,6 @@ function modelFrom(source: string, workspaceMdoc?: Mdoc): DocumentModel {
 }
 
 function serializedDocument(model: DocumentModel): string {
-  rewriteDisplayBlobsInTree(model.ast as { [key: string]: unknown });
   return saveDocument(model);
 }
 
@@ -213,9 +214,17 @@ export const useApp = create<AppState>((set, get) => {
   const commitTiptap = (doc: TiptapNode) => {
     try {
       const ast = tiptapToAst(doc);
+      rewriteDisplayBlobsInTree(ast as { [key: string]: unknown });
       const current = get().model;
+      const projection = visualProjection(current.ast);
+      const next = applyVisualDocument(current, ast, {
+        previous: projection.ast,
+        origins: projection.origins,
+        workspaceMdoc: get().workspace?.workspaceMdoc
+      });
+      if (next.source === current.source) return;
       set({
-        model: { ...current, ast },
+        model: next,
         dirty: true,
         editGeneration: get().editGeneration + 1
       });
@@ -387,7 +396,8 @@ export const useApp = create<AppState>((set, get) => {
         historyKey: historyKeyFromPath(result.path, get().historyKey),
         syncGeneration: get().syncGeneration + 1
       });
-      if (get().view === "source") set({ busy: null });
+      await yieldPaint();
+      set({ busy: null });
     } catch (error) {
       console.error("Could not open document", error);
       set({ busy: null });
@@ -506,7 +516,8 @@ export const useApp = create<AppState>((set, get) => {
         syncGeneration: get().syncGeneration + 1,
         mobileSheet: null
       });
-      if (get().view === "source") set({ busy: null });
+      await yieldPaint();
+      set({ busy: null });
     } catch {
       set({ busy: null });
     }
@@ -667,11 +678,13 @@ export const useApp = create<AppState>((set, get) => {
   },
   patchMdoc: (mdoc) => {
     const current = get().model;
-    const frontmatter = { ...current.frontmatter, mdoc };
     let yaml = current.yamlCst;
     if (yaml) yaml.set("mdoc", mdoc);
-    else yaml = parseDocument(`mdoc: {}\n`);
-    const next = openDocument(serializedDocument({ ...current, yamlCst: yaml, frontmatter }), {
+    else {
+      yaml = parseDocument(`mdoc: {}\n`);
+      yaml.set("mdoc", mdoc);
+    }
+    const next = openDocument(composeWithYaml(yaml, current.body, Boolean(current.head)), {
       workspaceMdoc: get().workspace?.workspaceMdoc
     });
     set({ model: next, dirty: true, syncGeneration: get().syncGeneration + 1, editGeneration: get().editGeneration + 1 });
@@ -711,17 +724,15 @@ export const useApp = create<AppState>((set, get) => {
     beginBusy({ kind: "open", label: "Restoring…", blocking: true });
     await yieldPaint();
     try {
-      const parsed = modelFrom(content, get().workspace?.workspaceMdoc);
-      const cleaned = serializedDocument(parsed);
-      const model = cleaned === content ? parsed : { ...modelFrom(cleaned, get().workspace?.workspaceMdoc), source: cleaned };
+      const model = modelFrom(content, get().workspace?.workspaceMdoc);
       set({
         model,
-        dirty: cleaned !== get().lastSavedContent,
+        dirty: content !== get().lastSavedContent,
         syncGeneration: get().syncGeneration + 1,
         editGeneration: get().editGeneration + 1
       });
     } finally {
-      if (get().view === "source") set({ busy: null });
+      set({ busy: null });
     }
   },
   applyRecoveredDraft: async (content, path) => {
@@ -738,14 +749,11 @@ export const useApp = create<AppState>((set, get) => {
       }
     }
     try {
-      const parsed = modelFrom(content, get().workspace?.workspaceMdoc);
-      const cleaned = serializedDocument(parsed);
-      const model =
-        cleaned === content ? parsed : { ...modelFrom(cleaned, get().workspace?.workspaceMdoc), source: cleaned };
+      const model = modelFrom(content, get().workspace?.workspaceMdoc);
       set({
         model,
         path,
-        dirty: cleaned !== lastSavedContent,
+        dirty: content !== lastSavedContent,
         lastSavedContent,
         historyKey: historyKeyFromPath(path, get().historyKey),
         lastDraftAt: Date.now(),
@@ -753,7 +761,7 @@ export const useApp = create<AppState>((set, get) => {
         editGeneration: get().editGeneration + 1
       });
     } finally {
-      if (get().view === "source") set({ busy: null });
+      set({ busy: null });
     }
     }
   };

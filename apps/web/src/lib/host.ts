@@ -312,7 +312,9 @@ function pickFileWithInput(accept = ".md,.markdown,text/markdown"): Promise<Open
     input.accept = accept;
     let settled = false;
     const onWindowFocus = () => {
-      window.setTimeout(() => finish(null), 400);
+      window.setTimeout(() => {
+        if (!input.files?.length) finish(null);
+      }, 400);
     };
     const finish = (value: OpenDocumentResult | null) => {
       if (settled) return;
@@ -345,23 +347,6 @@ export const webHost: HostApi = {
   platform: "web",
   files: {
     async open(): Promise<OpenDocumentResult | null> {
-      const picker = (window as WindowFs).showOpenFilePicker;
-      if (picker) {
-        try {
-          const handles = await picker({
-            types: [{ description: "Markdown", accept: { "text/markdown": [".md", ".markdown"] } }]
-          });
-          const handle = handles[0];
-          if (!handle) return null;
-          await ensureHandleAccess(handle, "readwrite");
-          const content = await textFromHandle(handle, handle.name);
-          fileHandles.set(handle.name, handle);
-          return { path: handle.name, content };
-        } catch (error) {
-          if (isUserAbort(error)) return null;
-          return pickFileWithInput();
-        }
-      }
       return pickFileWithInput();
     },
     async openPath(path: string) {
@@ -395,29 +380,6 @@ export const webHost: HostApi = {
       download(path || "document.md", content);
     },
     async saveAs(content, suggestedName = "document.md") {
-      const picker = (window as WindowFs).showSaveFilePicker;
-      if (picker) {
-        let handle: FsHandle;
-        try {
-          handle = await picker({
-            suggestedName,
-            types: [{ description: "Markdown", accept: { "text/markdown": [".md"] } }]
-          });
-        } catch (error) {
-          if (isUserAbort(error)) return null;
-          download(suggestedName, content);
-          return suggestedName;
-        }
-        try {
-          await enqueueWrite(() => writeFileHandleRetry(handle, content));
-          fileHandles.set(handle.name, handle);
-          fileTexts.set(handle.name, content);
-          return handle.name;
-        } catch {
-          download(suggestedName, content);
-          return suggestedName;
-        }
-      }
       if (isNativeApp()) {
         const name = suggestedName || "document.md";
         const uri = await writeNativeDocument(name, content);

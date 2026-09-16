@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { saveDocument } from "@mdword/document-model";
 import { useApp } from "@/lib/store";
 
 const DELAY_MS = 1600;
@@ -56,5 +55,5 @@ export function usePeriodicCrashDraft(): void {
 }
 
 export function recoveredDraftDiffers(content: string): boolean {
-  return content !== saveDocument(useApp.getState().model);
+  return content !== useApp.getState().model.source;
 }

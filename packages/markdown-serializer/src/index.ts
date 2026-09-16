@@ -1,1 +1,1 @@
-export { serializeMarkdown } from "./serialize";
+export { serializeMarkdown, serializeMarkdownFragment } from "./serialize";

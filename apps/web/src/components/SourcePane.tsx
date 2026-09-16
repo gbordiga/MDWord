@@ -2,7 +2,6 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createSourceEditor, setSource } from "@mdword/source-editor";
-import { saveDocument } from "@mdword/document-model";
 import { useApp } from "@/lib/store";
 import { registerSourceView } from "@/lib/sourceView";
 import { Spinner } from "./Spinner";
@@ -21,7 +20,7 @@ export function SourcePane() {
     if (!parentRef.current || viewRef.current) return;
     viewRef.current = createSourceEditor({
       parent: parentRef.current,
-      doc: saveDocument(model),
+      doc: model.source,
       onChange: (value) => {
         fromSourceRef.current = true;
         applySource(value);
@@ -45,7 +44,7 @@ export function SourcePane() {
     }
     lastSync.current = syncGeneration;
     useApp.getState().flushPendingEdits();
-    setSource(viewRef.current, saveDocument(useApp.getState().model));
+    setSource(viewRef.current, useApp.getState().model.source);
   }, [syncGeneration, model]);
 
   useEffect(() => {

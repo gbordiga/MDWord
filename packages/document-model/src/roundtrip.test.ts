@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { openDocument, roundTrip, saveDocument } from "./index";
+import { openDocument, roundTrip, saveDocument, serializeDocument } from "./index";
 
 const fixturesDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -47,11 +47,12 @@ describe("round-trip fixtures", () => {
 
   it("does not invent a second frontmatter", () => {
     const source = readFileSync(path.join(fixturesDir, "basic.md"), "utf8");
-    const serialized = saveDocument(openDocument(source));
+    const serialized = serializeDocument(openDocument(source));
     expect(serialized.startsWith("---\n")).toBe(true);
     const closed = serialized.match(/^---\n[\s\S]*?\n---\n/);
     expect(closed).toBeTruthy();
     expect(serialized.slice(closed![0].length).startsWith("---")).toBe(false);
+    expect(saveDocument(openDocument(source))).toBe(source);
   });
 
   it("never throws on unreadable source", () => {

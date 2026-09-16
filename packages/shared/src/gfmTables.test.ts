@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  collapseDuplicateTables,
   normalizeGfmTables,
   padTableColumns,
   promotePipeParagraphs,
   recoverGfmTableSource,
+  wrapLeadingTableImages,
   unescapeGfmTablePipes
 } from "./gfmTables";
 
@@ -34,6 +36,35 @@ describe("normalizeGfmTables", () => {
   it("does not rewrite pipes inside a fence", () => {
     const src = "```\n| a | b |\n| --- |\n```\n";
     expect(normalizeGfmTables(src)).toBe(src);
+  });
+});
+
+describe("table image repairs", () => {
+  it("wraps a same-line writeMd header photo back into the table", () => {
+    const out = wrapLeadingTableImages(
+      `![poster][img-x]| ![][img-x] | ![][img-x] |
+| --- | --- | --- |
+|  |  |  |
+`
+    );
+    expect(out.split("\n")[0]).toMatch(/^\| !\[poster\]\[img-x\] \|/);
+  });
+
+  it("leaves a figure above a table on its own line", () => {
+    const src = `![poster][img-x]
+
+| ![][img-x] | ![][img-x] | ![][img-x] |
+| --- | --- | --- |
+`;
+    expect(wrapLeadingTableImages(src)).toBe(src);
+  });
+
+  it("drops a second copy of the same table", () => {
+    const table = `| ![][img-x] | ![][img-x] |
+| --- | --- |
+|  |  |`;
+    const out = collapseDuplicateTables(`${table}\n\n[img-x]: data:image/jpeg;base64,AAA\n\n${table}\n`);
+    expect(out.match(/^\|/gm)?.length).toBe(3);
   });
 });
 

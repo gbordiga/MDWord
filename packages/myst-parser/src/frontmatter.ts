@@ -11,6 +11,20 @@ export interface FrontmatterExtraction {
 
 const OPEN = /^---[ \t]*\r?\n/;
 
+const CLOSE = /\r?\n---[ \t]*(?:\r?\n|$)/;
+
+/** Exact `head + rest === source`. `rest` is the markdown body, including any blank line after `---`. */
+export function splitMarkdownSource(source: string): { head: string; rest: string } {
+  if (!OPEN.test(source)) return { head: "", rest: source };
+  const open = source.match(OPEN);
+  if (!open) return { head: "", rest: source };
+  const afterOpen = source.slice(open[0].length);
+  const close = CLOSE.exec(afterOpen);
+  if (!close) return { head: "", rest: source };
+  const headEnd = open[0].length + close.index + close[0].length;
+  return { head: source.slice(0, headEnd), rest: source.slice(headEnd) };
+}
+
 export function extractFrontmatter(source: string): FrontmatterExtraction {
   const diagnostics: Diagnostic[] = [];
   if (!OPEN.test(source)) {

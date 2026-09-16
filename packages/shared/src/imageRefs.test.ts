@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  canonicalizeEmbeddedImages,
   imageNodeUrl,
   imageRefId,
   imageReference,
   isImageLike,
   resolveImageReferences,
-  rewriteEmbeddedImagesToReferences
+  rewriteEmbeddedImagesToReferences,
+  shouldRepairEmbeddedImages
 } from "./imageRefs";
 
 const PNG = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==`;
@@ -49,6 +51,24 @@ describe("imageRefs", () => {
     const ref = imageReference("pic", JPEG);
     expect(out).toContain(`| a | ${ref.image}{width=60%} |`);
     expect(out).toContain(ref.definition);
+  });
+
+  it("does not keep five copies of the same data:image", () => {
+    const ref = imageReference("pic", JPEG);
+    const broken = `| ${ref.image} | ![][${ref.id}] | ![][${ref.id}] |
+| --- | --- | --- |
+
+${ref.definition}
+${ref.definition}
+${ref.definition}
+${ref.definition}
+${ref.definition}
+`;
+    expect(shouldRepairEmbeddedImages(broken)).toBe(true);
+    const out = canonicalizeEmbeddedImages(broken);
+    expect((out.match(/data:image\//g) ?? []).length).toBe(1);
+    expect((out.match(/^\[img-/gm) ?? []).length).toBe(1);
+    expect(shouldRepairEmbeddedImages(out)).toBe(false);
   });
 
   it("dedupes the same payload and drops unused definitions", () => {

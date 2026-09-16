@@ -2,6 +2,7 @@ import { writeMd } from "myst-to-md";
 import { VFile } from "vfile";
 import { dumpYaml } from "@mdword/myst-parser";
 import {
+  canonicalizeEmbeddedImages,
   createDataUrlStubber,
   formatImageAttrList,
   imageNodeUrl,
@@ -11,7 +12,6 @@ import {
   promotePipeParagraphs,
   resolveImageReferences,
   rewriteEmbeddedImageFences,
-  rewriteEmbeddedImagesToReferences,
   rewriteMarkdownToWikiLinks,
   unescapeGfmTablePipes,
   type GenericNode
@@ -220,7 +220,12 @@ function serializeBody(ast: GenericNode): string {
   const raw = (typeof result === "string" ? result : String(file.value ?? "")).trim();
   // CommonMark reference images: short `![alt][img-…]` in the body, data URLs at the end.
   const restored = rewriteTickFigureFences(rewriteEmbeddedImageFences(stubber.restore(raw)));
-  return unescapeGfmTablePipes(rewriteMarkdownToWikiLinks(rewriteEmbeddedImagesToReferences(restored)));
+  return canonicalizeEmbeddedImages(unescapeGfmTablePipes(rewriteMarkdownToWikiLinks(restored)));
+}
+
+export function serializeMarkdownFragment(nodes: GenericNode[]): string {
+  if (!nodes.length) return "";
+  return serializeBody({ type: "root", children: nodes }).replace(/\n+$/, "");
 }
 
 export function serializeMarkdown(options: {

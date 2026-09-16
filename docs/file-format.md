@@ -145,7 +145,7 @@ Rules:
 - Never use a sidecar path for an inserted photo (`./images/…` is only for files the user already keeps on disk).
 - A processor that does not know MDWord still sees valid Markdown. Viewers that allow `data:` image URLs can render the photo.
 - Embedded stills (PNG, WebP, large JPEG) are downscaled to 1600px long edge and re-encoded as JPEG q75. GIF and SVG stay as-is.
-- Opening a legacy file that still has `![alt](data:…)` or leftover `{image}` fences must parse the photo and rewrite to this form on save.
+- Opening a legacy file that still has `![alt](data:…)` or leftover `{image}` fences must parse the photo. Rewrite to this form when that image region is edited, not on a no-op save.
 
 ## Unknown nodes
 
@@ -158,6 +158,7 @@ Unsupported directives, roles, and HTML remain in the AST (typically `mystDirect
 - read older documents
 - migrate on save only when the user-editable model requires it
 - never rewrite a file solely to bump metadata
+- never rewrite untouched markdown regions
 
 ## Fallback behavior
 
