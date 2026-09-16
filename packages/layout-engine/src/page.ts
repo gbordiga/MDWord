@@ -21,9 +21,12 @@ export interface PageMetrics {
 /** Gray gap between stacked sheets in page view (CSS px at 96dpi). */
 export const PAGE_STACK_GAP_PX = 24;
 
+/** Safety cap if a measure loop ever feeds the page stack back into itself. */
+export const MAX_FLOW_PAGES = 250;
+
 export function countFlowPages(contentHeightPx: number, usableHeightPx: number): number {
   if (usableHeightPx <= 1) return 1;
-  return Math.max(1, Math.ceil(contentHeightPx / usableHeightPx));
+  return Math.min(MAX_FLOW_PAGES, Math.max(1, Math.ceil(contentHeightPx / usableHeightPx)));
 }
 
 export function pageStackHeightPx(pageCount: number, pageHeightPx: number, gapPx = PAGE_STACK_GAP_PX): number {

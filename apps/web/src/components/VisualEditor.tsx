@@ -40,6 +40,7 @@ import { handleEditorLinkClick, preventBrowserLinkOpen } from "@/lib/openEditorL
 import { useEditorTick } from "@/hooks/useEditorTick";
 import { useIsCompact } from "@/hooks/useMediaQuery";
 import { useEditorUi } from "@/lib/editorUi";
+import { measureEditorFlowHeight } from "@/lib/pageFlow";
 
 function tiptapContentFromAst(ast: Parameters<typeof astToTiptap>[0]): TiptapNode {
   try {
@@ -307,16 +308,11 @@ function VisualEditorCanvas({
         setPageCount(1);
         return;
       }
-      let gapH = 0;
-      padded.querySelectorAll<HTMLElement>(".md-page-gap").forEach((node) => {
-        gapH += node.offsetHeight;
-      });
-      const inner = Math.max(0, padded.scrollHeight - padTop - padBottom - gapH);
-      setPageCount(countFlowPages(inner, usableH));
+      setPageCount(countFlowPages(measureEditorFlowHeight(padded), usableH));
     };
     measure();
     const ro = new ResizeObserver(measure);
-    ro.observe(padded ?? prose);
+    ro.observe(prose);
     const stopIdle = onFigureIdle(measure);
     return () => {
       ro.disconnect();
@@ -372,6 +368,7 @@ function VisualEditorCanvas({
       >
         <div
           className={`page-inner relative ${paged ? "" : "bg-white shadow-page"}`}
+          data-paged={paged ? "" : undefined}
           onMouseDown={(event) => {
             if (!editor || event.button !== 0) return;
             if (!isBlankPageClickTarget(event.target)) return;
@@ -466,7 +463,7 @@ function VisualEditorCanvas({
             )}
           <div
             ref={contentRef}
-            className="relative z-10 flex flex-1 flex-col"
+            className={`relative z-10 flex w-full flex-col ${paged ? "md-page-flow self-start" : "flex-1"}`}
             style={{
               paddingTop: padTop,
               paddingRight: metrics.margins.right,

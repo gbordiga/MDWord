@@ -43,16 +43,41 @@ body {
 
 .md-titlebar {
   box-sizing: border-box;
-  /* 1px taller than the Windows overlay so the rule runs under min/max/close */
-  height: 41px;
+  height: 40px;
   width: 100%;
-  padding-left: max(12px, env(titlebar-area-x, 12px));
-  padding-right: max(
-    12px,
-    calc(100% - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100%) + 12px)
-  );
+  padding: 0;
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.md-titlebar-drag {
+  box-sizing: border-box;
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: env(titlebar-area-x, 0px);
+  padding-left: 12px;
+  padding-right: 12px;
   -webkit-app-region: drag;
   app-region: drag;
+}
+
+.md-titlebar-caption {
+  display: none;
+  flex: 0 0 auto;
+  height: 100%;
+  pointer-events: none;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.mdword-electron .md-titlebar-caption {
+  display: block;
+  width: max(138px, calc(100% - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100% - 146px))));
 }
 
 .md-titlebar button,
@@ -94,6 +119,14 @@ html.keyboard-open .mdword-app {
 .md-editor-fill .ProseMirror {
   flex: 1 1 auto;
   min-height: 100%;
+}
+
+.page-inner[data-paged] > .md-page-flow,
+.page-inner[data-paged] .md-editor-fill,
+.page-inner[data-paged] .md-editor-fill .ProseMirror,
+.page-inner[data-paged] .ProseMirror {
+  flex: 0 0 auto;
+  min-height: 0;
 }
 
 .ProseMirror {

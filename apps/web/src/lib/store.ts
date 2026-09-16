@@ -70,6 +70,7 @@ let applyTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSource: string | null = null;
 let sourceTimer: ReturnType<typeof setTimeout> | null = null;
 let filePickerOpen = false;
+let draftWrite: Promise<void> | null = null;
 
 async function withFilePicker<T>(run: () => Promise<T>): Promise<T | undefined> {
   if (filePickerOpen) return undefined;
@@ -422,7 +423,6 @@ export const useApp = create<AppState>((set, get) => {
       beginBusy({ kind: "save", label: "Saving…", blocking: false });
       try {
         markSaved(next, content, model);
-        await reloadWorkspace();
       } finally {
         set({ busy: null });
       }
@@ -434,7 +434,6 @@ export const useApp = create<AppState>((set, get) => {
       await yieldPaint();
       await host.files.save({ path, content });
       markSaved(path, content, model);
-      await reloadWorkspace();
     } catch (error) {
       if (isNotAllowedError(error)) {
         const next = await withFilePicker(async () => {
@@ -447,7 +446,6 @@ export const useApp = create<AppState>((set, get) => {
         });
         if (next) {
           markSaved(next, content, model);
-          await reloadWorkspace();
         }
       } else {
         console.error("Could not save document", error);
@@ -472,7 +470,6 @@ export const useApp = create<AppState>((set, get) => {
     beginBusy({ kind: "save", label: "Saving…", blocking: false });
     try {
       markSaved(next, content, get().model);
-      await reloadWorkspace();
     } finally {
       set({ busy: null });
     }
@@ -703,20 +700,28 @@ export const useApp = create<AppState>((set, get) => {
   setPalette: (paletteOpen) => set({ paletteOpen }),
   setFind: (findOpen, query) => set({ findOpen, findQuery: query ?? get().findQuery }),
   saveDraft: async () => {
+    if (draftWrite) return;
+    const state = get();
+    if (!state.dirty || state.busy?.kind === "save") return;
     flushVisualEdits();
     flushSourceEdits();
-    const state = get();
-    if (!state.dirty) return;
-    try {
-      const content = serializedDocument(state.model);
-      await writeCrashDraft(content, {
-        path: state.path,
-        title: displayDocumentTitle(state.model.frontmatter, state.path)
-      });
-      set({ lastDraftAt: Date.now() });
-    } catch (error) {
-      console.error("Crash draft failed", error);
-    }
+    const next = get();
+    if (!next.dirty || next.busy?.kind === "save") return;
+    draftWrite = (async () => {
+      try {
+        const content = serializedDocument(next.model);
+        await writeCrashDraft(content, {
+          path: next.path,
+          title: displayDocumentTitle(next.model.frontmatter, next.path)
+        });
+        set({ lastDraftAt: Date.now() });
+      } catch (error) {
+        console.error("Crash draft failed", error);
+      }
+    })().finally(() => {
+      draftWrite = null;
+    });
+    await draftWrite;
   },
   restoreHistory: async (content) => {
     discardPendingVisual();

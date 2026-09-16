@@ -105,6 +105,7 @@ describe("page flow", () => {
     expect(countFlowPages(400, 400)).toBe(1);
     expect(countFlowPages(401, 400)).toBe(2);
     expect(countFlowPages(0, 400)).toBe(1);
+    expect(countFlowPages(400 * 30_000, 400)).toBe(250);
   });
 });
 

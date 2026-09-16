@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { isElectron } from "@/lib/host";
 import { useApp } from "@/lib/store";
 
 const DELAY_MS = 1600;
@@ -24,10 +25,10 @@ function flushDraftIfDirty(): void {
 export function useUnsavedCloseGuard(): void {
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!useApp.getState().dirty) return;
+      flushDraftIfDirty();
+      if (isElectron() || !useApp.getState().dirty) return;
       event.preventDefault();
       event.returnValue = "";
-      flushDraftIfDirty();
     };
     const onVisibility = () => {
       if (document.visibilityState === "hidden") flushDraftIfDirty();

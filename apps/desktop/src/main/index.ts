@@ -71,14 +71,13 @@ async function atomicWrite(filePath: string, content: string): Promise<void> {
   const dir = path.dirname(filePath);
   await fs.mkdir(dir, { recursive: true });
   const tmp = path.join(dir, `.${path.basename(filePath)}.${process.pid}.tmp`);
-  const fh = await fs.open(tmp, "w");
+  await fs.writeFile(tmp, content, "utf8");
   try {
-    await fh.writeFile(content, "utf8");
-    await fh.sync();
-  } finally {
-    await fh.close();
+    await fs.rename(tmp, filePath);
+  } catch {
+    await fs.copyFile(tmp, filePath);
+    await fs.unlink(tmp).catch(() => undefined);
   }
-  await fs.rename(tmp, filePath);
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -184,6 +183,9 @@ function createWindow(): void {
     void mainWindow.loadURL("mdword://app/index.html");
   }
   mainWindow.once("ready-to-show", () => mainWindow?.show());
+  mainWindow.webContents.on("will-prevent-unload", (event) => {
+    event.preventDefault();
+  });
 }
 
 app.whenReady().then(() => {
