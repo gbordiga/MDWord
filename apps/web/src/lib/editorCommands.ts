@@ -127,7 +127,10 @@ export function findInDocument(
   options?: { focus?: boolean; from?: "caret-end" | "caret-start" }
 ): { count: number; index: number } {
   const matches = collectSearchMatches(textChunks(editor), query);
-  if (!matches.length) return { count: 0, index: -1 };
+  if (!matches.length) {
+    editor.commands.clearSearchHighlight();
+    return { count: 0, index: -1 };
+  }
   const from =
     direction === 1
       ? options?.from === "caret-start"
@@ -138,7 +141,11 @@ export function findInDocument(
   const match = matches[index];
   if (match) {
     const chain = options?.focus === false ? editor.chain() : editor.chain().focus();
-    chain.setTextSelection({ from: match.from, to: match.to }).scrollIntoView().run();
+    chain
+      .setSearchHighlight(matches, index)
+      .setTextSelection({ from: match.from, to: match.to })
+      .scrollIntoView()
+      .run();
   }
   return { count: matches.length, index };
 }

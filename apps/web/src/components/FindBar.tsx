@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { findInDocument } from "@/lib/editorCommands";
-import { findInSource } from "@mdword/source-editor";
+import { clearFindInSource, findInSource } from "@mdword/source-editor";
 import { useEditorUi } from "@/lib/editorUi";
 import { useApp } from "@/lib/store";
 import { getSourceView } from "@/lib/sourceView";
@@ -27,6 +27,9 @@ export function FindBar() {
     const needle = query.trim();
     if (!needle) {
       setStatus("");
+      editor?.commands.clearSearchHighlight();
+      const sourceView = getSourceView();
+      if (sourceView) clearFindInSource(sourceView);
       return;
     }
     const source = view !== "document" ? getSourceView() : null;
@@ -65,6 +68,9 @@ export function FindBar() {
   useEffect(() => {
     if (!open) {
       setStatus("");
+      editor?.commands.clearSearchHighlight();
+      const sourceView = getSourceView();
+      if (sourceView) clearFindInSource(sourceView);
       return;
     }
     run(1, true, true);

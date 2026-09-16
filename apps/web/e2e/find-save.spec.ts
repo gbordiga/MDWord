@@ -13,6 +13,8 @@ test("Ctrl+F from the document starts live find without leaving the field", asyn
   await findInput.fill("Alpha");
   await expect(page.getByTestId("find-status")).toContainText("1 of 2");
   await expect(findInput).toBeFocused();
+  await expect(prose.locator('[data-testid="find-match"]')).toHaveCount(2);
+  await expect(prose.locator('[data-testid="find-match"][data-current="true"]')).toHaveCount(1);
 });
 
 test("Home ribbon Find opens in-document search", async ({ page }) => {

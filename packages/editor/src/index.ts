@@ -18,6 +18,8 @@ export { tiptapToAst } from "./tiptapToAst";
 export { normalizeHref } from "./urls";
 export { collectSearchMatches, nextMatchIndex } from "./search";
 export type { TextChunk, SearchMatch } from "./search";
+export { SearchHighlight, searchHighlightKey, searchHighlightDecorations } from "./searchHighlight";
+export type { SearchHighlightMeta } from "./searchHighlight";
 export type { FigureAttrs, ImageLayout } from "./imageModel";
 export {
   DEFAULT_IMAGE_LAYOUT,

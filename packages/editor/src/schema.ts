@@ -11,6 +11,7 @@ import Underline from "@tiptap/extension-underline";
 import { WikiLink, Callout, PageBreak, MystRaw } from "./extensions";
 import { Figure } from "./figure";
 import { PageGaps } from "./pageGaps";
+import { SearchHighlight } from "./searchHighlight";
 
 export function editorExtensions() {
   return [
@@ -42,7 +43,8 @@ export function editorExtensions() {
     PageBreak,
     Figure,
     MystRaw,
-    PageGaps
+    PageGaps,
+    SearchHighlight
   ];
 }
 

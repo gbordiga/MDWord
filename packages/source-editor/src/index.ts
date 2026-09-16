@@ -1,5 +1,5 @@
-import { EditorSelection, EditorState } from "@codemirror/state";
-import { EditorView, keymap, lineNumbers, highlightActiveLine } from "@codemirror/view";
+import { EditorSelection, EditorState, StateEffect, StateField } from "@codemirror/state";
+import { Decoration, EditorView, keymap, lineNumbers, highlightActiveLine, type DecorationSet } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { yaml } from "@codemirror/lang-yaml";
@@ -8,6 +8,27 @@ import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language"
 import { dataUrlFold, setImagePayloads, setSourceAnnotation, stubEmbeddedImagesForDisplay } from "./dataUrlFold";
 
 const restoreByView = new WeakMap<EditorView, (display: string) => string>();
+
+const setFindMarks = StateEffect.define<{ matches: { from: number; to: number }[]; current: number }>();
+
+const findMarks = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(decos, tr) {
+    for (const effect of tr.effects) {
+      if (!effect.is(setFindMarks)) continue;
+      return Decoration.set(
+        effect.value.matches.map((match, i) =>
+          Decoration.mark({
+            class: i === effect.value.current ? "cm-find-match cm-find-match-current" : "cm-find-match"
+          }).range(match.from, match.to)
+        ),
+        true
+      );
+    }
+    return decos.map(tr.changes);
+  },
+  provide: (field) => EditorView.decorations.from(field)
+});
 
 function bindStub(view: EditorView, source: string): { display: string; urls: string[] } {
   const stub = stubEmbeddedImagesForDisplay(source);
@@ -38,6 +59,7 @@ export function createSourceEditor(options: {
         yaml(),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         highlightSelectionMatches(),
+        findMarks,
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
         EditorView.updateListener.of((update) => {
           if (!update.docChanged) return;
@@ -88,7 +110,10 @@ export function findInSource(
     matches.push(idx);
     start = idx + 1;
   }
-  if (!matches.length) return { count: 0, index: -1 };
+  if (!matches.length) {
+    view.dispatch({ effects: setFindMarks.of({ matches: [], current: -1 }) });
+    return { count: 0, index: -1 };
+  }
   const caret = direction === 1 ? view.state.selection.main.to : view.state.selection.main.from;
   let index = -1;
   if (direction === 1) {
@@ -104,11 +129,17 @@ export function findInSource(
     if (index < 0) index = matches.length - 1;
   }
   const from = matches[index] ?? 0;
+  const ranges = matches.map((start) => ({ from: start, to: start + needle.length }));
   view.dispatch({
     selection: EditorSelection.range(from, from + needle.length),
+    effects: setFindMarks.of({ matches: ranges, current: index }),
     scrollIntoView: true
   });
   return { count: matches.length, index };
+}
+
+export function clearFindInSource(view: EditorView): void {
+  view.dispatch({ effects: setFindMarks.of({ matches: [], current: -1 }) });
 }
 
 export {

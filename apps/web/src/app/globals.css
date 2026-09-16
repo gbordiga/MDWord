@@ -103,6 +103,25 @@ html.keyboard-open .mdword-app {
   word-break: break-word;
 }
 
+.ProseMirror .md-find-match {
+  background: #fff3bf;
+  border-radius: 2px;
+}
+
+.ProseMirror .md-find-match-current {
+  background: #ffd43b;
+  box-shadow: inset 0 0 0 1px #fab005;
+}
+
+.cm-find-match {
+  background: #fff3bf;
+}
+
+.cm-find-match-current {
+  background: #ffd43b;
+  box-shadow: inset 0 0 0 1px #fab005;
+}
+
 .ProseMirror > p:last-child.is-empty {
   min-height: 1.8em;
 }
