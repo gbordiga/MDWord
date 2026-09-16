@@ -18,6 +18,7 @@ import {
   isBlankPageClickTarget,
   isFigureInteracting,
   onFigureIdle,
+  selectAtPointer,
   type PageGapsStorage,
   type TiptapNode
 } from "@mdword/editor";
@@ -38,6 +39,7 @@ import { collectEditorHeadings, jumpToHeading } from "@/lib/toc";
 import { handleEditorLinkClick, preventBrowserLinkOpen } from "@/lib/openEditorLink";
 import { useEditorTick } from "@/hooks/useEditorTick";
 import { useIsCompact } from "@/hooks/useMediaQuery";
+import { useEditorUi } from "@/lib/editorUi";
 
 function tiptapContentFromAst(ast: Parameters<typeof astToTiptap>[0]): TiptapNode {
   try {
@@ -149,6 +151,7 @@ function VisualEditorCanvas({
   const syncGeneration = useApp((s) => s.syncGeneration);
   const sourceGeneration = useApp((s) => s.sourceGeneration);
   const skipProgrammaticUpdate = useRef(true);
+  const { openContextMenu } = useEditorUi();
 
   const editor = useEditor({
     extensions: editorExtensions(),
@@ -162,7 +165,13 @@ function VisualEditorCanvas({
       handleClick: (view, pos, event) =>
         event.defaultPrevented ? true : handleEditorLinkClick(view, pos, event),
       handleDOMEvents: {
-        mousedown: (_view, event) => preventBrowserLinkOpen(event)
+        mousedown: (_view, event) => preventBrowserLinkOpen(event),
+        contextmenu: (view, event) => {
+          event.preventDefault();
+          selectAtPointer(view, event.clientX, event.clientY);
+          openContextMenu(event.clientX, event.clientY);
+          return true;
+        }
       }
     },
     onUpdate: ({ editor: ed, transaction }) => {

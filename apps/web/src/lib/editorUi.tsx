@@ -19,13 +19,18 @@ export type ConfirmState = {
   action: () => void;
 } | null;
 
+export type EditorContextMenuState = { x: number; y: number } | null;
+
 interface EditorUiValue {
   editor: Editor | null;
   dialog: EditorDialog;
   confirm: ConfirmState;
+  contextMenu: EditorContextMenuState;
   openLink: () => void;
   openImage: () => void;
   openWikilink: () => void;
+  openContextMenu: (x: number, y: number) => void;
+  closeContextMenu: () => void;
   closeDialog: () => void;
   confirmIfDirty: (action: () => void) => void;
   closeConfirm: () => void;
@@ -42,6 +47,7 @@ export function EditorUiProvider({
 }) {
   const [dialog, setDialog] = useState<EditorDialog>(null);
   const [confirm, setConfirm] = useState<ConfirmState>(null);
+  const [contextMenu, setContextMenu] = useState<EditorContextMenuState>(null);
 
   const confirmIfDirty = useCallback((action: () => void) => {
     if (!useApp.getState().dirty) {
@@ -60,14 +66,26 @@ export function EditorUiProvider({
       editor,
       dialog,
       confirm,
-      openLink: () => setDialog("link"),
-      openImage: () => setDialog("image"),
-      openWikilink: () => setDialog("wikilink"),
+      contextMenu,
+      openLink: () => {
+        setContextMenu(null);
+        setDialog("link");
+      },
+      openImage: () => {
+        setContextMenu(null);
+        setDialog("image");
+      },
+      openWikilink: () => {
+        setContextMenu(null);
+        setDialog("wikilink");
+      },
+      openContextMenu: (x, y) => setContextMenu({ x, y }),
+      closeContextMenu: () => setContextMenu(null),
       closeDialog: () => setDialog(null),
       confirmIfDirty,
       closeConfirm: () => setConfirm(null)
     }),
-    [editor, dialog, confirm, confirmIfDirty]
+    [editor, dialog, confirm, contextMenu, confirmIfDirty]
   );
 
   return <EditorUiContext.Provider value={value}>{children}</EditorUiContext.Provider>;

@@ -12,6 +12,7 @@ import { MobileFormatBar, MobileSheets, MobileTabBar, MobileTopBar } from "./Mob
 import { FindBar } from "./FindBar";
 import { EditorContextBar } from "./EditorContextBar";
 import { LinkBubble } from "./LinkBubble";
+import { EditorContextMenu } from "./EditorContextMenu";
 import { LinkDialog } from "./LinkDialog";
 import { ImageDialog } from "./ImageDialog";
 import { WikilinkDialog } from "./WikilinkDialog";
@@ -242,6 +243,7 @@ function AppShellInner({
       <MobileSheets editor={editor} />
       <CommandPalette onInsert={insert} />
       <LinkBubble />
+      <EditorContextMenu />
       <LinkDialog open={dialog === "link"} editor={editor} onClose={closeDialog} />
       <ImageDialog open={dialog === "image"} editor={editor} onClose={closeDialog} />
       <WikilinkDialog open={dialog === "wikilink"} editor={editor} onClose={closeDialog} />

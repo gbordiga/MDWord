@@ -73,6 +73,29 @@ export function insertTable(editor: Editor): void {
   editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
 }
 
+export async function copyEditorSelection(editor: Editor): Promise<void> {
+  const text = selectionText(editor);
+  if (text) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  document.execCommand("copy");
+}
+
+export async function cutEditorSelection(editor: Editor): Promise<void> {
+  await copyEditorSelection(editor);
+  editor.chain().focus().deleteSelection().run();
+}
+
+export async function pasteIntoEditor(editor: Editor): Promise<void> {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text) editor.chain().focus().insertContent(text).run();
+  } catch {
+    /* clipboard permission denied */
+  }
+}
+
 export function insertCallout(editor: Editor, kind = "note"): void {
   editor.chain().focus().insertContent({
     type: "callout",

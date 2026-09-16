@@ -9,6 +9,8 @@ export { isFigureInteracting, onFigureIdle } from "./figureInteraction";
 export { PageGaps, pageGapsKey, snapPageGapPos, collectPageGapPositions } from "./pageGaps";
 export type { PageGapsStorage } from "./pageGaps";
 export { placeCaretAtEnd, placeCaretInLastParagraph, focusEditorAtPagePoint, isBlankPageClickTarget } from "./figureClick";
+export { editorContextKind, selectAtPointer } from "./contextMenu";
+export type { EditorContextKind } from "./contextMenu";
 export { astToTiptap, visualProjection } from "./astToTiptap";
 export type { TiptapNode, VisualOrigin } from "./astToTiptap";
 export { sanitizeTiptapDoc } from "./sanitize";
