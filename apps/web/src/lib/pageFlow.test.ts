@@ -17,6 +17,6 @@ describe("measureEditorFlowHeight", () => {
         el("ProseMirror", 900, [el("", 20), el("md-page-gap", 80), el("", 30)])
       ])
     ]);
-    expect(measureEditorFlowHeight(root)).toBe(90);
+    expect(measureEditorFlowHeight(root as unknown as HTMLElement)).toBe(90);
   });
 });
