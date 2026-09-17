@@ -69,7 +69,7 @@ export function LeftSidebar({ className }: { className?: string }) {
         </button>
       </div>
       <div className="relative flex-1 overflow-auto p-2 text-[13px]">
-        {busy?.kind === "folder" ? (
+        {busy?.kind === "folder" && !workspace?.files.length ? (
           <div
             className="flex h-full min-h-32 flex-col items-center justify-center gap-2 text-[#667085]"
             data-testid="workspace-loading"

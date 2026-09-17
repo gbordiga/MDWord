@@ -52,6 +52,15 @@ describe("indexer", () => {
     expect(resolveWikiTarget(index, "x.md", "alpha")).toBe("notes/alpha.md");
   });
 
+  it("ignores headings inside fenced code", () => {
+    const doc = indexMarkdown(
+      "a.md",
+      "# Real\n\n```\n# Fake\n```\n\n## Also real\n",
+      1
+    );
+    expect(doc.headings.map((h) => h.text)).toEqual(["Real", "Also real"]);
+  });
+
   it("searches title and body", () => {
     const docs = {
       documents: [

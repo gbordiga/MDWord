@@ -112,7 +112,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
   const actions = useApp();
   const busy = useApp((s) => s.busy);
   const { openLink, openImage, openWikilink, confirmIfDirty } = useEditorUi();
-  const fileBusy = Boolean(busy);
+  const fileBusy = Boolean(busy?.blocking);
   const tocEnabled = Boolean(actions.model.resolvedMdoc.toc?.enabled);
   const tocDepth = actions.model.resolvedMdoc.toc?.depth ?? 3;
   const landscape = actions.model.resolvedMdoc.page?.orientation === "landscape";

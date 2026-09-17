@@ -27,7 +27,9 @@ import {
   childNamesInFolder,
   isPathOrDescendant,
   isValidWorkspaceEntryName,
+  indexWorkspace,
   joinWorkspacePath,
+  listWorkspace,
   loadWorkspace,
   normalizeNewFileName,
   resolveWikiTarget,
@@ -70,6 +72,7 @@ let applyTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSource: string | null = null;
 let sourceTimer: ReturnType<typeof setTimeout> | null = null;
 let filePickerOpen = false;
+let workspaceEpoch = 0;
 let draftWrite: Promise<void> | null = null;
 
 async function withFilePicker<T>(run: () => Promise<T>): Promise<T | undefined> {
@@ -202,8 +205,10 @@ export const useApp = create<AppState>((set, get) => {
   const reloadWorkspace = async () => {
     const workspace = get().workspace;
     if (!workspace?.root) return;
+    const epoch = ++workspaceEpoch;
     try {
       const next = await loadWorkspace(getHost(), workspace.root);
+      if (epoch !== workspaceEpoch) return;
       set({ workspace: next });
     } catch {
       /* keep the optimistic list if a re-list fails */
@@ -484,14 +489,23 @@ export const useApp = create<AppState>((set, get) => {
       }
     });
     if (!root) return;
-    beginBusy({ kind: "folder", label: "Indexing workspace…", blocking: true });
+    const epoch = ++workspaceEpoch;
+    beginBusy({ kind: "folder", label: "Opening folder…", blocking: true });
     await yieldPaint();
     try {
-      const workspace = await loadWorkspace(getHost(), root);
+      const listed = await listWorkspace(getHost(), root);
+      if (epoch !== workspaceEpoch) return;
+      set({
+        workspace: listed,
+        busy: { kind: "folder", label: "Indexing workspace…", blocking: false }
+      });
+      await yieldPaint();
+      const workspace = await indexWorkspace(getHost(), listed);
+      if (epoch !== workspaceEpoch) return;
       set({ workspace, busy: null });
     } catch (error) {
       console.error("Could not open folder", error);
-      set({ busy: null });
+      if (epoch === workspaceEpoch) set({ busy: null });
     }
   },
   openWorkspaceFile: async (filePath) => {

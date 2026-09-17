@@ -5,7 +5,7 @@ import {
   basename,
   documentTitle
 } from "@mdword/shared";
-import { parseMarkdown } from "@mdword/myst-parser";
+import { extractFrontmatter, yamlToPlain } from "@mdword/myst-parser";
 
 export interface IndexedDocument {
   path: string;
@@ -22,12 +22,51 @@ export interface WorkspaceIndex {
   documents: IndexedDocument[];
 }
 
-function textOf(node: { type: string; value?: string; children?: unknown[] }): string {
-  if (typeof node.value === "string") return node.value;
-  if (Array.isArray(node.children)) {
-    return (node.children as typeof node[]).map(textOf).join("");
+const FENCE = /^(?:`{3,}|~{3,})/;
+const ATX = /^(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$/;
+const SETEXT_1 = /^=+[ \t]*$/;
+const SETEXT_2 = /^-{2,}[ \t]*$/;
+
+function parseFrontmatter(source: string): { frontmatter: Record<string, unknown>; body: string } {
+  const extracted = extractFrontmatter(source);
+  return { frontmatter: yamlToPlain(extracted.yaml), body: extracted.body };
+}
+
+function headingText(raw: string): string {
+  return raw.replace(/\s*\{[^}]*\}\s*$/, "").trim();
+}
+
+function extractHeadings(body: string): IndexedDocument["headings"] {
+  const headings: IndexedDocument["headings"] = [];
+  const lines = body.split(/\r?\n/);
+  let inFence = false;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] ?? "";
+    if (FENCE.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    const atx = ATX.exec(line);
+    if (atx) {
+      const text = headingText(atx[2] ?? "");
+      if (text) {
+        headings.push({ text, slug: headingSlug(text), depth: atx[1]?.length ?? 1 });
+      }
+      continue;
+    }
+    const next = lines[i + 1] ?? "";
+    const text = line.trim();
+    if (!text) continue;
+    if (SETEXT_1.test(next)) {
+      headings.push({ text: headingText(text), slug: headingSlug(text), depth: 1 });
+      i += 1;
+    } else if (SETEXT_2.test(next)) {
+      headings.push({ text: headingText(text), slug: headingSlug(text), depth: 2 });
+      i += 1;
+    }
   }
-  return "";
+  return headings;
 }
 
 export function indexMarkdown(
@@ -35,26 +74,14 @@ export function indexMarkdown(
   source: string,
   modifiedMs: number
 ): IndexedDocument {
-  const parsed = parseMarkdown(source);
-  const headings: IndexedDocument["headings"] = [];
-  const walk = (node: { type: string; depth?: number; children?: unknown[]; value?: string }) => {
-    if (node.type === "heading") {
-      const text = textOf(node);
-      headings.push({
-        text,
-        slug: headingSlug(text),
-        depth: Number(node.depth ?? 1)
-      });
-    }
-    node.children?.forEach((c) => walk(c as typeof node));
-  };
-  walk(parsed.ast as never);
+  const { frontmatter, body } = parseFrontmatter(source);
+  const headings = extractHeadings(body);
   const title =
-    documentTitle(parsed.frontmatter, "") ||
+    documentTitle(frontmatter, "") ||
     headings[0]?.text ||
     stripMdExtension(basename(path));
-  const tags = Array.isArray(parsed.frontmatter.tags)
-    ? (parsed.frontmatter.tags as unknown[]).map(String)
+  const tags = Array.isArray(frontmatter.tags)
+    ? (frontmatter.tags as unknown[]).map(String)
     : [];
   return {
     path,
@@ -67,7 +94,7 @@ export function indexMarkdown(
       section,
       label
     })),
-    plainText: source.replace(/---[\s\S]*?---/, "").replace(/[#>*`[\]()]/g, " "),
+    plainText: body.replace(/[#>*`[\]()]/g, " "),
     modifiedMs
   };
 }

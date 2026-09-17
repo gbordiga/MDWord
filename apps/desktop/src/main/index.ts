@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   MAX_WORKSPACE_LIST_DEPTH,
   MAX_WORKSPACE_LIST_ENTRIES,
+  isMarkdownFileName,
   shouldSkipWorkspaceDir,
   shouldSkipWorkspaceFile
 } from "@mdword/shared";
@@ -292,6 +293,8 @@ function registerIpc(): void {
       } catch {
         return;
       }
+      const subdirs: string[] = [];
+      const mdStats: Promise<void>[] = [];
       for (const entry of entries) {
         if (out.length >= MAX_WORKSPACE_LIST_ENTRIES) return;
         if (shouldSkipWorkspaceFile(entry.name)) continue;
@@ -299,15 +302,28 @@ function registerIpc(): void {
         const isDirectory = entry.isDirectory();
         if (isDirectory && shouldSkipWorkspaceDir(entry.name)) continue;
         const full = path.join(dir, entry.name);
-        let modifiedMs: number | undefined;
-        try {
-          modifiedMs = (await fs.stat(full)).mtimeMs;
-        } catch {
+        if (isDirectory) {
+          out.push({ path: full, name: entry.name, isDirectory: true });
+          subdirs.push(full);
           continue;
         }
-        out.push({ path: full, name: entry.name, isDirectory, modifiedMs });
-        if (isDirectory) await walk(full, depth + 1);
+        if (isMarkdownFileName(entry.name)) {
+          const item: (typeof out)[number] = { path: full, name: entry.name, isDirectory: false };
+          out.push(item);
+          mdStats.push(
+            fs
+              .stat(full)
+              .then((st) => {
+                item.modifiedMs = st.mtimeMs;
+              })
+              .catch(() => undefined)
+          );
+          continue;
+        }
+        out.push({ path: full, name: entry.name, isDirectory: false });
       }
+      await Promise.all(mdStats);
+      await Promise.all(subdirs.map((sub) => walk(sub, depth + 1)));
     }
 
     await walk(root, 0);
@@ -317,6 +333,37 @@ function registerIpc(): void {
   ipcMain.handle("files.read", async (_e, filePath: unknown) => {
     const resolved = assertSafePath(z.string().parse(filePath), [...allowedRoots]);
     return fs.readFile(resolved, "utf8");
+  });
+
+  ipcMain.handle("files.readMany", async (_e, payload: unknown) => {
+    const paths = z.array(z.string()).parse(payload);
+    const out: { path: string; content: string }[] = [];
+    const maxBytes = 512 * 1024;
+    const concurrency = 24;
+    let next = 0;
+    const workers = Array.from({ length: Math.min(concurrency, Math.max(paths.length, 0)) }, async () => {
+      while (next < paths.length) {
+        const requested = paths[next]!;
+        next += 1;
+        try {
+          const resolved = assertSafePath(requested, [...allowedRoots]);
+          const handle = await fs.open(resolved, "r");
+          try {
+            const st = await handle.stat();
+            const len = Math.min(st.size, maxBytes);
+            const buf = Buffer.allocUnsafe(len);
+            const { bytesRead } = await handle.read(buf, 0, len, 0);
+            out.push({ path: requested, content: buf.subarray(0, bytesRead).toString("utf8") });
+          } finally {
+            await handle.close();
+          }
+        } catch {
+          /* unreadable files are skipped */
+        }
+      }
+    });
+    await Promise.all(workers);
+    return out;
   });
 
   ipcMain.handle("files.write", async (_e, payload: unknown) => {

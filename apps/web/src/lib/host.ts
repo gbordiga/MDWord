@@ -423,6 +423,24 @@ export const webHost: HostApi = {
       if (!handle) throw new Error("File handle missing");
       return textFromHandle(handle, path);
     },
+    async readMany(paths) {
+      const out: { path: string; content: string }[] = [];
+      const concurrency = 8;
+      let next = 0;
+      const workers = Array.from({ length: Math.min(concurrency, paths.length) }, async () => {
+        while (next < paths.length) {
+          const filePath = paths[next]!;
+          next += 1;
+          try {
+            out.push({ path: filePath, content: await this.read(filePath) });
+          } catch {
+            /* unreadable files are skipped */
+          }
+        }
+      });
+      await Promise.all(workers);
+      return out;
+    },
     async write(path, content) {
       if (fileHandles.has(path)) {
         await this.save({ path, content });

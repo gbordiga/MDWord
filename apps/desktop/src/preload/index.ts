@@ -11,6 +11,7 @@ const api = {
     openFolder: () => ipcRenderer.invoke("files.openFolder"),
     list: (folder: string) => ipcRenderer.invoke("files.list", folder),
     read: (path: string) => ipcRenderer.invoke("files.read", path),
+    readMany: (paths: string[]) => ipcRenderer.invoke("files.readMany", paths),
     write: (path: string, content: string) => ipcRenderer.invoke("files.write", { path, content }),
     exists: (path: string) => ipcRenderer.invoke("files.exists", path),
     rename: (from: string, to: string) => ipcRenderer.invoke("files.rename", { from, to }),

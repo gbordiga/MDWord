@@ -103,4 +103,35 @@ describe("loadWorkspace", () => {
     expect(loaded.files).toHaveLength(3);
     expect(loaded.index.documents.map((d) => d.title)).toEqual(["Idea"]);
   });
+
+  it("uses readMany and skips unchanged files on reload", async () => {
+    const listing = [
+      { path: "/cache-notes/alpha.md", name: "alpha.md", isDirectory: false, modifiedMs: 10 },
+      { path: "/cache-notes/beta.md", name: "beta.md", isDirectory: false, modifiedMs: 20 }
+    ];
+    let reads = 0;
+    const host = {
+      files: {
+        list: async () => listing,
+        read: async () => {
+          throw new Error("read should not be used when readMany exists");
+        },
+        readMany: async (paths: string[]) => {
+          reads += paths.length;
+          return paths.map((filePath) => ({
+            path: filePath,
+            content: `# ${filePath.split("/").pop()?.replace(".md", "")}\n`
+          }));
+        }
+      }
+    } as unknown as HostApi;
+
+    const first = await loadWorkspace(host, "/cache-notes");
+    expect(first.index.documents).toHaveLength(2);
+    expect(reads).toBe(2);
+
+    const second = await loadWorkspace(host, "/cache-notes");
+    expect(second.index.documents.map((d) => d.title).sort()).toEqual(["alpha", "beta"]);
+    expect(reads).toBe(2);
+  });
 });
