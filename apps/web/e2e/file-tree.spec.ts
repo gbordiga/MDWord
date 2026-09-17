@@ -29,6 +29,9 @@ test("file sidebar has collapse and create buttons", async ({ page }) => {
   await expect(page.getByTestId("workspace-new-file")).toBeVisible();
   await expect(page.getByTestId("workspace-new-folder")).toBeVisible();
   await expect(page.getByTestId("workspace-collapse-all")).toBeVisible();
+  await expect(page.getByTestId("workspace-file").filter({ hasText: "readme.md" })).toBeVisible();
+  await expect(page.getByTestId("workspace-file").filter({ hasText: "idea.md" })).toHaveCount(0);
+  await page.getByTestId("workspace-folder").filter({ hasText: "drafts" }).click();
   await expect(page.getByTestId("workspace-file").filter({ hasText: "idea.md" })).toBeVisible();
   await page.getByTestId("workspace-collapse-all").click();
   await expect(page.getByTestId("workspace-file").filter({ hasText: "idea.md" })).toHaveCount(0);

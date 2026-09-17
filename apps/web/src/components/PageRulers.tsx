@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  useLayoutEffect,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-  type RefObject
-} from "react";
+import { type PointerEvent as ReactPointerEvent } from "react";
 import { clampMarginMm, mmString, type PageMetrics } from "@mdword/layout-engine";
 
 type Side = "top" | "right" | "bottom" | "left";
@@ -58,39 +53,65 @@ function startMarginDrag(
   };
 }
 
-function ticks(lengthMm: number, pxPerMm: number, origin: number, axis: "x" | "y", scale: number) {
-  const marks: { pos: number; major: boolean; label?: string }[] = [];
+function marginTicks(
+  lengthMm: number,
+  pxPerMm: number,
+  origin: number,
+  axis: "x" | "y",
+  toward: 1 | -1,
+  scale: number
+) {
+  if (lengthMm < 0.5 || pxPerMm <= 0) return [];
   const majorEvery = scale < 0.55 ? 20 : 10;
   const step = scale < 0.55 ? 10 : 5;
+  const marks: { pos: number; major: boolean; label?: string; key: string }[] = [];
   for (let mm = 0; mm <= lengthMm + 0.01; mm += step) {
     const major = mm % majorEvery === 0;
     marks.push({
-      pos: origin + mm * pxPerMm,
+      key: `${axis}-${toward}-${mm}`,
+      pos: origin + toward * mm * pxPerMm,
       major,
-      label: major && mm > 0 ? String(mm) : undefined
+      label: major && mm > 0 ? String(Math.round(mm)) : undefined
+    });
+  }
+  const end = Math.round(lengthMm * 10) / 10;
+  if (end > 0.5 && marks.every((mark) => Math.abs(mark.pos - (origin + toward * end * pxPerMm)) > 0.6)) {
+    marks.push({
+      key: `${axis}-${toward}-end`,
+      pos: origin + toward * end * pxPerMm,
+      major: true,
+      label: Number.isInteger(end) ? String(end) : end.toFixed(1)
     });
   }
   return marks.map((mark) =>
     axis === "x" ? (
       <span
-        key={`x-${mark.pos}`}
+        key={mark.key}
         className={`absolute bottom-0 w-px ${mark.major ? "bg-[#98a2b3]" : "bg-[#d0d5dd]"}`}
         style={{ left: mark.pos, height: mark.major ? 7 : 4 }}
       >
         {mark.label ? (
-          <span className="absolute bottom-[8px] left-0.5 font-mono text-[8px] font-medium tabular-nums leading-none text-[#667085]">
+          <span
+            className={`absolute bottom-[8px] font-mono text-[8px] font-medium tabular-nums leading-none text-[#667085] ${
+              toward < 0 ? "right-0.5" : "left-0.5"
+            }`}
+          >
             {mark.label}
           </span>
         ) : null}
       </span>
     ) : (
       <span
-        key={`y-${mark.pos}`}
+        key={mark.key}
         className={`absolute right-0 h-px ${mark.major ? "bg-[#98a2b3]" : "bg-[#d0d5dd]"}`}
         style={{ top: mark.pos, width: mark.major ? 7 : 4 }}
       >
         {mark.label ? (
-          <span className="absolute right-[8px] top-px font-mono text-[8px] font-medium tabular-nums leading-none text-[#667085]">
+          <span
+            className={`absolute right-[8px] font-mono text-[8px] font-medium tabular-nums leading-none text-[#667085] ${
+              toward < 0 ? "bottom-px" : "top-px"
+            }`}
+          >
             {mark.label}
           </span>
         ) : null}
@@ -100,63 +121,34 @@ function ticks(lengthMm: number, pxPerMm: number, origin: number, axis: "x" | "y
 }
 
 export function PageRulers({
-  scrollRef,
-  pageRef,
-  layoutRef,
+  box,
   metrics,
   scale,
-  pageHeightPx,
   onChange
 }: {
-  scrollRef: RefObject<HTMLElement | null>;
-  pageRef: RefObject<HTMLElement | null>;
-  layoutRef?: RefObject<HTMLElement | null>;
+  box: { x: number; y: number; w: number; h: number };
   metrics: PageMetrics;
   scale: number;
-  pageHeightPx: number;
   onChange: (margins: { top: string; right: string; bottom: string; left: string }) => void;
 }) {
-  const [origin, setOrigin] = useState({ x: RULER, y: RULER });
   const pxPerMm = PX_PER_MM * scale;
-  const width = metrics.widthPx * scale;
-  const height = pageHeightPx * scale;
   const left = metrics.margins.left * scale;
   const right = metrics.margins.right * scale;
   const top = metrics.margins.top * scale;
   const bottom = metrics.margins.bottom * scale;
+  const pageLeft = box.x;
+  const pageRight = box.x + box.w;
+  const pageTop = box.y;
+  const pageBottom = box.y + box.h;
+  const contentX = pageLeft + left;
+  const contentY = pageTop + top;
+  const contentW = Math.max(0, box.w - left - right);
+  const contentH = Math.max(0, box.h - top - bottom);
+  const leftMm = metrics.margins.left / PX_PER_MM;
+  const rightMm = metrics.margins.right / PX_PER_MM;
+  const topMm = metrics.margins.top / PX_PER_MM;
+  const bottomMm = metrics.margins.bottom / PX_PER_MM;
   const drag = (side: Side) => startMarginDrag(side, metrics, scale, onChange);
-
-  useLayoutEffect(() => {
-    const scroll = scrollRef.current;
-    const page = pageRef.current;
-    if (!scroll || !page) return;
-
-    const update = () => {
-      const sr = scroll.getBoundingClientRect();
-      const pr = page.getBoundingClientRect();
-      setOrigin({ x: pr.left - sr.left, y: pr.top - sr.top });
-    };
-
-    update();
-    const rafUpdate = () => {
-      requestAnimationFrame(update);
-    };
-    scroll.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", rafUpdate);
-    const ro = new ResizeObserver(rafUpdate);
-    ro.observe(scroll);
-    ro.observe(page);
-    const layout = layoutRef?.current;
-    if (layout) ro.observe(layout);
-    for (const child of scroll.children) {
-      if (child instanceof HTMLElement) ro.observe(child);
-    }
-    return () => {
-      scroll.removeEventListener("scroll", update);
-      window.removeEventListener("resize", rafUpdate);
-      ro.disconnect();
-    };
-  }, [scrollRef, pageRef, layoutRef, scale, pageHeightPx, metrics.widthPx, metrics.heightPx]);
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20 hidden lg:block" data-testid="page-rulers">
@@ -167,16 +159,21 @@ export function PageRulers({
       >
         <div
           className="absolute inset-y-0 bg-[#2563eb]/[0.07]"
-          style={{ left: origin.x + left, width: Math.max(0, width - left - right) }}
+          style={{ left: pageLeft, width: left }}
         />
-        {ticks(metrics.widthMm, pxPerMm, origin.x, "x", scale)}
+        <div
+          className="absolute inset-y-0 bg-[#2563eb]/[0.07]"
+          style={{ left: pageRight - right, width: right }}
+        />
+        {marginTicks(leftMm, pxPerMm, pageLeft, "x", 1, scale)}
+        {marginTicks(rightMm, pxPerMm, pageRight, "x", -1, scale)}
         <button
           type="button"
           aria-label="Drag left margin"
           data-testid="page-margin-left"
-          title={`${(metrics.margins.left / PX_PER_MM).toFixed(1)} mm`}
+          title={`${leftMm.toFixed(1)} mm`}
           className="pointer-events-auto absolute top-0 z-10 h-full w-3 -translate-x-1/2 cursor-ew-resize"
-          style={{ left: origin.x + left }}
+          style={{ left: contentX }}
           onPointerDown={drag("left")}
         >
           <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-[#2563eb]/80" />
@@ -186,9 +183,9 @@ export function PageRulers({
           type="button"
           aria-label="Drag right margin"
           data-testid="page-margin-right"
-          title={`${(metrics.margins.right / PX_PER_MM).toFixed(1)} mm`}
+          title={`${rightMm.toFixed(1)} mm`}
           className="pointer-events-auto absolute top-0 z-10 h-full w-3 -translate-x-1/2 cursor-ew-resize"
-          style={{ left: origin.x + width - right }}
+          style={{ left: contentX + contentW }}
           onPointerDown={drag("right")}
         >
           <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-[#2563eb]/80" />
@@ -202,16 +199,21 @@ export function PageRulers({
       >
         <div
           className="absolute inset-x-0 bg-[#2563eb]/[0.07]"
-          style={{ top: origin.y + top, height: Math.max(0, height - top - bottom) }}
+          style={{ top: pageTop, height: top }}
         />
-        {ticks(pageHeightPx / PX_PER_MM, pxPerMm, origin.y, "y", scale)}
+        <div
+          className="absolute inset-x-0 bg-[#2563eb]/[0.07]"
+          style={{ top: pageBottom - bottom, height: bottom }}
+        />
+        {marginTicks(topMm, pxPerMm, pageTop, "y", 1, scale)}
+        {marginTicks(bottomMm, pxPerMm, pageBottom, "y", -1, scale)}
         <button
           type="button"
           aria-label="Drag top margin"
           data-testid="page-margin-top"
-          title={`${(metrics.margins.top / PX_PER_MM).toFixed(1)} mm`}
+          title={`${topMm.toFixed(1)} mm`}
           className="pointer-events-auto absolute left-0 z-10 h-3 w-full -translate-y-1/2 cursor-ns-resize"
-          style={{ top: origin.y + top }}
+          style={{ top: contentY }}
           onPointerDown={drag("top")}
         >
           <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-[#2563eb]/80" />
@@ -221,9 +223,9 @@ export function PageRulers({
           type="button"
           aria-label="Drag bottom margin"
           data-testid="page-margin-bottom"
-          title={`${(metrics.margins.bottom / PX_PER_MM).toFixed(1)} mm`}
+          title={`${bottomMm.toFixed(1)} mm`}
           className="pointer-events-auto absolute left-0 z-10 h-3 w-full -translate-y-1/2 cursor-ns-resize"
-          style={{ top: origin.y + height - bottom }}
+          style={{ top: contentY + contentH }}
           onPointerDown={drag("bottom")}
         >
           <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-[#2563eb]/80" />

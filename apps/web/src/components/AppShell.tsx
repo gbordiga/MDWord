@@ -19,7 +19,7 @@ import { WikilinkDialog } from "./WikilinkDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { BusyOverlay } from "./BusyOverlay";
 import { Spinner } from "./Spinner";
-import { readPageLayout, useApp } from "@/lib/store";
+import { useApp } from "@/lib/store";
 import { getHost } from "@/lib/host";
 import { configureNativeChrome, hideNativeSplash } from "@/lib/native";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
@@ -147,10 +147,6 @@ function AppShellInner({
 
   useLayoutEffect(() => {
     document.documentElement.classList.add("mdword-ready");
-    const stored = readPageLayout();
-    if (stored !== useApp.getState().pageLayout) {
-      useApp.setState({ pageLayout: stored });
-    }
   }, []);
 
   useEffect(() => {

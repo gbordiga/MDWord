@@ -121,14 +121,6 @@ html.keyboard-open .mdword-app {
   min-height: 100%;
 }
 
-.page-inner[data-paged] > .md-page-flow,
-.page-inner[data-paged] .md-editor-fill,
-.page-inner[data-paged] .md-editor-fill .ProseMirror,
-.page-inner[data-paged] .ProseMirror {
-  flex: 0 0 auto;
-  min-height: 0;
-}
-
 .ProseMirror {
   outline: none;
   min-height: 100%;
@@ -562,8 +554,17 @@ html.keyboard-open .mdword-app {
 .ProseMirror td .md-figure,
 .ProseMirror th .md-figure {
   float: none !important;
+  display: block;
   margin: 4px 0;
   max-width: 100%;
+  min-width: 0;
+}
+
+.ProseMirror td .md-figure-box,
+.ProseMirror th .md-figure-box {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .cm-data-url-fold {
@@ -701,16 +702,25 @@ html.keyboard-open .mdword-app {
 }
 
 .ProseMirror .tableWrapper {
-  overflow-x: visible;
+  display: block;
+  width: 100%;
   max-width: 100%;
+  overflow-x: visible;
 }
 
 .ProseMirror table {
   border-collapse: collapse;
-  width: 100%;
+  width: 100% !important;
   max-width: 100%;
   table-layout: fixed;
   margin: 12px 0;
+}
+
+/* Equal columns from the page width. Do not let first-row images or TipTap
+   pixel min-widths lock a partial layout before pictures finish decoding. */
+.ProseMirror table col {
+  width: 0 !important;
+  min-width: 0 !important;
 }
 
 .ProseMirror th,
@@ -728,9 +738,21 @@ html.keyboard-open .mdword-app {
   margin: 0;
 }
 
-/* GFM requires a header row; hide it only when it is a dummy separator. */
+/* GFM requires a header row. Keep it in the table so column widths stay
+   stable; just collapse the dummy separator visually. */
 .ProseMirror table tr:first-child:has(> th):not(:has(p:not(:empty), figure, img)) {
-  display: none;
+  height: 0;
+  border: none;
+  line-height: 0;
+}
+
+.ProseMirror table tr:first-child:has(> th):not(:has(p:not(:empty), figure, img)) > th {
+  height: 0;
+  padding: 0;
+  border: 0;
+  font-size: 0;
+  line-height: 0;
+  overflow: hidden;
 }
 
 .ProseMirror pre {

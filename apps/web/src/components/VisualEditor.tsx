@@ -16,31 +16,20 @@ import {
   astToTiptap,
   focusEditorAtPagePoint,
   isBlankPageClickTarget,
-  isFigureInteracting,
-  onFigureIdle,
   selectAtPointer,
-  type PageGapsStorage,
   type TiptapNode
 } from "@mdword/editor";
-import {
-  countFlowPages,
-  PAGE_STACK_GAP_PX,
-  pageMetrics,
-  pageStackHeightPx,
-  resolveRunningForPreview
-} from "@mdword/layout-engine";
+import { pageMetrics, resolveRunningForPreview } from "@mdword/layout-engine";
 import { documentDate, documentTitle } from "@mdword/shared";
 import { useApp } from "@/lib/store";
 import { Spinner } from "./Spinner";
 import { DocumentToc } from "./DocumentToc";
-import { PageRulers } from "./PageRulers";
+import { PageRulers, RULER } from "./PageRulers";
 import { FrontmatterInline } from "./FrontmatterInline";
 import { collectEditorHeadings, jumpToHeading } from "@/lib/toc";
 import { handleEditorLinkClick, preventBrowserLinkOpen } from "@/lib/openEditorLink";
 import { useEditorTick } from "@/hooks/useEditorTick";
-import { useIsCompact } from "@/hooks/useMediaQuery";
 import { useEditorUi } from "@/lib/editorUi";
-import { measureEditorFlowHeight } from "@/lib/pageFlow";
 
 function tiptapContentFromAst(ast: Parameters<typeof astToTiptap>[0]): TiptapNode {
   try {
@@ -145,9 +134,6 @@ function VisualEditorCanvas({
   const resolvedMdoc = useApp((s) => s.model.resolvedMdoc);
   const patchMdoc = useApp((s) => s.patchMdoc);
   const zoom = useApp((s) => s.zoom);
-  const pageLayout = useApp((s) => s.pageLayout);
-  const compact = useIsCompact();
-  const paged = pageLayout === "pages" && !compact;
   const applyTiptap = useApp((s) => s.applyTiptap);
   const syncGeneration = useApp((s) => s.syncGeneration);
   const sourceGeneration = useApp((s) => s.sourceGeneration);
@@ -256,17 +242,17 @@ function VisualEditorCanvas({
   const scrollRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
   const layoutRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [pageCount, setPageCount] = useState(1);
+  const [canvasHeightPx, setCanvasHeightPx] = useState(0);
+  const [rulerBox, setRulerBox] = useState({ x: RULER, y: RULER, w: 0, h: 0 });
   const metrics = pageMetrics(resolvedMdoc);
   const fit = useFitScale(metrics.widthPx, scrollRef);
   const scale = fit * zoom;
   const padTop = metrics.margins.top;
   const padBottom = metrics.margins.bottom;
-  const usableH = Math.max(48, metrics.heightPx - padTop - padBottom);
-  const spacerH = padTop + padBottom + PAGE_STACK_GAP_PX;
-  const pageMinHeight = paged ? metrics.heightPx : metrics.heightPx * 1.15;
-  const sheetCount = paged ? pageCount : 1;
+  const pageMinHeight = metrics.heightPx;
+  const canvasHeight = Math.max(pageMinHeight, canvasHeightPx);
   const body = resolvedMdoc.typography?.body;
   const header = resolvedMdoc.header ?? {};
   const footer = resolvedMdoc.footer ?? {};
@@ -291,46 +277,51 @@ function VisualEditorCanvas({
   const dateText = documentDate(frontmatter);
 
   useLayoutEffect(() => {
-    if (!editor) return;
-    const storage = editor.storage.pageGaps as PageGapsStorage | undefined;
-    if (!storage) return;
-    storage.enabled = paged;
-    storage.usableHeight = usableH;
-    storage.spacerHeight = spacerH;
-    const prose = editor.view.dom;
-    const padded = contentRef.current;
-    storage.contentTop = padded ? Math.max(0, prose.offsetTop) : 0;
-    editor.view.dispatch(editor.state.tr.setMeta("pageGapsRefresh", true).setMeta("addToHistory", false));
-
-    const measure = () => {
-      if (isFigureInteracting()) return;
-      if (!paged || !padded) {
-        setPageCount(1);
-        return;
-      }
-      setPageCount(countFlowPages(measureEditorFlowHeight(padded), usableH));
-    };
+    const inner = innerRef.current;
+    if (!inner) return;
+    const measure = () => setCanvasHeightPx(inner.offsetHeight);
     measure();
     const ro = new ResizeObserver(measure);
-    ro.observe(prose);
-    const stopIdle = onFigureIdle(measure);
-    return () => {
-      ro.disconnect();
-      stopIdle();
-    };
-  }, [editor, paged, usableH, spacerH, padTop, padBottom, titleText, subtitleText, tocEnabled, tocItems.length]);
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, [editor, padTop, padBottom, titleText, subtitleText, tocEnabled, tocItems.length]);
 
-  const runningVars = (index: number) => ({ ...vars, page: index + 1, pages: sheetCount });
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current;
+    const page = pageRef.current;
+    if (!scroll || !page) return;
+    const update = () => {
+      const sr = scroll.getBoundingClientRect();
+      const pr = page.getBoundingClientRect();
+      setRulerBox({
+        x: pr.left - sr.left,
+        y: pr.top - sr.top,
+        w: pr.width,
+        h: pr.height
+      });
+    };
+    update();
+    const rafUpdate = () => requestAnimationFrame(update);
+    scroll.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", rafUpdate);
+    const ro = new ResizeObserver(rafUpdate);
+    ro.observe(scroll);
+    ro.observe(page);
+    const layout = layoutRef.current;
+    if (layout) ro.observe(layout);
+    return () => {
+      scroll.removeEventListener("scroll", update);
+      window.removeEventListener("resize", rafUpdate);
+      ro.disconnect();
+    };
+  }, [scale, canvasHeight, metrics.widthPx, metrics.heightPx, padTop, padBottom]);
 
   return (
     <div className="relative min-h-0 min-w-0 flex-1 bg-[#d8dee6]">
       <PageRulers
-        scrollRef={scrollRef}
-        pageRef={pageRef}
-        layoutRef={layoutRef}
+        box={rulerBox}
         metrics={metrics}
         scale={scale}
-        pageHeightPx={metrics.heightPx}
         onChange={(margins) => patchMdoc({ ...mdoc, margins })}
       />
       <div
@@ -361,14 +352,14 @@ function VisualEditorCanvas({
             "--md-h3-weight": String(typo["heading-3"]?.weight ?? 650),
             "--md-h4-size": String(typo["heading-4"]?.["font-size"] ?? "12pt"),
             width: metrics.widthPx * scale,
-            minHeight: (paged ? pageStackHeightPx(sheetCount, metrics.heightPx) : pageMinHeight) * scale,
-            height: paged ? pageStackHeightPx(sheetCount, metrics.heightPx) * scale : undefined
+            minHeight: canvasHeight * scale,
+            height: canvasHeight * scale
           } as CSSProperties
         }
       >
         <div
-          className={`page-inner relative ${paged ? "" : "bg-white shadow-page"}`}
-          data-paged={paged ? "" : undefined}
+          ref={innerRef}
+          className="page-inner relative bg-white shadow-page"
           onMouseDown={(event) => {
             if (!editor || event.button !== 0) return;
             if (!isBlankPageClickTarget(event.target)) return;
@@ -377,8 +368,7 @@ function VisualEditorCanvas({
           }}
           style={{
             width: metrics.widthPx,
-            minHeight: paged ? pageStackHeightPx(sheetCount, metrics.heightPx) : pageMinHeight,
-            height: paged ? pageStackHeightPx(sheetCount, metrics.heightPx) : undefined,
+            minHeight: pageMinHeight,
             transform: `scale(${scale})`,
             transformOrigin: "top left",
             fontFamily: String(body?.["font-family"] ?? "Aptos, Calibri, Carlito, Segoe UI, sans-serif"),
@@ -386,84 +376,29 @@ function VisualEditorCanvas({
             lineHeight: String(body?.["line-height"] ?? 1.15)
           }}
         >
-          {paged
-            ? Array.from({ length: sheetCount }, (_, index) => {
-                const pageVars = runningVars(index);
-                return (
-                  <div
-                    key={index}
-                    className="absolute left-0 bg-white shadow-page"
-                    data-testid={index === 0 ? "page-sheet" : undefined}
-                    style={{
-                      top: index * (metrics.heightPx + PAGE_STACK_GAP_PX),
-                      width: metrics.widthPx,
-                      height: metrics.heightPx
-                    }}
-                  >
-                    <div
-                      className="page-overlay pointer-events-none"
-                      aria-hidden={index > 0}
-                      data-testid={index === 0 ? "page-overlay" : undefined}
-                    >
-                      <div
-                        className="absolute left-0 right-0 top-0 flex justify-between px-8 text-[10px] text-[#667085]"
-                        style={{ height: metrics.margins.top, alignItems: "center" }}
-                        data-testid={index === 0 ? "page-header" : undefined}
-                      >
-                        <span data-testid={index === 0 ? "page-header-left" : undefined}>
-                          {resolveRunningForPreview(header.left ?? "", pageVars)}
-                        </span>
-                        <span data-testid={index === 0 ? "page-header-center" : undefined}>
-                          {resolveRunningForPreview(header.center ?? "", pageVars)}
-                        </span>
-                        <span data-testid={index === 0 ? "page-header-right" : undefined}>
-                          {resolveRunningForPreview(header.right ?? "", pageVars)}
-                        </span>
-                      </div>
-                      <div
-                        className="absolute left-0 right-0 bottom-0 flex justify-between px-8 text-[10px] text-[#667085]"
-                        style={{ height: metrics.margins.bottom, alignItems: "center" }}
-                        data-testid={index === 0 ? "page-footer" : undefined}
-                      >
-                        <span data-testid={index === 0 ? "page-footer-left" : undefined}>
-                          {resolveRunningForPreview(footer.left ?? "", pageVars)}
-                        </span>
-                        <span data-testid={index === 0 ? "page-footer-center" : undefined}>
-                          {resolveRunningForPreview(footer.center ?? "", pageVars)}
-                        </span>
-                        <span data-testid={index === 0 ? "page-footer-right" : undefined}>
-                          {resolveRunningForPreview(footer.right ?? "", pageVars)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            : (
-              <div className="page-overlay pointer-events-none" aria-hidden data-testid="page-overlay">
-                <div
-                  className="absolute left-0 right-0 top-0 flex justify-between px-8 text-[10px] text-[#667085]"
-                  style={{ height: metrics.margins.top, alignItems: "center" }}
-                  data-testid="page-header"
-                >
-                  <span data-testid="page-header-left">{resolveRunningForPreview(header.left ?? "", vars)}</span>
-                  <span data-testid="page-header-center">{resolveRunningForPreview(header.center ?? "", vars)}</span>
-                  <span data-testid="page-header-right">{resolveRunningForPreview(header.right ?? "", vars)}</span>
-                </div>
-                <div
-                  className="absolute left-0 right-0 bottom-0 flex justify-between px-8 text-[10px] text-[#667085]"
-                  style={{ height: metrics.margins.bottom, alignItems: "center" }}
-                  data-testid="page-footer"
-                >
-                  <span data-testid="page-footer-left">{resolveRunningForPreview(footer.left ?? "", vars)}</span>
-                  <span data-testid="page-footer-center">{resolveRunningForPreview(footer.center ?? "", vars)}</span>
-                  <span data-testid="page-footer-right">{resolveRunningForPreview(footer.right ?? "", vars)}</span>
-                </div>
-              </div>
-            )}
+          <div className="page-overlay pointer-events-none" aria-hidden data-testid="page-overlay">
+            <div
+              className="absolute left-0 right-0 top-0 flex justify-between px-8 text-[10px] text-[#667085]"
+              style={{ height: metrics.margins.top, alignItems: "center" }}
+              data-testid="page-header"
+            >
+              <span data-testid="page-header-left">{resolveRunningForPreview(header.left ?? "", vars)}</span>
+              <span data-testid="page-header-center">{resolveRunningForPreview(header.center ?? "", vars)}</span>
+              <span data-testid="page-header-right">{resolveRunningForPreview(header.right ?? "", vars)}</span>
+            </div>
+            <div
+              className="absolute left-0 right-0 bottom-0 flex justify-between px-8 text-[10px] text-[#667085]"
+              style={{ height: metrics.margins.bottom, alignItems: "center" }}
+              data-testid="page-footer"
+            >
+              <span data-testid="page-footer-left">{resolveRunningForPreview(footer.left ?? "", vars)}</span>
+              <span data-testid="page-footer-center">{resolveRunningForPreview(footer.center ?? "", vars)}</span>
+              <span data-testid="page-footer-right">{resolveRunningForPreview(footer.right ?? "", vars)}</span>
+            </div>
+          </div>
           <div
             ref={contentRef}
-            className={`relative z-10 flex w-full flex-col ${paged ? "md-page-flow self-start" : "flex-1"}`}
+            className="relative z-10 flex w-full flex-1 flex-col"
             style={{
               paddingTop: padTop,
               paddingRight: metrics.margins.right,

@@ -47,6 +47,27 @@ test("table tools add a row and can delete the table", async ({ page }) => {
   await expect(prose.locator("table")).toHaveCount(0);
 });
 
+test("document tables fill the page with even columns", async ({ page }) => {
+  await page.goto("/");
+  const prose = page.locator(".ProseMirror");
+  await expect(prose).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Insert" }).click();
+  await page.getByTestId("insert-table").click();
+  const table = prose.locator("table");
+  await expect(table).toBeVisible();
+  const sizes = await table.evaluate((el) => {
+    const parent = el.closest(".ProseMirror") as HTMLElement;
+    const cells = [...el.querySelectorAll("tr:first-child > *")];
+    return {
+      table: el.getBoundingClientRect().width,
+      parent: parent.getBoundingClientRect().width,
+      cols: cells.map((cell) => cell.getBoundingClientRect().width)
+    };
+  });
+  expect(sizes.table).toBeGreaterThan(sizes.parent * 0.95);
+  expect(Math.max(...sizes.cols) - Math.min(...sizes.cols)).toBeLessThan(8);
+});
+
 test("callout kind can be changed after insert", async ({ page }) => {
   await page.goto("/");
   const prose = page.locator(".ProseMirror");

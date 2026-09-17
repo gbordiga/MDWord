@@ -44,17 +44,6 @@ import { rewriteDisplayBlobsInTree, tiptapToAst, visualProjection, type TiptapNo
 import { renderPrintDocument } from "@mdword/renderer";
 
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view" | "image" | "table";
-export type PageLayoutMode = "pages" | "continuous";
-
-const PAGE_LAYOUT_KEY = "mdword.pageLayout";
-
-export function readPageLayout(): PageLayoutMode {
-  try {
-    return window.localStorage.getItem(PAGE_LAYOUT_KEY) === "continuous" ? "continuous" : "pages";
-  } catch {
-    return "pages";
-  }
-}
 export type LeftPanel = "files" | "outline" | "search" | "backlinks" | "history";
 export type MobileSheet = "workspace" | "insert" | "properties" | "more" | null;
 export type BusyKind = "open" | "save" | "folder" | "export" | "workspace";
@@ -128,7 +117,6 @@ export interface AppState {
   path: string | null;
   dirty: boolean;
   view: ViewMode;
-  pageLayout: PageLayoutMode;
   zoom: number;
   ribbon: RibbonTab;
   left: LeftPanel;
@@ -151,7 +139,6 @@ export interface AppState {
   applySource: (source: string) => void;
   applyTiptap: (doc: TiptapNode) => void;
   setView: (view: ViewMode) => void;
-  setPageLayout: (pageLayout: PageLayoutMode) => void;
   setRibbon: (tab: RibbonTab) => void;
   setLeft: (panel: LeftPanel) => void;
   newDocument: () => void;
@@ -297,7 +284,6 @@ export const useApp = create<AppState>((set, get) => {
   path: null,
   dirty: false,
   view: "document",
-  pageLayout: "pages",
   zoom: 1,
   ribbon: "home",
   left: "files",
@@ -346,14 +332,6 @@ export const useApp = create<AppState>((set, get) => {
     flushVisualEdits();
     flushSourceEdits();
     set({ view });
-  },
-  setPageLayout: (pageLayout) => {
-    try {
-      window.localStorage.setItem(PAGE_LAYOUT_KEY, pageLayout);
-    } catch {
-      /* ignore quota / private mode */
-    }
-    set({ pageLayout });
   },
   setRibbon: (ribbon) => set({ ribbon }),
   setLeft: (left) => {

@@ -32,7 +32,11 @@ export function editorExtensions() {
       HTMLAttributes: { class: "md-link", title: "Ctrl+click to open" }
     }),
     Placeholder.configure({ placeholder: "Start writing…" }),
-    Table.configure({ resizable: false }),
+    Table.configure({
+      resizable: false,
+      // Avoid TipTap's 25px col min-width locking a partial first layout.
+      cellMinWidth: 0
+    }),
     TableRow,
     TableHeader,
     TableCell,

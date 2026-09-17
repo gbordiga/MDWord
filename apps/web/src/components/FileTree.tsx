@@ -61,19 +61,6 @@ type ClipboardEntry = {
   isDirectory: boolean;
 };
 
-function allFolderPaths(nodes: FileTreeNode[]): string[] {
-  const out: string[] = [];
-  const walk = (list: FileTreeNode[]) => {
-    for (const node of list) {
-      if (!node.isDirectory) continue;
-      out.push(node.path);
-      walk(node.children);
-    }
-  };
-  walk(nodes);
-  return out;
-}
-
 function FileTypeIcon({
   name,
   isDirectory,
@@ -355,7 +342,7 @@ export function FileTree({
 }) {
   const tree = useMemo(() => buildFileTree(files, root), [files, root]);
   const lastRoot = useRef(root);
-  const [expanded, setExpanded] = useState(() => new Set(allFolderPaths(tree)));
+  const [expanded, setExpanded] = useState(() => new Set<string>());
   const [activeFolder, setActiveFolder] = useState(root);
   const [menu, setMenu] = useState<{ x: number; y: number; target: MenuTarget } | null>(null);
   const [clipboard, setClipboard] = useState<ClipboardEntry | null>(null);
@@ -374,7 +361,7 @@ export function FileTree({
     setExpanded((prev) => {
       if (lastRoot.current !== root) {
         lastRoot.current = root;
-        return new Set(allFolderPaths(tree));
+        return new Set(expandFolderPathsForSelection(tree, currentPath));
       }
       const next = new Set(prev);
       for (const path of expandFolderPathsForSelection(tree, currentPath)) next.add(path);

@@ -31,8 +31,6 @@ import {
   SquareCode,
   FileText,
   Columns2,
-  BookOpen,
-  AlignVerticalSpaceAround,
   ZoomIn,
   ZoomOut,
   PanelLeft,
@@ -436,23 +434,6 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             </Btn>
             <Btn title="Split" pressed={actions.view === "split"} onClick={() => actions.setView("split")}>
               <Columns2 size={16} /> Split
-            </Btn>
-            <Divider />
-            <Btn
-              title="Pages"
-              testId="view-pages"
-              pressed={actions.pageLayout === "pages"}
-              onClick={() => actions.setPageLayout("pages")}
-            >
-              <BookOpen size={16} /> Pages
-            </Btn>
-            <Btn
-              title="Continuous"
-              testId="view-continuous"
-              pressed={actions.pageLayout === "continuous"}
-              onClick={() => actions.setPageLayout("continuous")}
-            >
-              <AlignVerticalSpaceAround size={16} /> Continuous
             </Btn>
             <Divider />
             <Btn title="Outline" onClick={() => actions.setLeft("outline")}>
