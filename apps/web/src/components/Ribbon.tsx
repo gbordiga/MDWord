@@ -27,6 +27,7 @@ import {
   Folder,
   FileDown,
   FileCode,
+  Printer,
   StickyNote,
   SquareCode,
   FileText,
@@ -195,6 +196,15 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
               <Folder size={16} /> Open folder
             </Btn>
             <Divider />
+            <Btn
+              title="Print (Ctrl+P)"
+              testId="print-document"
+              onClick={() => void actions.printDocument()}
+              busy={busy?.kind === "export"}
+              disabled={fileBusy}
+            >
+              <Printer size={16} /> Print
+            </Btn>
             <Btn title="Export PDF" onClick={() => void actions.exportPdf()} busy={busy?.kind === "export"} disabled={fileBusy}>
               <FileDown size={16} /> Export PDF
             </Btn>

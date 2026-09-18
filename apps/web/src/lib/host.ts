@@ -576,33 +576,23 @@ export const webHost: HostApi = {
     },
     onOpenDocument() {
       return () => undefined;
+    },
+    onPrintDocument() {
+      return () => undefined;
     }
   },
   export: {
-    async pdf(html) {
+    async pdf(html, options = {}) {
       (window as Window & { __MDWORD_LAST_EXPORT_HTML__?: string }).__MDWORD_LAST_EXPORT_HTML__ = html;
+      const suggested =
+        typeof options.suggestedName === "string" ? options.suggestedName.replace(/\.pdf$/i, "").trim() : "";
+      const title = suggested || "document";
       if (navigator.webdriver) return new Uint8Array();
-      const iframe = document.createElement("iframe");
-      iframe.title = "Print";
-      iframe.setAttribute("srcdoc", html);
-      iframe.style.cssText =
-        "position:fixed;inset:0;width:100%;height:100%;border:0;z-index:2147483647;background:#fff";
-      document.body.appendChild(iframe);
-      await new Promise<void>((resolve) => {
-        iframe.addEventListener("load", () => resolve(), { once: true });
-        window.setTimeout(resolve, 500);
-      });
-      const win = iframe.contentWindow;
-      if (win) await waitForPagedPrint(win);
-      const cleanup = () => iframe.remove();
-      win?.addEventListener("afterprint", cleanup);
-      window.setTimeout(cleanup, 120_000);
-      win?.focus();
-      win?.print();
+      await openHiddenPrintDialog(html, title);
       return new Uint8Array();
     },
-    async print(html) {
-      await this.pdf(html, {});
+    async print(html, options = {}) {
+      await this.pdf(html, options);
     }
   },
   shell: {
@@ -630,6 +620,42 @@ const capacitorHost: HostApi = {
     }
   }
 };
+
+/** Keep the print document laid out but off-screen so Paged.js can paginate
+ * without covering the editor with a raw HTML "preview". */
+async function openHiddenPrintDialog(html: string, title: string): Promise<void> {
+  const iframe = document.createElement("iframe");
+  iframe.title = title;
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.setAttribute("srcdoc", html);
+  iframe.style.cssText =
+    "position:fixed;left:-10000px;top:0;width:100vw;height:100vh;border:0;opacity:0;pointer-events:none;";
+  document.body.appendChild(iframe);
+  const previousTitle = document.title;
+  document.title = title;
+  const restoreTitle = () => {
+    if (document.title === title) document.title = previousTitle;
+  };
+  await new Promise<void>((resolve) => {
+    iframe.addEventListener("load", () => resolve(), { once: true });
+    window.setTimeout(resolve, 500);
+  });
+  const win = iframe.contentWindow;
+  if (win) {
+    win.document.title = title;
+    await waitForPagedPrint(win);
+  }
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    restoreTitle();
+    iframe.remove();
+  };
+  win?.addEventListener("afterprint", cleanup);
+  window.setTimeout(cleanup, 60_000);
+  win?.print();
+}
 
 function waitForPagedPrint(win: Window): Promise<void> {
   const doc = win.document;

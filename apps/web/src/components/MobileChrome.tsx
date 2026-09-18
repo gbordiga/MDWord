@@ -448,6 +448,7 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
             </div>
           </div>
           <div className="my-1 h-px bg-[#e4e7ec]" />
+          <MoreItem label="Print" onClick={() => run(() => void actions.printDocument())} />
           <MoreItem label="Export PDF" onClick={() => run(() => void actions.exportPdf())} />
           <MoreItem label="Export HTML" onClick={() => run(() => void actions.exportHtml())} />
           <MoreItem

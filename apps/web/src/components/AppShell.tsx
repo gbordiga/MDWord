@@ -90,6 +90,11 @@ function AppShellInner({
         e.preventDefault();
         useApp.getState().setPalette(true);
       }
+      if (meta && !e.shiftKey && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        e.stopPropagation();
+        void useApp.getState().printDocument();
+      }
       if (meta && e.key.toLowerCase() === "s") {
         e.preventDefault();
         void useApp.getState().saveFile();
@@ -159,11 +164,17 @@ function AppShellInner({
     const openFromOs = (filePath: string) => {
       void useApp.getState().openWorkspaceFile(filePath);
     };
-    const stop = host.app.onOpenDocument(openFromOs);
+    const stopOpen = host.app.onOpenDocument(openFromOs);
+    const stopPrint = host.app.onPrintDocument?.(() => {
+      void useApp.getState().printDocument();
+    });
     void host.app.takeLaunchFile().then((filePath) => {
       if (filePath) openFromOs(filePath);
     });
-    return stop;
+    return () => {
+      stopOpen();
+      stopPrint?.();
+    };
   }, []);
 
   useEffect(() => {

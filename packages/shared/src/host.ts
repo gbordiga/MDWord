@@ -110,10 +110,21 @@ export interface HostApi {
     /** Path passed by the OS ("Open with" / file association). Electron only. */
     takeLaunchFile(): Promise<string | null>;
     onOpenDocument(handler: (path: string) => void): () => void;
+    onPrintDocument?(handler: () => void): () => void;
   };
   export: {
-    pdf(html: string, options: Record<string, unknown>): Promise<Uint8Array>;
-    print(html: string): Promise<void>;
+    pdf(
+      html: string,
+      options: { suggestedName?: string; sourcePath?: string | null }
+    ): Promise<Uint8Array>;
+    print(
+      html: string,
+      options?: {
+        suggestedName?: string;
+        pageWidthMicrons?: number;
+        pageHeightMicrons?: number;
+      }
+    ): Promise<void>;
   };
   shell: {
     openExternal(url: string): Promise<void>;

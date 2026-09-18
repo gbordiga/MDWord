@@ -7,12 +7,14 @@ import {
   MAX_WORKSPACE_LIST_DEPTH,
   MAX_WORKSPACE_LIST_ENTRIES,
   isMarkdownFileName,
+  sanitizeExportFileName,
   shouldSkipWorkspaceDir,
   shouldSkipWorkspaceFile
 } from "@mdword/shared";
 
 const isDev = !app.isPackaged;
 let pendingPrintHtml: string | null = null;
+let printWindow: BrowserWindow | null = null;
 
 function staticRoots(): string[] {
   if (isDev) {
@@ -44,6 +46,52 @@ const STATIC_TYPES: Record<string, string> = {
   ".txt": "text/plain; charset=utf-8",
   ".map": "application/json; charset=utf-8"
 };
+
+function pdfDefaultPath(suggestedName?: string, sourcePath?: string): string {
+  const raw = suggestedName?.replace(/\.pdf$/i, "").trim() || "document";
+  const file = `${sanitizeExportFileName(raw)}.pdf`;
+  if (sourcePath && path.isAbsolute(sourcePath)) return path.join(path.dirname(sourcePath), file);
+  return file;
+}
+
+function getPrintWindow(): BrowserWindow {
+  if (printWindow && !printWindow.isDestroyed()) return printWindow;
+  printWindow = new BrowserWindow({
+    show: false,
+    skipTaskbar: true,
+    paintWhenInitiallyHidden: true,
+    webPreferences: { sandbox: true, contextIsolation: true }
+  });
+  printWindow.on("closed", () => {
+    printWindow = null;
+  });
+  return printWindow;
+}
+
+async function loadPrintDocument(win: BrowserWindow): Promise<void> {
+  await win.loadURL(`mdword://app/__print.html?t=${Date.now()}`);
+  await win.webContents.executeJavaScript(`new Promise((resolve) => {
+    const start = Date.now();
+    const tick = () => {
+      if (document.documentElement.dataset.pagedReady === "1" || Date.now() - start > 10000) {
+        resolve(true);
+        return;
+      }
+      setTimeout(tick, 40);
+    };
+    if (!document.querySelector("script[src*=\\"paged\\"]")) resolve(true);
+    else tick();
+  })`);
+}
+
+async function renderPrintPdf(win: BrowserWindow): Promise<Buffer> {
+  await loadPrintDocument(win);
+  return win.webContents.printToPDF({
+    printBackground: true,
+    preferCSSPageSize: true,
+    displayHeaderFooter: false
+  });
+}
 
 function windowIconPath(): string | undefined {
   const ico = path.join(__dirname, "../../resources/icon.ico");
@@ -187,6 +235,18 @@ function createWindow(): void {
   mainWindow.webContents.on("will-prevent-unload", (event) => {
     event.preventDefault();
   });
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown") return;
+    const modifier = process.platform === "darwin" ? input.meta : input.control;
+    if (!modifier || input.alt || input.shift) return;
+    if (input.key.toLowerCase() !== "p") return;
+    event.preventDefault();
+    mainWindow?.webContents.send("app.print");
+  });
+  mainWindow.on("closed", () => {
+    if (printWindow && !printWindow.isDestroyed()) printWindow.close();
+    mainWindow = null;
+  });
 }
 
 app.whenReady().then(() => {
@@ -196,7 +256,9 @@ app.whenReady().then(() => {
     if (rel === "" || rel === ".") rel = "index.html";
     if (rel === "__print.html") {
       if (!pendingPrintHtml) return new Response("No print document", { status: 404 });
-      return new Response(pendingPrintHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
+      return new Response(pendingPrintHtml, {
+        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }
+      });
     }
     const serve = async (target: string) => {
       const data = await fs.readFile(target);
@@ -469,40 +531,62 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("export.pdf", async (_e, payload: unknown) => {
-    const parsed = z.object({ html: z.string() }).parse(payload);
+    const parsed = z
+      .object({
+        html: z.string(),
+        suggestedName: z.string().optional(),
+        sourcePath: z.string().optional().nullable()
+      })
+      .parse(payload);
+    const defaultPath = pdfDefaultPath(parsed.suggestedName, parsed.sourcePath ?? undefined);
     pendingPrintHtml = parsed.html;
-    const win = new BrowserWindow({
-      show: false,
-      webPreferences: { sandbox: true, contextIsolation: true, offscreen: true }
-    });
     try {
-      await win.loadURL("mdword://app/__print.html");
-      await win.webContents.executeJavaScript(`new Promise((resolve) => {
-        const start = Date.now();
-        const tick = () => {
-          if (document.documentElement.dataset.pagedReady === "1" || Date.now() - start > 10000) {
-            resolve(true);
-            return;
-          }
-          setTimeout(tick, 40);
-        };
-        if (!document.querySelector("script[src*=\\"paged\\"]")) resolve(true);
-        else tick();
-      })`);
-      const pdf = await win.webContents.printToPDF({
-        printBackground: true,
-        preferCSSPageSize: true,
-        displayHeaderFooter: false
-      });
-      const save = await dialog.showSaveDialog({
+      const win = getPrintWindow();
+      // Generate the PDF while the user picks a path — the save dialog was the
+      // main perceived delay because it previously opened only after printToPDF.
+      const pdfPromise = renderPrintPdf(win);
+      const saveOptions = {
         filters: [{ name: "PDF", extensions: ["pdf"] }],
-        defaultPath: "document.pdf"
-      });
+        defaultPath
+      };
+      const save = mainWindow
+        ? await dialog.showSaveDialog(mainWindow, saveOptions)
+        : await dialog.showSaveDialog(saveOptions);
+      const pdf = await pdfPromise;
       if (!save.canceled && save.filePath) await fs.writeFile(save.filePath, pdf);
       return pdf;
     } finally {
       pendingPrintHtml = null;
-      if (!win.isDestroyed()) win.close();
+    }
+  });
+
+  ipcMain.handle("export.print", async (_e, payload: unknown) => {
+    const parsed = z
+      .object({
+        html: z.string(),
+        suggestedName: z.string().optional(),
+        pageWidthMicrons: z.number().optional(),
+        pageHeightMicrons: z.number().optional()
+      })
+      .parse(payload);
+    pendingPrintHtml = parsed.html;
+    const pageSize =
+      parsed.pageWidthMicrons && parsed.pageHeightMicrons
+        ? { width: parsed.pageWidthMicrons, height: parsed.pageHeightMicrons }
+        : undefined;
+    try {
+      const win = getPrintWindow();
+      await loadPrintDocument(win);
+      const title = sanitizeExportFileName(parsed.suggestedName?.replace(/\.pdf$/i, "") || "document");
+      await win.webContents.executeJavaScript(
+        `document.title = ${JSON.stringify(title)}`
+      );
+      win.webContents.print(
+        { silent: false, printBackground: true, ...(pageSize ? { pageSize } : {}) },
+        () => undefined
+      );
+    } finally {
+      pendingPrintHtml = null;
     }
   });
 

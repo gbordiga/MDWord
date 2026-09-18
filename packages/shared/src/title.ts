@@ -38,6 +38,27 @@ export function displayDocumentTitle(
   return documentTitle(frontmatter, titleFromPath(path));
 }
 
+const INVALID_EXPORT_NAME = /[<>:"/\\|?*\u0000-\u001f]/g;
+
+/** Strip characters that Windows/macOS reject in a downloaded file name. */
+export function sanitizeExportFileName(name: string, fallback = "document"): string {
+  const cleaned = name
+    .normalize("NFKC")
+    .replace(INVALID_EXPORT_NAME, " ")
+    .replace(/\s+/g, " ")
+    .replace(/[. ]+$/g, "")
+    .trim();
+  const stem = (cleaned || fallback).slice(0, 150).replace(/[. ]+$/g, "").trim();
+  return stem || fallback;
+}
+
+export function suggestedPdfFileName(
+  frontmatter: Record<string, unknown> | null | undefined,
+  path?: string | null
+): string {
+  return `${sanitizeExportFileName(displayDocumentTitle(frontmatter, path))}.pdf`;
+}
+
 const DATE_KEYS = ["date", "data"] as const;
 
 function isoDay(value: Date): string {

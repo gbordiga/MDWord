@@ -36,11 +36,28 @@ const api = {
       const listener = (_event: unknown, filePath: string) => handler(filePath);
       ipcRenderer.on("app.openDocument", listener);
       return () => ipcRenderer.removeListener("app.openDocument", listener);
+    },
+    onPrintDocument: (handler: () => void) => {
+      const listener = () => handler();
+      ipcRenderer.on("app.print", listener);
+      return () => ipcRenderer.removeListener("app.print", listener);
     }
   },
   export: {
-    pdf: (html: string, _options: Record<string, unknown>) => ipcRenderer.invoke("export.pdf", { html }),
-    print: (html: string) => ipcRenderer.invoke("export.pdf", { html })
+    pdf: (html: string, options: { suggestedName?: string; sourcePath?: string | null } = {}) =>
+      ipcRenderer.invoke("export.pdf", {
+        html,
+        suggestedName: options.suggestedName,
+        sourcePath: options.sourcePath
+      }),
+    print: (
+      html: string,
+      options: {
+        suggestedName?: string;
+        pageWidthMicrons?: number;
+        pageHeightMicrons?: number;
+      } = {}
+    ) => ipcRenderer.invoke("export.print", { html, ...options })
   },
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke("shell.openExternal", url)

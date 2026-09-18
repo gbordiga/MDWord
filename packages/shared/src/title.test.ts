@@ -4,6 +4,8 @@ import {
   documentDate,
   documentTitle,
   documentTitleKey,
+  sanitizeExportFileName,
+  suggestedPdfFileName,
   titleFromPath
 } from "./title";
 
@@ -23,6 +25,14 @@ describe("document titles", () => {
       "Direzione strategica"
     );
     expect(displayDocumentTitle({}, "notes/alpha.md")).toBe("alpha");
+  });
+
+  it("builds a PDF file name from the document title", () => {
+    expect(sanitizeExportFileName("Audit report")).toBe("Audit report");
+    expect(sanitizeExportFileName('Q3 / "draft": v2')).toBe("Q3 draft v2");
+    expect(sanitizeExportFileName("...")).toBe("document");
+    expect(suggestedPdfFileName({ title: "Audit report" }, "x.md")).toBe("Audit report.pdf");
+    expect(suggestedPdfFileName({}, "notes/alpha.md")).toBe("alpha.pdf");
   });
 });
 

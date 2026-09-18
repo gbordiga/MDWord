@@ -57,6 +57,7 @@ export function CommandPalette({
           <Command.Item onSelect={() => { onInsert("table"); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Insert table</Command.Item>
           <Command.Item onSelect={() => { onInsert("figure"); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Insert figure</Command.Item>
           <Command.Item onSelect={() => { onInsert("wikilink"); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Add wikilink</Command.Item>
+          <Command.Item onSelect={() => { void actions.printDocument(); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Print</Command.Item>
           <Command.Item onSelect={() => { void actions.exportPdf(); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Export PDF</Command.Item>
         </Command.List>
       </Command>

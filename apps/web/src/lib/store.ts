@@ -14,9 +14,10 @@ import {
   documentDate,
   isMarkdownFileName,
   isNotAllowedError,
+  suggestedPdfFileName,
   type ViewMode
 } from "@mdword/shared";
-import type { Mdoc } from "@mdword/layout-engine";
+import { pageMetrics, type Mdoc } from "@mdword/layout-engine";
 import { parseDocument } from "yaml";
 import { getHost } from "./host";
 import { untitledDocument } from "./untitled";
@@ -112,6 +113,37 @@ function webPagedScriptUrl(platform: string): string | undefined {
   return `${window.location.origin}/paged.polyfill.min.js`;
 }
 
+async function preparePrintHtml(state: Pick<AppState, "model" | "path">): Promise<{
+  html: string;
+  suggestedName: string;
+  path: string | null;
+  pageWidthMicrons: number;
+  pageHeightMicrons: number;
+}> {
+  const { model, path } = state;
+  const host = getHost();
+  const metrics = pageMetrics(model.resolvedMdoc);
+  const html = await hydrateMermaidHtml(
+    renderPrintDocument({
+      ast: model.ast,
+      mdoc: model.resolvedMdoc,
+      title: displayDocumentTitle(model.frontmatter, path),
+      subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
+      date: documentDate(model.frontmatter),
+      filename: path ?? "document.md",
+      runningInBody: false,
+      pagedScriptUrl: webPagedScriptUrl(host.platform)
+    })
+  );
+  return {
+    html,
+    suggestedName: suggestedPdfFileName(model.frontmatter, path),
+    path,
+    pageWidthMicrons: Math.round(metrics.widthMm * 1000),
+    pageHeightMicrons: Math.round(metrics.heightMm * 1000)
+  };
+}
+
 export interface AppState {
   model: DocumentModel;
   path: string | null;
@@ -155,6 +187,7 @@ export interface AppState {
   copyWorkspaceEntry: (fromPath: string, toParentPath: string) => Promise<string>;
   deleteWorkspaceEntry: (targetPath: string) => Promise<void>;
   exportPdf: () => Promise<void>;
+  printDocument: () => Promise<void>;
   exportHtml: () => Promise<void>;
   patchMdoc: (mdoc: Mdoc) => void;
   patchFrontmatter: (patch: Record<string, unknown>) => void;
@@ -624,21 +657,28 @@ export const useApp = create<AppState>((set, get) => {
     beginBusy({ kind: "export", label: "Preparing PDF…", blocking: true });
     await yieldPaint();
     try {
-      const { model, path } = get();
-      const host = getHost();
-      const html = await hydrateMermaidHtml(
-        renderPrintDocument({
-          ast: model.ast,
-          mdoc: model.resolvedMdoc,
-          title: displayDocumentTitle(model.frontmatter, path),
-          subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
-          date: documentDate(model.frontmatter),
-          filename: path ?? "document.md",
-          runningInBody: false,
-          pagedScriptUrl: webPagedScriptUrl(host.platform)
-        })
-      );
-      await host.export.pdf(html, {});
+      const prepared = await preparePrintHtml(get());
+      await getHost().export.pdf(prepared.html, {
+        suggestedName: prepared.suggestedName,
+        sourcePath: prepared.path
+      });
+    } finally {
+      set({ busy: null });
+    }
+  },
+  printDocument: async () => {
+    if (get().busy?.blocking) return;
+    beginBusy({ kind: "export", label: "Preparing print…", blocking: true });
+    flushVisualEdits();
+    flushSourceEdits();
+    await yieldPaint();
+    try {
+      const prepared = await preparePrintHtml(get());
+      await getHost().export.print(prepared.html, {
+        suggestedName: prepared.suggestedName,
+        pageWidthMicrons: prepared.pageWidthMicrons,
+        pageHeightMicrons: prepared.pageHeightMicrons
+      });
     } finally {
       set({ busy: null });
     }
@@ -649,21 +689,12 @@ export const useApp = create<AppState>((set, get) => {
     beginBusy({ kind: "export", label: "Preparing HTML…", blocking: true });
     await yieldPaint();
     try {
-      const { model, path } = get();
-      const html = await hydrateMermaidHtml(
-        renderPrintDocument({
-          ast: model.ast,
-          mdoc: model.resolvedMdoc,
-          title: displayDocumentTitle(model.frontmatter, path),
-          subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
-          date: documentDate(model.frontmatter),
-          filename: path ?? "document.md",
-          runningInBody: false,
-          pagedScriptUrl: webPagedScriptUrl(getHost().platform)
-        })
-      );
+      const prepared = await preparePrintHtml(get());
       set({ busy: null });
-      await getHost().files.saveAs(html, (path ?? "document").replace(/\.md$/, "") + ".html");
+      await getHost().files.saveAs(
+        prepared.html,
+        (prepared.path ?? "document").replace(/\.md$/, "") + ".html"
+      );
     } catch (error) {
       console.error("Could not export HTML", error);
       set({ busy: null });

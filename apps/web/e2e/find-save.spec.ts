@@ -61,6 +61,7 @@ test("PDF export writes title and date into the print document", async ({ page }
   const html = await page.evaluate(
     () => (window as Window & { __MDWORD_LAST_EXPORT_HTML__?: string }).__MDWORD_LAST_EXPORT_HTML__ ?? ""
   );
+  expect(html).toContain("<title>Audit report</title>");
   expect(html).toContain('class="doc-title"');
   expect(html).toContain("Audit report");
   expect(html).toContain('class="doc-date"');
@@ -73,6 +74,22 @@ test("PDF export writes title and date into the print document", async ({ page }
   expect(html).toMatch(/counter\(page\)/);
   expect(html).not.toContain("print-page");
   expect(html).not.toMatch(/position:\s*fixed/);
+  expect(html).toContain("paged.polyfill.min.js");
+});
+
+test("Ctrl+P prepares the print document from the document title", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("prop-title").fill("Print job");
+  await expect(page.getByTestId("doc-title")).toContainText("Print job");
+  await page.keyboard.press("ControlOrMeta+P");
+  await page.waitForFunction(
+    () => Boolean((window as Window & { __MDWORD_LAST_EXPORT_HTML__?: string }).__MDWORD_LAST_EXPORT_HTML__)
+  );
+  const html = await page.evaluate(
+    () => (window as Window & { __MDWORD_LAST_EXPORT_HTML__?: string }).__MDWORD_LAST_EXPORT_HTML__ ?? ""
+  );
+  expect(html).toContain("<title>Print job</title>");
   expect(html).toContain("paged.polyfill.min.js");
 });
 
