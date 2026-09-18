@@ -55,20 +55,16 @@ function fromDom(event: MouseEvent): { wiki: string | null; href: string | null 
   };
 }
 
-/** Ctrl/Cmd+click opens; a plain click is left to the editor so the text stays editable. */
+/** Wikilinks open on click; external links use Ctrl/Cmd+click. */
 export function handleEditorLinkClick(view: EditorView, pos: number, event: MouseEvent): boolean {
-  if (!isModifiedClick(event)) return false;
   const dom = fromDom(event);
-  if (dom.wiki && openWiki(dom.wiki)) {
+  const wikiTarget = dom.wiki || wikiAtPos(view, pos);
+  if (wikiTarget && openWiki(wikiTarget)) {
     event.preventDefault();
     return true;
   }
+  if (!isModifiedClick(event)) return false;
   if (dom.href && openHref(dom.href)) {
-    event.preventDefault();
-    return true;
-  }
-  const wiki = wikiAtPos(view, pos);
-  if (wiki && openWiki(wiki)) {
     event.preventDefault();
     return true;
   }
@@ -81,9 +77,13 @@ export function handleEditorLinkClick(view: EditorView, pos: number, event: Mous
 }
 
 export function preventBrowserLinkOpen(event: MouseEvent): boolean {
-  if (!isModifiedClick(event)) return false;
   const target = event.target as HTMLElement | null;
-  if (target?.closest?.("a[href], [data-wiki-link], .md-wikilink")) {
+  if (target?.closest?.("[data-wiki-link], .md-wikilink")) {
+    event.preventDefault();
+    return false;
+  }
+  if (!isModifiedClick(event)) return false;
+  if (target?.closest?.("a[href]")) {
     event.preventDefault();
   }
   return false;

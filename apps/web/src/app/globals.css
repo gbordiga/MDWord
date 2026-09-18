@@ -502,7 +502,7 @@ html.keyboard-open .mdword-app {
   background: #e8eefc;
   border-radius: 4px;
   padding: 0 4px;
-  cursor: text;
+  cursor: pointer;
 }
 
 .wikilink.broken {
@@ -807,27 +807,60 @@ html.keyboard-open .mdword-app {
 
 .ProseMirror table {
   border-collapse: collapse;
-  width: 100% !important;
+  width: auto;
   max-width: 100%;
-  table-layout: fixed;
   margin: 12px 0;
 }
 
-/* Equal columns from the page width. Do not let first-row images or TipTap
-   pixel min-widths lock a partial layout before pictures finish decoding. */
-.ProseMirror table col {
-  width: 0 !important;
-  min-width: 0 !important;
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: 0;
+  width: 4px;
+  background-color: #3b82f6;
+  pointer-events: auto;
+  cursor: col-resize;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.ProseMirror .column-resize-dragging .column-resize-handle,
+.ProseMirror.resize-cursor .column-resize-handle {
+  transition: none;
+}
+
+.ProseMirror table:hover .column-resize-handle,
+.ProseMirror .column-resize-handle:hover {
+  opacity: 0.85;
+}
+
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
 }
 
 .ProseMirror th,
 .ProseMirror td {
+  position: relative;
   border: 1px solid #ccc;
   padding: 4px 8px;
   min-width: 0;
   vertical-align: top;
   word-wrap: break-word;
   overflow-wrap: anywhere;
+}
+
+.ProseMirror .selectedCell {
+  position: relative;
+}
+
+.ProseMirror .selectedCell::after {
+  z-index: 2;
+  position: absolute;
+  content: "";
+  inset: 0;
+  background: rgba(59, 130, 246, 0.14);
+  pointer-events: none;
 }
 
 .ProseMirror th p,
@@ -856,6 +889,199 @@ html.keyboard-open .mdword-app {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   max-width: 100%;
+}
+
+.ProseMirror .md-table-caption {
+  display: block;
+  font-size: 0.9em;
+  color: #475467;
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.ProseMirror .md-table-caption[hidden] {
+  display: none;
+}
+
+.ProseMirror .md-myst-raw-card,
+.md-myst-raw-card {
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #f8fafc;
+  margin: 12px 0;
+  overflow: hidden;
+}
+
+.ProseMirror .md-myst-raw-head,
+.md-myst-raw-head {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #475467;
+  padding: 6px 10px;
+  border-bottom: 1px solid #e4e7ec;
+  background: #eef2f6;
+}
+
+.ProseMirror .md-myst-raw-body,
+.md-myst-raw-body {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  color: #344054;
+  background: transparent;
+}
+
+.ProseMirror .md-inline-math {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #f8fafc;
+}
+
+.ProseMirror figure.md-math {
+  margin: 0.85em 0;
+  padding: 0;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.ProseMirror figure.md-math.is-selected {
+  outline: 2px solid #2e90fa;
+  outline-offset: 1px;
+}
+
+.md-math-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #eef2f6;
+  background: #f8fafc;
+}
+
+.md-math-label {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #667085;
+}
+
+.md-math-edit,
+.md-math-actions button {
+  border: 1px solid #d0d5dd;
+  background: #fff;
+  color: #344054;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.md-math-edit:hover,
+.md-math-actions button:hover {
+  background: #f2f4f7;
+}
+
+.md-math-preview {
+  padding: 12px 14px;
+  text-align: center;
+  overflow-x: auto;
+}
+
+.md-math-preview .katex-display {
+  margin: 0;
+}
+
+.md-math-empty,
+.md-math-error {
+  margin: 0;
+  text-align: left;
+  font-size: 13px;
+  color: #667085;
+}
+
+.md-math-preview.is-error .md-math-error {
+  color: #b42318;
+  margin-bottom: 8px;
+}
+
+.md-math-editor {
+  padding: 10px 12px 12px;
+}
+
+.md-math-source {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  font-family: Consolas, "Liberation Mono", ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #f8fafc;
+}
+
+.md-math-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.md-math-fallback,
+figure.md-math pre.md-math-fallback {
+  margin: 0;
+  text-align: left;
+  white-space: pre-wrap;
+  font-family: Consolas, "Liberation Mono", ui-monospace, monospace;
+  font-size: 13px;
+  color: #344054;
+  background: transparent;
+}
+
+.ProseMirror .md-equation-number {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 0.92em;
+  color: #667085;
+}
+
+.ProseMirror .md-cite-chip,
+.ProseMirror .md-cross-ref-chip,
+.ProseMirror .md-footnote-ref {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 0.92em;
+  background: #eef2ff;
+  color: #3538cd;
+}
+
+.ProseMirror .md-footnote-ref {
+  background: #f2f4f7;
+  color: #475467;
+  font-size: 0.75em;
+  vertical-align: super;
+}
+
+.ProseMirror ul.task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.ProseMirror li.task-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
 }
 
 @media (max-width: 1023px) {

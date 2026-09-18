@@ -161,9 +161,41 @@ Rules:
 - Embedded stills (PNG, WebP, large JPEG) are downscaled to 1600px long edge and re-encoded as JPEG q75. GIF and SVG stay as-is.
 - Opening a legacy file that still has `![alt](data:…)` or leftover `{image}` fences must parse the photo. Rewrite to this form when that image region is edited, not on a no-op save.
 
+## MyST spec tables
+
+GFM pipe tables are the default in visual mode. When a table needs caption, `:widths:`, `:align:`, `:label:`, or non-default header rows, MDWord serializes a MyST directive:
+
+```markdown
+:::{table} Caption
+:widths: 20 50 30
+:align: center
+:label: tbl-kpi
+
+| KPI | Formula |
+| --- | --- |
+| ROS | EBIT / Ricavi |
+:::
+```
+
+`{list-table}` and `{csv-table}` round-trip with their directive form preserved. Column `:widths:` use relative integers (`auto` = content-sized columns in the editor).
+
+## MyST inline (References ribbon)
+
+| Feature | Source form | Visual |
+| --- | --- | --- |
+| Citation | `{cite}`key`` | chip with key (bibliography stays Source/raw) |
+| Cross-ref | `{ref}`label`` | chip resolved to Figure/Table/Section number |
+| Footnote | `[^id]` | superscript chip |
+| Inline math | `$…$` | rendered inline |
+| Sub/sup | `{subscript}`x`` / `{superscript}`n`` | marks |
+
+Numbering for figures, tables, and equations is computed live in document view and print from `:label:` / `enumerated` nodes; numbers are not written into the Markdown body.
+
 ## Unknown nodes
 
-Unsupported directives, roles, and HTML remain in the AST (typically `mystDirective` / raw nodes). Visual mode may show a “Raw / unsupported” block. Source mode always shows the original markup. Saving must not drop them.
+Unsupported directives, roles, and HTML remain in the AST (typically `mystDirective` / raw nodes). Visual mode shows a **Raw** card (directive name + body preview). Source mode always shows the original markup. Saving must not drop them.
+
+Extra mystmd constructs outside [myst-spec](https://mystmd.org/spec) (cards, tabs, include, …) stay as Raw until explicitly supported.
 
 ## Versioning and migration
 

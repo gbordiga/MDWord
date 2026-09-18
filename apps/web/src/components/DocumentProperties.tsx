@@ -381,6 +381,33 @@ export function DocumentProperties({
           </Field>
         ) : null}
       </PropertySection>
+
+      {variant === "panel" && model.diagnostics.length > 0 ? (
+        <PropertySection
+          id="diagnostics"
+          title="Diagnostics"
+          hint={`${model.diagnostics.length} ${model.diagnostics.length === 1 ? "issue" : "issues"}`}
+          defaultOpen
+          testIds
+        >
+          <div data-testid="diagnostics" className="space-y-1.5">
+            {model.diagnostics.map((d, i) => (
+              <div
+                key={`${d.code ?? "diag"}-${i}`}
+                className={
+                  d.severity === "error"
+                    ? "rounded-md bg-[#fef3f2] px-2 py-1.5 text-[12px] text-[#b42318]"
+                    : d.severity === "info"
+                      ? "rounded-md bg-[#f2f4f7] px-2 py-1.5 text-[12px] text-[#344054]"
+                      : "rounded-md bg-[#fffbeb] px-2 py-1.5 text-[12px] text-[#92400e]"
+                }
+              >
+                {d.message}
+              </div>
+            ))}
+          </div>
+        </PropertySection>
+      ) : null}
     </div>
   );
 }

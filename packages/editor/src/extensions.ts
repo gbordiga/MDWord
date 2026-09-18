@@ -1,4 +1,5 @@
 import { Node, mergeAttributes } from "@tiptap/core";
+import { MystRawView } from "./mystRawView";
 
 export const WikiLink = Node.create({
   name: "wikiLink",
@@ -25,7 +26,7 @@ export const WikiLink = Node.create({
         "data-target": HTMLAttributes.target ?? "",
         "data-testid": "wikilink",
         class: broken ? "wikilink md-wikilink broken" : "wikilink md-wikilink",
-        title: "Ctrl+click to open"
+        title: "Click to open"
       }),
       HTMLAttributes.label || HTMLAttributes.target
     ];
@@ -38,7 +39,10 @@ export const Callout = Node.create({
   content: "block+",
   defining: true,
   addAttributes() {
-    return { kind: { default: "note" } };
+    return {
+      kind: { default: "note" },
+      title: { default: null }
+    };
   },
   parseHTML() {
     return [{ tag: "aside[data-callout]" }];
@@ -48,6 +52,7 @@ export const Callout = Node.create({
       "aside",
       mergeAttributes(HTMLAttributes, {
         "data-callout": HTMLAttributes.kind,
+        "data-title": HTMLAttributes.title ?? undefined,
         class: `callout callout-${HTMLAttributes.kind}`
       }),
       0
@@ -75,17 +80,21 @@ export const MystRaw = Node.create({
   addAttributes() {
     return {
       name: { default: "unknown" },
-      source: { default: "" }
+      source: { default: "" },
+      options: { default: null }
     };
   },
   parseHTML() {
-    return [{ tag: "pre[data-myst-raw]" }];
+    return [{ tag: "div[data-myst-raw]" }, { tag: "pre[data-myst-raw]" }];
   },
   renderHTML({ HTMLAttributes }) {
     return [
-      "pre",
-      mergeAttributes(HTMLAttributes, { "data-myst-raw": "", class: "myst-raw" }),
+      "div",
+      mergeAttributes(HTMLAttributes, { "data-myst-raw": "", class: "md-myst-raw-card" }),
       HTMLAttributes.source || `::: {${HTMLAttributes.name}}\n:::`
     ];
+  },
+  addNodeView() {
+    return MystRawView;
   }
 });

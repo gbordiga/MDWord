@@ -1,10 +1,18 @@
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Table } from "@tiptap/extension-table";
-import { TableRow } from "@tiptap/extension-table-row";
-import { TableCell } from "@tiptap/extension-table-cell";
-import { TableHeader } from "@tiptap/extension-table-header";
+import { MdTable, MdTableRow, MdTableCell, MdTableHeader } from "./tableExt";
+import {
+  Subscript,
+  Superscript,
+  InlineMath,
+  CiteChip,
+  CrossRefChip,
+  FootnoteRef,
+  Abbreviation
+} from "./mystInline";
+import { MathBlock } from "./mathBlock";
+import { MystNumbering } from "./mystNumberingPlugin";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Underline from "@tiptap/extension-underline";
@@ -33,14 +41,19 @@ export function editorExtensions() {
       HTMLAttributes: { class: "md-link", title: "Ctrl+click to open" }
     }),
     Placeholder.configure({ placeholder: "Start writing…" }),
-    Table.configure({
-      resizable: false,
-      // Avoid TipTap's 25px col min-width locking a partial first layout.
-      cellMinWidth: 0
-    }),
-    TableRow,
-    TableHeader,
-    TableCell,
+    MdTable,
+    MdTableRow,
+    MdTableHeader,
+    MdTableCell,
+    Subscript,
+    Superscript,
+    InlineMath,
+    CiteChip,
+    CrossRefChip,
+    FootnoteRef,
+    Abbreviation,
+    MathBlock,
+    MystNumbering,
     TaskList,
     TaskItem.configure({ nested: true }),
     WikiLink,

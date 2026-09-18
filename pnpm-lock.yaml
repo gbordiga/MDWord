@@ -356,6 +356,9 @@ importers:
       '@mdword/shared':
         specifier: workspace:*
         version: link:../shared
+      katex:
+        specifier: ^0.16.47
+        version: 0.16.47
       mermaid:
         specifier: ^12.0.0
         version: 12.0.0

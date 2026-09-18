@@ -4,8 +4,14 @@ import {
   DEFAULT_MERMAID_SOURCE,
   embedImageSrc,
   nextMatchIndex,
-  normalizeHref
+  normalizeHref,
+  setTableCaption,
+  setTableCellAlign,
+  setTableWidthsAuto,
+  setTableWidthsEqual
 } from "@mdword/editor";
+
+export { setTableCellAlign, setTableCaption, setTableWidthsAuto, setTableWidthsEqual };
 
 export function applyBlockStyle(editor: Editor, value: string): void {
   if (value === "p") editor.chain().focus().setParagraph().run();
@@ -120,6 +126,51 @@ export function insertPageBreak(editor: Editor): void {
 
 export function insertMermaid(editor: Editor, source = DEFAULT_MERMAID_SOURCE): void {
   editor.chain().focus().insertContent({ type: "mermaid", attrs: { source } }).run();
+}
+
+export function toggleSubscript(editor: Editor): void {
+  editor.chain().focus().toggleMark("subscript").run();
+}
+
+export function toggleSuperscript(editor: Editor): void {
+  editor.chain().focus().toggleMark("superscript").run();
+}
+
+export function insertInlineMath(editor: Editor, latex = "E=mc^2"): void {
+  editor.chain().focus().insertContent({ type: "inlineMath", attrs: { latex } }).run();
+}
+
+export function insertMathBlock(editor: Editor, latex?: string): void {
+  editor.chain().focus().setMathBlock(latex).run();
+}
+
+export function insertCite(editor: Editor, key?: string): void {
+  const value = (key ?? window.prompt("Citation key", "smith2020") ?? "").trim();
+  if (!value) return;
+  editor.chain().focus().insertContent({ type: "citeChip", attrs: { key: value } }).run();
+}
+
+export function insertCrossRef(editor: Editor, label?: string): void {
+  const value = (label ?? window.prompt("Reference label", "fig-example") ?? "").trim();
+  if (!value) return;
+  editor.chain().focus().insertContent({ type: "crossRefChip", attrs: { label: value, kind: "ref", display: "?" } }).run();
+}
+
+export function insertFootnote(editor: Editor): void {
+  const id = `fn-${Date.now()}`;
+  editor.chain().focus().insertContent({ type: "footnoteRef", attrs: { identifier: id, number: "†" } }).run();
+}
+
+export function promptTableCaption(editor: Editor): void {
+  const current = String(editor.getAttributes("table").caption ?? "");
+  const value = window.prompt("Table caption", current);
+  if (value === null) return;
+  setTableCaption(editor, value.trim() || null);
+}
+
+export function setCalloutTitle(editor: Editor, title?: string): void {
+  const value = title ?? window.prompt("Callout title", "") ?? "";
+  editor.chain().focus().updateAttributes("callout", { title: value.trim() || null }).run();
 }
 
 function textChunks(editor: Editor): { pos: number; text: string }[] {

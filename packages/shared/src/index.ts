@@ -11,4 +11,7 @@ export * from "./lineDiff";
 export * from "./workspaceList";
 export * from "./gfmTables";
 export * from "./mermaid";
-export * from "./mermaid";
+export * from "./mathBlock";
+export * from "./mystRegistry";
+export * from "./mystTables";
+export * from "./mystNumbering";

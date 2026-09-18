@@ -33,8 +33,8 @@ import {
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { figurePosFromState } from "@mdword/editor";
-import { displayDocumentTitle } from "@mdword/shared";
 import { useApp } from "@/lib/store";
+import { DocumentTabBar } from "./DocumentTabBar";
 import {
   applyBlockStyle,
   currentBlockStyle,
@@ -82,9 +82,8 @@ function IconBtn({
 }
 
 export function MobileTopBar() {
-  const dirty = useApp((s) => s.dirty);
   const path = useApp((s) => s.path);
-  const title = useApp((s) => displayDocumentTitle(s.model.frontmatter, s.path));
+  const dirty = useApp((s) => s.dirty);
   const setMobileSheet = useApp((s) => s.setMobileSheet);
   const saveFile = useApp((s) => s.saveFile);
   const saving = useApp((s) => s.busy?.kind === "save");
@@ -99,12 +98,9 @@ export function MobileTopBar() {
       <IconBtn title="Workspace" onClick={() => setMobileSheet("workspace")}>
         <Menu size={22} />
       </IconBtn>
-      <div className="min-w-0 flex-1 py-2">
-        <div className="truncate text-[15px] font-semibold leading-tight text-[#1c1f24]">
-          {title}
-          {dirty ? <span className="ml-1 text-accent">•</span> : null}
-        </div>
-        <div className="truncate text-[11px] text-[#667085]" data-testid="mobile-save-status">
+      <div className="min-w-0 flex-1 py-1">
+        <DocumentTabBar compact />
+        <div className="truncate px-1 text-[11px] text-[#667085]" data-testid="mobile-save-status">
           {saveHint}
         </div>
       </div>
@@ -390,10 +386,10 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
       </Sheet>
       <Sheet open={sheet === "more"} onClose={close} side="bottom" title="More" testId="sheet-more">
         <div className="py-1">
-          <MoreItem label="New document" onClick={() => run(() => confirmIfDirty(actions.newDocument))}>
+          <MoreItem label="New document" onClick={() => run(() => actions.newDocument())}>
             <FilePlus size={18} />
           </MoreItem>
-          <MoreItem label="Open" onClick={() => run(() => confirmIfDirty(() => void actions.openFile()))}>
+          <MoreItem label="Open" onClick={() => run(() => void actions.openFile())}>
             <FolderOpen size={18} />
           </MoreItem>
           <MoreItem label="Save as" onClick={() => run(() => void actions.saveFileAs())}>

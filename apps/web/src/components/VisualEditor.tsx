@@ -14,6 +14,7 @@ import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import {
   editorExtensions,
   astToTiptap,
+  replaceEditorDocument,
   focusEditorAtPagePoint,
   isBlankPageClickTarget,
   selectAtPointer,
@@ -147,7 +148,10 @@ function VisualEditorCanvas({
     editorProps: {
       attributes: {
         class: "md-prose",
-        spellcheck: "true"
+        spellcheck: "false",
+        autocorrect: "off",
+        autocomplete: "off",
+        autocapitalize: "off"
       },
       handleClick: (view, pos, event) =>
         event.defaultPrevented ? true : handleEditorLinkClick(view, pos, event),
@@ -223,8 +227,7 @@ function VisualEditorCanvas({
     lastSourceGen.current = sourceGeneration;
     skipProgrammaticUpdate.current = true;
     const load = (content: TiptapNode) => {
-      const setContent = editor.commands.setContent as (doc: TiptapNode, emitUpdate?: boolean) => boolean;
-      setContent(content, false);
+      replaceEditorDocument(editor, content);
     };
     try {
       load(tiptapContentFromAst(useApp.getState().model.ast));

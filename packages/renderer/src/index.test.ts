@@ -33,7 +33,7 @@ describe("renderer security", () => {
         }
       ]
     });
-    expect(html).toContain("<table>");
+    expect(html).toMatch(/<table\b/);
     expect(html).toContain("<td>");
   });
 
@@ -222,13 +222,13 @@ describe("running header and footer", () => {
     expect(html).toMatch(/color:\s*#667085/);
   });
 
-  it("prints tables with fixed layout and no cell paragraph gap", () => {
+  it("prints tables with auto column layout and no cell paragraph gap", () => {
     const html = renderPrintDocument({
       ast: { type: "root", children: [] },
       mdoc: { version: 1 },
       title: "Doc"
     });
-    expect(html).toMatch(/table-layout:\s*fixed/);
+    expect(html).toMatch(/table-layout:\s*auto/);
     expect(html).toMatch(/th p,\s*td p \{ margin: 0; \}/);
   });
 });

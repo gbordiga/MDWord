@@ -1,18 +1,28 @@
 import sanitizeHtml from "sanitize-html";
 import type { GenericNode } from "@mdword/shared";
 import {
+  buildNumberingIndex,
   decodeWikiHref,
+  extractTableFromDirective,
+  formatReferenceDisplay,
+  getTableMeta,
   imageNodeUrl,
   isImageLike,
   isMermaidAstNode,
+  isMystCalloutKind,
   mermaidSourceFromNode,
   promotePipeParagraphs,
   resolveImageReferences,
-  WIKI_SCHEME
+  resolveCrossReference,
+  withTableMeta,
+  WIKI_SCHEME,
+  type TableMeta
 } from "@mdword/shared";
 import { mermaidFigureHtml } from "./mermaid";
+import { renderKatex } from "./katex";
 
 export { hydrateMermaidHtml, renderMermaidSvg } from "./mermaid";
+export { renderKatex } from "./katex";
 import { pageMetrics, type Mdoc } from "@mdword/layout-engine";
 import { collectTocItems, renderTocHtml } from "./toc";
 import { pageMarginCss, resolvedRunningComments, runningBarsHtml } from "./running";
@@ -88,6 +98,32 @@ function renderNodes(nodes: GenericNode[] | undefined): string {
   return (nodes ?? []).map(renderNode).join("");
 }
 
+let numberingIndex = buildNumberingIndex({ type: "root", children: [] });
+
+function prepareNumbering(ast: GenericNode): void {
+  numberingIndex = buildNumberingIndex(ast);
+}
+
+function tableColgroup(meta: TableMeta, colCount: number): string {
+  if (!meta.widths || meta.widths === "auto") return "";
+  const weights = Array.isArray(meta.widths) ? meta.widths : Array(colCount).fill(1);
+  const total = weights.reduce((a, b) => a + b, 0);
+  const cols = weights
+    .map((w) => `<col style="width:${((w / total) * 100).toFixed(2)}%" />`)
+    .join("");
+  return `<colgroup>${cols}</colgroup>`;
+}
+
+function renderTableNode(node: GenericNode, meta: TableMeta): string {
+  const rows = node.children ?? [];
+  const colCount = Math.max(...rows.map((r) => r.children?.length ?? 0), 1);
+  const align = meta.align ? ` style="margin:${meta.align === "center" ? "0 auto" : meta.align === "right" ? "0 0 0 auto" : "0"};"` : "";
+  const width = meta.width ? ` width="${escape(String(meta.width))}"` : "";
+  const cap = meta.caption ? `<caption>${escape(meta.caption)}</caption>` : "";
+  const body = renderNodes(rows);
+  return `<table class="md-table"${width}${align}>${cap}${tableColgroup(meta, colCount)}${body}</table>`;
+}
+
 function renderNode(node: GenericNode): string {
   switch (node.type) {
     case "root":
@@ -109,6 +145,26 @@ function renderNode(node: GenericNode): string {
       return `<s>${renderNodes(node.children)}</s>`;
     case "inlineCode":
       return `<code>${escape(String(node.value ?? ""))}</code>`;
+    case "inlineMath":
+      return `<span class="md-inline-math">${renderKatex(String(node.value ?? ""), false)}</span>`;
+    case "subscript":
+      return `<sub>${renderNodes(node.children)}</sub>`;
+    case "superscript":
+      return `<sup>${renderNodes(node.children)}</sup>`;
+    case "underline":
+      return `<u>${renderNodes(node.children)}</u>`;
+    case "abbreviation":
+      return `<abbr title="${escape(String(node.title ?? ""))}">${renderNodes(node.children)}</abbr>`;
+    case "crossReference": {
+      const label = String(node.label ?? node.identifier ?? "");
+      const target = resolveCrossReference(label, numberingIndex);
+      const text = formatReferenceDisplay(target, String(node.kind ?? "ref"));
+      return `<span class="md-cross-ref">${escape(text)}</span>`;
+    }
+    case "cite":
+      return `<span class="md-cite">[${escape(String(node.label ?? node.identifier ?? ""))}]</span>`;
+    case "footnoteReference":
+      return `<sup class="md-footnote-ref">${escape(String(node.identifier ?? node.label ?? ""))}</sup>`;
     case "break":
       return "<br />";
     case "link": {
@@ -128,28 +184,46 @@ function renderNode(node: GenericNode): string {
       return String(node.value ?? "");
     case "list": {
       const ordered = Boolean(node.ordered);
+      const task = node.children?.some((c) => c.checked !== undefined);
+      if (task) {
+        return `<ul class="task-list">${renderNodes(node.children)}</ul>`;
+      }
       const tag = ordered ? "ol" : "ul";
       return `<${tag}>${renderNodes(node.children)}</${tag}>`;
     }
-    case "listItem":
+    case "listItem": {
+      if (node.checked !== undefined) {
+        const mark = node.checked ? "checked" : "";
+        return `<li class="task-list-item"><input type="checkbox" disabled ${mark} /> ${renderNodes(node.children)}</li>`;
+      }
       return `<li>${renderNodes(node.children)}</li>`;
+    }
     case "blockquote":
       return `<blockquote>${renderNodes(node.children)}</blockquote>`;
+    case "math": {
+      const label = String(node.label ?? node.identifier ?? "");
+      const target = label ? resolveCrossReference(label, numberingIndex) : undefined;
+      const num = target?.number;
+      const numHtml = num ? `<span class="md-equation-number">(${escape(num)})</span>` : "";
+      return `<div class="md-math-block">${renderKatex(String(node.value ?? ""), true)}${numHtml}</div>`;
+    }
     case "code":
     case "codeBlock":
       if (isMermaidAstNode(node)) return mermaidFigureHtml(mermaidSourceFromNode(node));
-      return `<pre><code>${escape(String(node.value ?? ""))}</code></pre>`;
+      const lang = node.lang ? ` class="language-${escape(String(node.lang))}"` : "";
+      return `<pre><code${lang}>${escape(String(node.value ?? ""))}</code></pre>`;
     case "mermaid":
       return mermaidFigureHtml(mermaidSourceFromNode(node));
     case "thematicBreak":
       return "<hr />";
     case "table":
-      return `<table>${renderNodes(node.children)}</table>`;
+      return renderTableNode(node, getTableMeta(node));
     case "tableRow":
       return `<tr>${renderNodes(node.children)}</tr>`;
     case "tableCell": {
       const tag = node.header ? "th" : "td";
-      return `<${tag}>${renderNodes(node.children)}</${tag}>`;
+      const align = node.align ? ` style="text-align:${escape(String(node.align))}"` : "";
+      return `<${tag}${align}>${renderNodes(node.children)}</${tag}>`;
     }
     case "admonition": {
       const kind = String(node.kind ?? node.class ?? "note");
@@ -159,6 +233,20 @@ function renderNode(node: GenericNode): string {
       return `<p class="admonition-title">${renderNodes(node.children)}</p>`;
     case "figure":
     case "container":
+      if (node.type === "container" && node.kind === "table") {
+        const table = node.children?.find((c) => c.type === "table");
+        if (table) {
+          const caption = node.children?.find((c) => c.type === "caption");
+          const captionText = caption ? renderNodes(caption.children).replace(/<[^>]+>/g, "").trim() : null;
+          const meta = {
+            ...getTableMeta(table),
+            caption: captionText,
+            label: String(node.label ?? node.identifier ?? "") || null,
+            sourceKind: "table" as const
+          };
+          return renderTableNode(withTableMeta(table, meta), meta);
+        }
+      }
       if (node.type === "container" && node.kind !== "figure") {
         return renderNodes(node.children);
       }
@@ -169,15 +257,30 @@ function renderNode(node: GenericNode): string {
       const name = String(node.name ?? "");
       if (name === "page-break") return `<div class="page-break"></div>`;
       if (name === "mermaid") return mermaidFigureHtml(mermaidSourceFromNode(node));
-      const kinds = ["note", "tip", "warning", "important", "caution", "danger", "error", "hint"];
-      if (kinds.includes(name)) {
-        return `<aside class="admonition ${escape(name)}"><p class="admonition-title">${escape(name)}</p>${renderNodes(node.children)}</aside>`;
+      if (isMystCalloutKind(name)) {
+        const inner = node.children?.find((c) => c.type === "admonition");
+        if (inner) return renderNode(inner);
+        const title = node.args ? String(node.args) : name;
+        return `<aside class="admonition ${escape(name)}"><p class="admonition-title">${escape(title)}</p>${renderNodes(node.children)}</aside>`;
+      }
+      if (name === "table" || name === "list-table" || name === "csv-table") {
+        const extracted = extractTableFromDirective(node);
+        if (extracted.table) {
+          return renderTableNode(withTableMeta(extracted.table, extracted.meta), extracted.meta);
+        }
+      }
+      if (name === "math" || name === "equation") {
+        return renderNode({ type: "math", value: node.value, label: node.options?.label });
       }
       if (name === "figure" || name === "image") {
         return renderFigure(node);
       }
       const raw = String(node.value ?? renderNodes(node.children));
-      return `<pre class="unsupported-directive" data-directive="${escape(name)}">${escape(raw)}</pre>`;
+      return `<aside class="md-myst-raw-card unsupported-directive" data-directive="${escape(name)}"><div class="md-myst-raw-head">${escape(name)}</div><pre class="md-myst-raw-body">${escape(raw)}</pre></aside>`;
+    }
+    case "mystRole": {
+      const inner = node.children?.[0];
+      return inner ? renderNode(inner) : escape(String(node.value ?? ""));
     }
     default:
       if (node.children) return renderNodes(node.children);
@@ -187,12 +290,17 @@ function renderNode(node: GenericNode): string {
 }
 
 export function astToHtml(ast: GenericNode): string {
-  const html = renderNode(promotePipeParagraphs(resolveImageReferences(ast)));
+  const prepared = promotePipeParagraphs(resolveImageReferences(ast));
+  prepareNumbering(prepared);
+  const html = renderNode(prepared);
   return sanitizeHtml(html, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat([
       "img",
       "figure",
       "figcaption",
+      "caption",
+      "colgroup",
+      "col",
       "h1",
       "h2",
       "h3",
@@ -209,7 +317,13 @@ export function astToHtml(ast: GenericNode): string {
       "tbody",
       "th",
       "tr",
-      "td"
+      "td",
+      "sub",
+      "sup",
+      "abbr",
+      "u",
+      "span",
+      "input"
     ]),
     allowedAttributes: {
       ...sanitizeHtml.defaults.allowedAttributes,
@@ -217,14 +331,18 @@ export function astToHtml(ast: GenericNode): string {
       img: ["src", "alt", "title", "width", "class"],
       figure: ["class", "style"],
       figcaption: ["class"],
-      aside: ["class"],
-      div: ["class"],
+      aside: ["class", "data-directive"],
       nav: ["class", "data-toc"],
       li: ["class"],
       p: ["class"],
       pre: ["class", "data-directive"],
-      td: ["align", "colspan", "rowspan"],
-      th: ["align", "colspan", "rowspan"]
+      td: ["align", "colspan", "rowspan", "style"],
+      th: ["align", "colspan", "rowspan", "style"],
+      table: ["class", "width", "style"],
+      col: ["style"],
+      span: ["class", "data-label", "data-kind", "data-display"],
+      input: ["type", "disabled", "checked"],
+      div: ["class", "data-math-block", "data-latex"]
     },
     allowedSchemes: ["http", "https", "mailto"],
     allowedSchemesByTag: {
@@ -331,14 +449,22 @@ export function renderPrintDocument(options: {
     figure.md-mermaid pre.mermaid { text-align: left; white-space: pre-wrap; }
     .md-mermaid-error { color: #b42318; font-size: 10pt; margin: 0 0 8px; }
     p { margin: 0 0 0.6em; }
-    table { border-collapse: collapse; width: 100%; table-layout: fixed; margin: 12px 0; }
+    table { border-collapse: collapse; width: 100%; table-layout: auto; margin: 12px 0; }
     th, td { border: 1px solid #ccc; padding: 4px 8px; min-width: 0; vertical-align: top; word-wrap: break-word; overflow-wrap: anywhere; }
     th p, td p { margin: 0; }
     table tr:first-child:has(> th:empty):not(:has(th:not(:empty))) { display: none; }
     .page-break { break-after: page; page-break-after: always; }
     .admonition { border-left: 4px solid #2563eb; padding: 8px 12px; background: #f8fafc; margin: 12px 0; }
     .admonition.warning { border-color: #d97706; }
-    .unsupported-directive { background: #f1f5f9; font-size: 0.9em; }
+    .unsupported-directive, .md-myst-raw-card { background: #f1f5f9; font-size: 0.9em; border: 1px solid #e4e7ec; border-radius: 8px; margin: 12px 0; }
+    .md-myst-raw-head { font-size: 10px; font-weight: 650; text-transform: uppercase; padding: 6px 10px; border-bottom: 1px solid #e4e7ec; }
+    .md-myst-raw-body { margin: 0; padding: 10px 12px; white-space: pre-wrap; }
+    .md-inline-math, .md-math-block { font-family: "Cambria Math", serif; }
+    .md-math-block { text-align: center; margin: 12px 0; }
+    .md-cite, .md-cross-ref { color: #3538cd; }
+    table caption { caption-side: top; font-size: 10pt; color: #475467; margin-bottom: 6px; }
+    ul.task-list { list-style: none; padding-left: 0; }
+    li.task-list-item { display: flex; gap: 0.5em; align-items: flex-start; }
     h1 { font-size: ${options.mdoc.typography?.["heading-1"]?.["font-size"] ?? "20pt"}; font-weight: ${options.mdoc.typography?.["heading-1"]?.weight ?? 700}; }
     h2 { font-size: ${options.mdoc.typography?.["heading-2"]?.["font-size"] ?? "16pt"}; font-weight: ${options.mdoc.typography?.["heading-2"]?.weight ?? 650}; }
     h3 { font-size: ${options.mdoc.typography?.["heading-3"]?.["font-size"] ?? "14pt"}; font-weight: ${options.mdoc.typography?.["heading-3"]?.weight ?? 650}; }

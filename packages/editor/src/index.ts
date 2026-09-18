@@ -1,4 +1,24 @@
 export { editorExtensions, WikiLink, Callout, PageBreak, Figure, MystRaw, Mermaid } from "./schema";
+export { MdTable, MdTableCell, MdTableHeader } from "./tableExt";
+export {
+  setTableCaption,
+  setTableCellAlign,
+  setTableWidthsAuto,
+  setTableWidthsEqual,
+  colwidthsFromRatios
+} from "./tableCommands";
+export {
+  Subscript,
+  Superscript,
+  InlineMath,
+  CiteChip,
+  CrossRefChip,
+  FootnoteRef,
+  Abbreviation
+} from "./mystInline";
+export { MathBlock, DEFAULT_MATH_LATEX } from "./mathBlock";
+export { MystNumbering, mystNumberingKey } from "./mystNumberingPlugin";
+export { tableMetaFromAttrs } from "./tiptapToAst";
 export { DEFAULT_MERMAID_SOURCE } from "./mermaid";
 export { figureCaptionText, figureNodeFromState } from "./figureCaption";
 export { figurePosFromState } from "./figurePos";
@@ -12,6 +32,7 @@ export type { PageGapsStorage } from "./pageGaps";
 export { placeCaretAtEnd, placeCaretInLastParagraph, focusEditorAtPagePoint, isBlankPageClickTarget } from "./figureClick";
 export { editorContextKind, selectAtPointer } from "./contextMenu";
 export type { EditorContextKind } from "./contextMenu";
+export { replaceEditorDocument } from "./replaceEditorDocument";
 export { astToTiptap, visualProjection } from "./astToTiptap";
 export type { TiptapNode, VisualOrigin } from "./astToTiptap";
 export { sanitizeTiptapDoc } from "./sanitize";

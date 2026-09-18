@@ -11,8 +11,10 @@ import {
   padTableColumns,
   promotePipeParagraphs,
   resolveImageReferences,
+  restoreTablePlaceholders,
   rewriteEmbeddedImageFences,
   rewriteMarkdownToWikiLinks,
+  substituteRichTables,
   unescapeGfmTablePipes,
   type GenericNode
 } from "@mdword/shared";
@@ -204,14 +206,21 @@ function flattenEmptyFigures(node: GenericNode): GenericNode {
   return next;
 }
 
+function rewriteTaskLists(md: string): string {
+  return md.replace(/^(\s*)-\s+\[([ xX])\]\s+/gm, (_m, indent: string, mark: string) => {
+    return `${indent}- [${mark.toLowerCase() === "x" ? "x" : " "}] `;
+  });
+}
+
 function serializeBody(ast: GenericNode): string {
-  const prepared = structuredClone(
+  const normalized = structuredClone(
     flattenEmbeddedImages(
       flattenEmptyFigures(
         padTableColumns(unwrapFigureDirectives(promotePipeParagraphs(resolveImageReferences(ast))))
       )
     )
   );
+  const { ast: prepared, snippets } = substituteRichTables(normalized);
   const stubber = createDataUrlStubber();
   stubber.stubTree(prepared as { [key: string]: unknown });
   const file = new VFile();
@@ -220,7 +229,10 @@ function serializeBody(ast: GenericNode): string {
   const raw = (typeof result === "string" ? result : String(file.value ?? "")).trim();
   // CommonMark reference images: short `![alt][img-…]` in the body, data URLs at the end.
   const restored = rewriteTickFigureFences(rewriteEmbeddedImageFences(stubber.restore(raw)));
-  return canonicalizeEmbeddedImages(unescapeGfmTablePipes(rewriteMarkdownToWikiLinks(restored)));
+  const withTables = restoreTablePlaceholders(restored, snippets);
+  return canonicalizeEmbeddedImages(
+    rewriteTaskLists(unescapeGfmTablePipes(rewriteMarkdownToWikiLinks(withTables)))
+  );
 }
 
 export function serializeMarkdownFragment(nodes: GenericNode[]): string {

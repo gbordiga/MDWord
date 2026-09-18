@@ -48,9 +48,12 @@ import {
   applyBlockStyle,
   currentBlockStyle,
   insertCallout,
+  insertMathBlock,
   insertMermaid,
   insertPageBreak,
-  insertTable
+  insertTable,
+  toggleSubscript,
+  toggleSuperscript
 } from "@/lib/editorCommands";
 import { figurePosFromState } from "@mdword/editor";
 import { useEditorTick } from "@/hooks/useEditorTick";
@@ -178,10 +181,10 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
       <div className="flex flex-wrap items-center gap-1 bg-[#f8fafc] px-2 py-1.5">
         {ribbon === "file" && (
           <>
-            <Btn title="New" onClick={() => confirmIfDirty(actions.newDocument)} disabled={fileBusy}>
+            <Btn title="New" onClick={() => actions.newDocument()} disabled={fileBusy}>
               <FilePlus size={16} /> New
             </Btn>
-            <Btn title="Open" onClick={() => confirmIfDirty(() => void actions.openFile())} disabled={fileBusy}>
+            <Btn title="Open" onClick={() => void actions.openFile()} disabled={fileBusy}>
               <FolderOpen size={16} /> Open
             </Btn>
             <Divider />
@@ -264,6 +267,12 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             >
               <Code size={16} />
             </Btn>
+            <Btn title="Subscript" testId="fmt-subscript" pressed={editor?.isActive("subscript")} onClick={() => editor && toggleSubscript(editor)}>
+              x<sub className="text-[10px]">2</sub>
+            </Btn>
+            <Btn title="Superscript" testId="fmt-superscript" pressed={editor?.isActive("superscript")} onClick={() => editor && toggleSuperscript(editor)}>
+              x<sup className="text-[10px]">2</sup>
+            </Btn>
             <Divider />
             <Btn
               title="Bullet list"
@@ -316,6 +325,9 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             </Btn>
             <Btn title="Mermaid diagram" testId="insert-mermaid" onClick={() => editor && insertMermaid(editor)}>
               <Workflow size={16} /> Diagram
+            </Btn>
+            <Btn title="Equation block" testId="insert-math-block" onClick={() => editor && insertMathBlock(editor)}>
+              <SquareCode size={16} /> Equation
             </Btn>
             <Divider />
             <Btn title="Page break" onClick={() => editor && insertPageBreak(editor)}>

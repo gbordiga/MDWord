@@ -1,16 +1,24 @@
 import type { GenericNode } from "@mdword/shared";
 import {
   decodeWikiHref,
+  extractTableFromDirective,
+  getTableMeta,
   imageNodeUrl,
   isImageLike,
+  isMathBlockLanguage,
   isMermaidLanguage,
+  isMystCalloutKind,
   mermaidSourceFromNode,
+  MYST_TABLE_DIRECTIVES,
   parseImageAttrList,
   promotePipeParagraphs,
   resolveImageReferences,
-  WIKI_SCHEME
+  withTableMeta,
+  WIKI_SCHEME,
+  type TableMeta
 } from "@mdword/shared";
 import { sanitizeTiptapDoc } from "./sanitize";
+import { colwidthsFromRatios } from "./tableCommands";
 import { tiptapToAst } from "./tiptapToAst";
 import { canonicalImageSrc } from "./imageDisplay";
 import {
@@ -98,6 +106,57 @@ function inline(nodes: GenericNode[] | undefined): TiptapNode[] {
         } else {
           out.push(...withMarks(inline(node.children), { type: "link", attrs: { href: url } }));
         }
+        break;
+      }
+      case "inlineMath":
+        out.push({ type: "inlineMath", attrs: { latex: String(node.value ?? "") } });
+        break;
+      case "subscript":
+        out.push(...withMarks(inline(node.children), { type: "subscript" }));
+        break;
+      case "superscript":
+        out.push(...withMarks(inline(node.children), { type: "superscript" }));
+        break;
+      case "underline":
+        out.push(...withMarks(inline(node.children), { type: "underline" }));
+        break;
+      case "abbreviation":
+        out.push(
+          ...withMarks(inline(node.children), {
+            type: "abbreviation",
+            attrs: { title: String(node.title ?? "") }
+          })
+        );
+        break;
+      case "crossReference":
+        out.push({
+          type: "crossRefChip",
+          attrs: {
+            label: String(node.label ?? node.identifier ?? ""),
+            kind: String(node.kind ?? "ref"),
+            display: "?"
+          }
+        });
+        break;
+      case "cite":
+        out.push({
+          type: "citeChip",
+          attrs: { key: String(node.label ?? node.identifier ?? "") }
+        });
+        break;
+      case "footnoteReference":
+        out.push({
+          type: "footnoteRef",
+          attrs: {
+            identifier: String(node.identifier ?? node.label ?? ""),
+            number: "?"
+          }
+        });
+        break;
+      case "mystRole": {
+        const inner = node.children?.[0];
+        if (inner) out.push(...inline([inner]));
+        else if (node.value) out.push(textNode(String(node.value)));
         break;
       }
       default:
@@ -428,6 +487,61 @@ function paragraphBlocks(node: GenericNode): TiptapNode[] {
   return out.length ? out : [EMPTY_PARAGRAPH];
 }
 
+function astTable(node: GenericNode, meta: TableMeta = getTableMeta(node)): TiptapNode {
+  const headerRows = meta.headerRows ?? 1;
+  const ratioWidths = Array.isArray(meta.widths) ? meta.widths : null;
+  const colwidths =
+    ratioWidths?.length && ratioWidths.every((value) => typeof value === "number")
+      ? colwidthsFromRatios(ratioWidths, 600)
+      : null;
+  return {
+    type: "table",
+    attrs: {
+      align: meta.align ?? null,
+      widths: meta.widths != null ? JSON.stringify(meta.widths) : null,
+      tableWidth: meta.width ?? null,
+      caption: meta.caption ?? null,
+      label: meta.label ?? null,
+      headerRows,
+      sourceKind: meta.sourceKind ?? "gfm"
+    },
+    content: (node.children ?? []).map((row, rowIndex) => ({
+      type: "tableRow",
+      content: (row.children ?? []).map((cell, colIndex) => {
+        const kids = absorbTrailingImageAttrs(cell.children);
+        const lone = loneImageFrom({ ...cell, children: kids });
+        const isHeader = Boolean(cell.header) || rowIndex < headerRows;
+        const colwidth =
+          rowIndex === 0 && colwidths && colwidths[colIndex] ? [colwidths[colIndex]] : null;
+        return {
+          type: isHeader ? "tableHeader" : "tableCell",
+          attrs: {
+            align: cell.align ?? null,
+            ...(colwidth ? { colwidth } : {})
+          },
+          content: lone ? [lone] : kids.length ? blocks(kids) : [EMPTY_PARAGRAPH]
+        };
+      })
+    }))
+  };
+}
+
+function calloutFromAdmonition(node: GenericNode, fallbackKind = "note"): TiptapNode {
+  const titleNode = node.children?.find((c) => c.type === "admonitionTitle");
+  const title = titleNode
+    ? inline(titleNode.children)
+        .map((n) => n.text ?? "")
+        .join("")
+        .trim()
+    : null;
+  const body = (node.children ?? []).filter((c) => c.type !== "admonitionTitle");
+  return {
+    type: "callout",
+    attrs: { kind: String(node.kind ?? fallbackKind), title: title || null },
+    content: blocks(body).length ? blocks(body) : [EMPTY_PARAGRAPH]
+  };
+}
+
 function block(node: GenericNode): TiptapNode | TiptapNode[] {
   switch (node.type) {
     case "paragraph":
@@ -435,9 +549,34 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
     case "heading":
       return {
         type: "heading",
-        attrs: { level: Number(node.depth ?? 1) },
+        attrs: {
+          level: Number(node.depth ?? 1),
+          label: node.label ?? node.identifier ?? null
+        },
         content: inline(node.children)
       };
+    case "math":
+      return {
+        type: "mathBlock",
+        attrs: {
+          latex: String(node.value ?? ""),
+          label: node.label ?? node.identifier ?? null,
+          enumerated: node.enumerated !== false
+        }
+      };
+    case "footnoteDefinition":
+      return {
+        type: "callout",
+        attrs: { kind: "note", title: `Footnote ${node.label ?? node.identifier ?? ""}` },
+        content: blocks(node.children)
+      };
+    case "blockBreak":
+      return {
+        type: "mystRaw",
+        attrs: { name: "blockBreak", source: "+++", options: null }
+      };
+    case "block":
+      return blocks(node.children);
     case "blockquote":
       return { type: "blockquote", content: blocks(node.children) };
     case "list": {
@@ -459,45 +598,43 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
       if (isMermaidLanguage(node.lang)) {
         return { type: "mermaid", attrs: { source: mermaidSourceFromNode(node) } };
       }
+      if (isMathBlockLanguage(node.lang)) {
+        return {
+          type: "mathBlock",
+          attrs: {
+            latex: mermaidSourceFromNode(node),
+            label: null,
+            enumerated: true
+          }
+        };
+      }
       const loose = figureFromLooseImageText([node.lang, node.meta, node.value].filter(Boolean).join("\n"));
       if (loose) return loose;
       return {
         type: "codeBlock",
-        attrs: { language: node.lang ?? null },
+        attrs: {
+          language: node.lang ?? null,
+          showLineNumbers: Boolean(node.showLineNumbers),
+          startingLineNumber: node.startingLineNumber ?? 1
+        },
         content: node.value ? [textNode(String(node.value))] : []
       };
     }
     case "thematicBreak":
       return { type: "horizontalRule" };
     case "table":
-      return {
-        type: "table",
-        content: (node.children ?? []).map((row, rowIndex) => ({
-          type: "tableRow",
-          content: (row.children ?? []).map((cell) => {
-            const kids = absorbTrailingImageAttrs(cell.children);
-            const lone = loneImageFrom({ ...cell, children: kids });
-            return {
-              type: rowIndex === 0 || cell.header ? "tableHeader" : "tableCell",
-              content: lone ? [lone] : kids.length ? blocks(kids) : [EMPTY_PARAGRAPH]
-            };
-          })
-        }))
-      };
+      return astTable(node);
     case "admonition":
-      return {
-        type: "callout",
-        attrs: { kind: node.kind ?? "note" },
-        content: blocks(node.children)
-      };
+      return calloutFromAdmonition(node);
     case "mystDirective": {
       const name = String(node.name ?? "");
       if (name === "page-break") return { type: "pageBreak" };
-      const callouts = ["note", "tip", "warning", "important", "caution", "danger", "error", "hint"];
-      if (callouts.includes(name)) {
+      if (isMystCalloutKind(name)) {
+        const inner = node.children?.find((c) => c.type === "admonition");
+        if (inner) return calloutFromAdmonition(inner);
         return {
           type: "callout",
-          attrs: { kind: name },
+          attrs: { kind: name, title: node.args ? String(node.args) : null },
           content: blocks(node.children).length
             ? blocks(node.children)
             : node.value
@@ -505,17 +642,46 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
               : [EMPTY_PARAGRAPH]
         };
       }
+      if (MYST_TABLE_DIRECTIVES.has(name)) {
+        const extracted = extractTableFromDirective(node);
+        if (extracted.table) {
+          return astTable(withTableMeta(extracted.table, extracted.meta), extracted.meta);
+        }
+      }
       if (name === "figure" || name === "image") {
         return figureFromDirective(node);
       }
       if (name === "mermaid") {
         return { type: "mermaid", attrs: { source: mermaidSourceFromNode(node) } };
       }
+      if (name === "math" || name === "equation") {
+        return {
+          type: "mathBlock",
+          attrs: {
+            latex: String(node.value ?? mermaidSourceFromNode(node)),
+            label: (node.options as Record<string, unknown> | undefined)?.label ?? null,
+            enumerated: (node.options as Record<string, unknown> | undefined)?.enumerated !== false
+          }
+        };
+      }
+      if (name === "code" || name === "code-block") {
+        return {
+          type: "codeBlock",
+          attrs: {
+            language: String(node.args ?? node.options?.language ?? ""),
+            showLineNumbers: Boolean(node.options?.["lineno-start"] ?? node.options?.linenos)
+          },
+          content: node.value ? [textNode(String(node.value))] : blocks(node.children).flatMap((b) =>
+            b.type === "paragraph" ? b.content ?? [] : [textNode("")]
+          )
+        };
+      }
       return {
         type: "mystRaw",
         attrs: {
           name,
-          source: node.value ?? `::: {${name}}\n${node.value ?? ""}\n:::`
+          source: node.value ?? "",
+          options: node.options ?? null
         }
       };
     }
@@ -524,6 +690,28 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
       return figureFromImage(node) ?? EMPTY_PARAGRAPH;
     case "container":
       if (node.kind === "figure") return figureFromDirective(node);
+      if (node.kind === "table") {
+        const table = node.children?.find((c) => c.type === "table");
+        if (table) {
+          const caption = node.children?.find((c) => c.type === "caption");
+          const captionText = caption
+            ? inline(
+                (caption.children ?? []).flatMap((c) =>
+                  c.type === "paragraph" ? c.children ?? [] : [c]
+                )
+              )
+                .map((n) => n.text ?? "")
+                .join("")
+                .trim()
+            : null;
+          const meta: TableMeta = {
+            caption: captionText,
+            label: String(node.label ?? node.identifier ?? "") || null,
+            sourceKind: "table"
+          };
+          return astTable(withTableMeta(table, meta), meta);
+        }
+      }
       return node.children ? blocks(node.children) : EMPTY_PARAGRAPH;
     case "html": {
       const img = parseHtmlImg(String(node.value ?? ""));

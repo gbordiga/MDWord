@@ -57,7 +57,7 @@ MDWord will not implement:
 See the Definition of Done in the master prompt. In short:
 
 - File: New, Open, Save, Save As, recent files, open folder
-- Editing: paragraphs, headings, emphasis, lists, links, tables, images, figures, blockquote, callouts, code, wikilinks, page breaks
+- Editing: paragraphs, headings, emphasis, lists, links, tables (GFM + MyST `:widths:` / caption), images, figures, blockquote, callouts (all spec kinds + title), code, math, cite/ref/footnote chips, wikilinks, page breaks
 - MyST + YAML frontmatter + `mdoc` namespace
 - Document / Source / Split
 - Page layout: size, margins, orientation, font, header/footer, page numbers

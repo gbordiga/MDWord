@@ -8,11 +8,14 @@ import {
   AlignRight,
   ArrowDown,
   ArrowUp,
+  Columns2,
   Columns3,
   Image as ImageIcon,
   PanelLeft,
   PanelRight,
   Rows3,
+  Sparkles,
+  Subtitles,
   Trash2
 } from "lucide-react";
 import {
@@ -23,6 +26,12 @@ import {
   type ImageLayout
 } from "@mdword/editor";
 import { useEditorUi } from "@/lib/editorUi";
+import {
+  promptTableCaption,
+  setTableCellAlign,
+  setTableWidthsAuto,
+  setTableWidthsEqual
+} from "@/lib/editorCommands";
 import { FigureTextInput, FigureWidthInput } from "./FigureAttrInputs";
 
 function Tool({
@@ -164,6 +173,26 @@ export function TableRibbonTools({ editor, enabled }: { editor: Editor | null; e
   return (
     <>
       <span className="px-1 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">Table</span>
+      <Tool title="Align left" testId="table-align-left" disabled={!enabled} onClick={() => editor && setTableCellAlign(editor, "left")}>
+        <AlignLeft size={16} />
+      </Tool>
+      <Tool title="Align center" testId="table-align-center" disabled={!enabled} onClick={() => editor && setTableCellAlign(editor, "center")}>
+        <AlignCenter size={16} />
+      </Tool>
+      <Tool title="Align right" testId="table-align-right" disabled={!enabled} onClick={() => editor && setTableCellAlign(editor, "right")}>
+        <AlignRight size={16} />
+      </Tool>
+      <Divider />
+      <Tool title="Auto column widths" testId="table-widths-auto" disabled={!enabled} onClick={() => editor && setTableWidthsAuto(editor)}>
+        <Sparkles size={16} /> Auto
+      </Tool>
+      <Tool title="Equal column widths" testId="table-widths-equal" disabled={!enabled} onClick={() => editor && setTableWidthsEqual(editor)}>
+        <Columns2 size={16} /> Equal
+      </Tool>
+      <Tool title="Caption" testId="table-caption" disabled={!enabled} onClick={() => editor && promptTableCaption(editor)}>
+        <Subtitles size={16} /> Caption
+      </Tool>
+      <Divider />
       <Tool
         title="Add row"
         testId="table-add-row"

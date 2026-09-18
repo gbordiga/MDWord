@@ -1,13 +1,12 @@
 "use client";
 
 import { PanelLeft, PanelRight } from "lucide-react";
-import { displayDocumentTitle } from "@mdword/shared";
 import { useApp } from "@/lib/store";
 import { saveStatusText } from "@/lib/saveStatus";
+import { DocumentTabBar } from "./DocumentTabBar";
 
 export function DesktopTopBar() {
   const dirty = useApp((s) => s.dirty);
-  const title = useApp((s) => displayDocumentTitle(s.model.frontmatter, s.path));
   const busy = useApp((s) => s.busy);
   const lastSavedAt = useApp((s) => s.lastSavedAt);
   const leftOpen = useApp((s) => s.leftOpen);
@@ -22,12 +21,7 @@ export function DesktopTopBar() {
       <div className="md-titlebar-drag">
         <span className="shrink-0 text-[13px] font-semibold tracking-tight text-[#1c1f24]">MDWord</span>
         <span className="h-4 w-px shrink-0 bg-[#e4e7ec]" aria-hidden />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] text-[#1c1f24]">
-            {title}
-            {dirty ? <span className="ml-1 text-accent">•</span> : null}
-          </div>
-        </div>
+        <DocumentTabBar />
         {saveHint.text ? (
           <span className="shrink-0 text-[11px] text-[#667085]" data-testid="desktop-top-save-status">
             {saveHint.text}

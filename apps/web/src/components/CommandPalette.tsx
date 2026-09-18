@@ -2,8 +2,6 @@
 
 import { Command } from "cmdk";
 import { useApp } from "@/lib/store";
-import { useEditorUi } from "@/lib/editorUi";
-
 export function CommandPalette({
   onInsert
 }: {
@@ -12,7 +10,6 @@ export function CommandPalette({
   const open = useApp((s) => s.paletteOpen);
   const setPalette = useApp((s) => s.setPalette);
   const actions = useApp();
-  const { confirmIfDirty } = useEditorUi();
   if (!open) return null;
 
   const close = () => setPalette(false);
@@ -35,7 +32,7 @@ export function CommandPalette({
           <Command.Item
             onSelect={() => {
               close();
-              confirmIfDirty(actions.newDocument);
+              actions.newDocument();
             }}
             className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]"
           >
@@ -44,7 +41,7 @@ export function CommandPalette({
           <Command.Item
             onSelect={() => {
               close();
-              confirmIfDirty(() => void actions.openFile());
+              void actions.openFile();
             }}
             className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]"
           >

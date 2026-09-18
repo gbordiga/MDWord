@@ -55,6 +55,7 @@ function collectUnknown(ast: GenericNode, diagnostics: Diagnostic[]): void {
         "equation",
         "table",
         "list-table",
+        "csv-table",
         "include",
         "toc",
         "contents",

@@ -24,6 +24,16 @@ import { untitledDocument } from "./untitled";
 import { addHistorySnapshot, historyKeyFromPath, newUntitledHistoryKey } from "./documentHistory";
 import { clearCrashDraft, writeCrashDraft } from "./recovery";
 import {
+  activeDocumentFields,
+  createTabFromOpen,
+  createTabFromRestore,
+  createUntitledTab,
+  findTabByPath,
+  neighborTabId,
+  snapshotActiveTab,
+  type DocumentTab
+} from "./documentTabs";
+import {
   applySavedDocument,
   childNamesInFolder,
   isPathOrDescendant,
@@ -145,6 +155,8 @@ async function preparePrintHtml(state: Pick<AppState, "model" | "path">): Promis
 }
 
 export interface AppState {
+  tabs: DocumentTab[];
+  activeTabId: string;
   model: DocumentModel;
   path: string | null;
   dirty: boolean;
@@ -174,6 +186,8 @@ export interface AppState {
   setRibbon: (tab: RibbonTab) => void;
   setLeft: (panel: LeftPanel) => void;
   newDocument: () => void;
+  switchTab: (tabId: string) => void;
+  closeTab: (tabId: string) => void;
   openFile: () => Promise<void>;
   saveFile: () => Promise<void>;
   saveFileAs: () => Promise<void>;
@@ -237,6 +251,45 @@ export const useApp = create<AppState>((set, get) => {
 
   const beginBusy = (busy: BusyState) => set({ busy });
 
+  const patchActiveTab = (partial: Partial<DocumentTab>) => {
+    const state = get();
+    const tabs = state.tabs.map((tab) => (tab.id === state.activeTabId ? { ...tab, ...partial } : tab));
+    set({
+      tabs,
+      ...(partial.model !== undefined ? { model: partial.model } : {}),
+      ...(partial.path !== undefined ? { path: partial.path } : {}),
+      ...(partial.dirty !== undefined ? { dirty: partial.dirty } : {}),
+      ...(partial.lastSavedAt !== undefined ? { lastSavedAt: partial.lastSavedAt } : {}),
+      ...(partial.lastSavedContent !== undefined ? { lastSavedContent: partial.lastSavedContent } : {}),
+      ...(partial.historyKey !== undefined ? { historyKey: partial.historyKey } : {}),
+      ...(partial.syncGeneration !== undefined ? { syncGeneration: partial.syncGeneration } : {}),
+      ...(partial.sourceGeneration !== undefined ? { sourceGeneration: partial.sourceGeneration } : {}),
+      ...(partial.editGeneration !== undefined ? { editGeneration: partial.editGeneration } : {})
+    });
+  };
+
+  const persistActiveTab = (): DocumentTab[] => snapshotActiveTab(get());
+
+  const activateTab = (tab: DocumentTab, bumpSync = true) => {
+    const nextTab = bumpSync ? { ...tab, syncGeneration: tab.syncGeneration + 1 } : tab;
+    const tabs = persistActiveTab().map((entry) => (entry.id === nextTab.id ? nextTab : entry));
+    set({
+      tabs,
+      activeTabId: nextTab.id,
+      ...activeDocumentFields(nextTab)
+    });
+  };
+
+  const appendTab = (tab: DocumentTab) => {
+    const nextTab = { ...tab, syncGeneration: tab.syncGeneration + 1 };
+    const tabs = [...persistActiveTab(), nextTab];
+    set({
+      tabs,
+      activeTabId: nextTab.id,
+      ...activeDocumentFields(nextTab)
+    });
+  };
+
   const commitTiptap = (doc: TiptapNode) => {
     try {
       const ast = tiptapToAst(doc);
@@ -249,7 +302,7 @@ export const useApp = create<AppState>((set, get) => {
         workspaceMdoc: get().workspace?.workspaceMdoc
       });
       if (next.source === current.source) return;
-      set({
+      patchActiveTab({
         model: next,
         dirty: true,
         editGeneration: get().editGeneration + 1
@@ -271,7 +324,7 @@ export const useApp = create<AppState>((set, get) => {
 
   const commitSource = (source: string) => {
     const model = modelFrom(source, get().workspace?.workspaceMdoc);
-    set({
+    patchActiveTab({
       model,
       dirty: true,
       sourceGeneration: get().sourceGeneration + 1,
@@ -291,7 +344,7 @@ export const useApp = create<AppState>((set, get) => {
 
   const markSaved = (path: string, content: string, model: DocumentModel) => {
     const historyKey = historyKeyFromPath(path, get().historyKey);
-    set({
+    patchActiveTab({
       path,
       dirty: false,
       model: { ...model, source: content },
@@ -311,11 +364,14 @@ export const useApp = create<AppState>((set, get) => {
   };
 
   const initialSource = untitledDocument();
+  const initialTab = createUntitledTab(modelFrom(initialSource), initialSource);
 
   return {
-  model: modelFrom(initialSource),
-  path: null,
-  dirty: false,
+  tabs: [initialTab],
+  activeTabId: initialTab.id,
+  model: initialTab.model,
+  path: initialTab.path,
+  dirty: initialTab.dirty,
   view: "document",
   zoom: 1,
   ribbon: "home",
@@ -331,10 +387,10 @@ export const useApp = create<AppState>((set, get) => {
   syncGeneration: 0,
   sourceGeneration: 0,
   editGeneration: 0,
-  lastSavedAt: null,
+  lastSavedAt: initialTab.lastSavedAt,
   lastDraftAt: null,
-  lastSavedContent: initialSource,
-  historyKey: newUntitledHistoryKey(),
+  lastSavedContent: initialTab.lastSavedContent,
+  historyKey: initialTab.historyKey,
   busy: null,
   flushPendingEdits: () => {
     flushVisualEdits();
@@ -374,18 +430,46 @@ export const useApp = create<AppState>((set, get) => {
   newDocument: () => {
     discardPendingVisual();
     discardPendingSource();
-    const source = untitledDocument();
     void clearCrashDraft();
-    set({
-      model: modelFrom(source),
-      path: null,
-      dirty: false,
-      lastSavedAt: null,
-      lastDraftAt: null,
-      lastSavedContent: source,
-      historyKey: newUntitledHistoryKey(),
-      syncGeneration: get().syncGeneration + 1
-    });
+    appendTab(createUntitledTab(modelFrom(untitledDocument()), untitledDocument()));
+  },
+  switchTab: (tabId) => {
+    if (tabId === get().activeTabId) return;
+    flushVisualEdits();
+    flushSourceEdits();
+    discardPendingVisual();
+    discardPendingSource();
+    const tab = persistActiveTab().find((entry) => entry.id === tabId);
+    if (!tab) return;
+    activateTab(tab);
+  },
+  closeTab: (tabId) => {
+    flushVisualEdits();
+    flushSourceEdits();
+    discardPendingVisual();
+    discardPendingSource();
+    let tabs = persistActiveTab();
+    const closing = tabs.find((tab) => tab.id === tabId);
+    if (!closing) return;
+    const nextId = tabId === get().activeTabId ? neighborTabId(tabs, tabId) : null;
+    tabs = tabs.filter((tab) => tab.id !== tabId);
+    if (!tabs.length) {
+      void clearCrashDraft();
+      const fresh = createUntitledTab(modelFrom(untitledDocument()), untitledDocument());
+      set({
+        tabs: [fresh],
+        activeTabId: fresh.id,
+        ...activeDocumentFields(fresh)
+      });
+      return;
+    }
+    if (tabId === get().activeTabId) {
+      const nextTab = tabs.find((tab) => tab.id === nextId) ?? tabs[0];
+      set({ tabs });
+      activateTab(nextTab);
+      return;
+    }
+    set({ tabs });
   },
   openFile: async () => {
     const result = await withFilePicker(async () => {
@@ -399,20 +483,17 @@ export const useApp = create<AppState>((set, get) => {
     if (!result) return;
     discardPendingVisual();
     discardPendingSource();
+    const existing = findTabByPath(get().tabs, result.path);
+    if (existing) {
+      get().switchTab(existing.id);
+      return;
+    }
     beginBusy({ kind: "open", label: "Opening document…", blocking: true });
     await yieldPaint();
     try {
       const model = modelFrom(result.content, get().workspace?.workspaceMdoc);
       void clearCrashDraft();
-      set({
-        model,
-        path: result.path,
-        dirty: false,
-        lastSavedAt: Date.now(),
-        lastSavedContent: result.content,
-        historyKey: historyKeyFromPath(result.path, get().historyKey),
-        syncGeneration: get().syncGeneration + 1
-      });
+      appendTab(createTabFromOpen(result.path, result.content, model, get().historyKey));
       await yieldPaint();
       set({ busy: null });
     } catch (error) {
@@ -522,33 +603,35 @@ export const useApp = create<AppState>((set, get) => {
   openWorkspaceFile: async (filePath) => {
     discardPendingVisual();
     discardPendingSource();
+    const existing = findTabByPath(get().tabs, filePath);
+    if (existing) {
+      get().switchTab(existing.id);
+      set({ mobileSheet: null });
+      return;
+    }
     const host = getHost();
     beginBusy({ kind: "workspace", label: "Opening document…", blocking: true });
     await yieldPaint();
     try {
       const result = await host.files.openPath(filePath);
       void clearCrashDraft();
-      set({
-        model: modelFrom(result.content, get().workspace?.workspaceMdoc),
-        path: result.path,
-        dirty: false,
-        lastSavedAt: Date.now(),
-        lastSavedContent: result.content,
-        historyKey: historyKeyFromPath(result.path, get().historyKey),
-        syncGeneration: get().syncGeneration + 1,
-        mobileSheet: null
-      });
+      appendTab(createTabFromOpen(result.path, result.content, modelFrom(result.content, get().workspace?.workspaceMdoc), get().historyKey));
+      set({ mobileSheet: null, busy: null });
       await yieldPaint();
-      set({ busy: null });
     } catch {
       set({ busy: null });
     }
   },
   openWorkspaceFileByTitle: async (title) => {
-    const { workspace, path } = get();
+    const { workspace, path, tabs } = get();
     if (!workspace) return false;
     const resolved = resolveWikiTarget(workspace.index, path ?? "", title);
     if (!resolved) return false;
+    const existing = findTabByPath(tabs, resolved);
+    if (existing) {
+      get().switchTab(existing.id);
+      return true;
+    }
     await get().openWorkspaceFile(resolved);
     return true;
   },
@@ -614,13 +697,19 @@ export const useApp = create<AppState>((set, get) => {
     }
     await primeWrite(fromPath);
     await getHost().files.rename(fromPath, dest);
-    const current = get().path;
-    if (current) {
-      const nextPath = rewriteWorkspacePath(current, fromPath, dest);
-      if (nextPath !== current) {
-        set({ path: nextPath, historyKey: historyKeyFromPath(nextPath, get().historyKey) });
-      }
-    }
+    const tabs = persistActiveTab().map((tab) => {
+      if (!tab.path) return tab;
+      const nextPath = rewriteWorkspacePath(tab.path, fromPath, dest);
+      if (nextPath === tab.path) return tab;
+      return { ...tab, path: nextPath, historyKey: historyKeyFromPath(nextPath, tab.historyKey) };
+    });
+    const active = tabs.find((tab) => tab.id === get().activeTabId);
+    set({
+      tabs,
+      ...(active
+        ? { path: active.path, historyKey: active.historyKey }
+        : {})
+    });
     await reloadWorkspace();
     return dest;
   },
@@ -645,9 +734,22 @@ export const useApp = create<AppState>((set, get) => {
     if (targetPath === workspace.root) throw new Error("Cannot delete the open folder");
     await primeWrite(targetPath);
     await getHost().files.remove(targetPath);
-    const current = get().path;
-    if (current && isPathOrDescendant(current, targetPath)) {
-      get().newDocument();
+    let tabs = persistActiveTab();
+    const closingIds = tabs
+      .filter((tab) => tab.path && isPathOrDescendant(tab.path, targetPath))
+      .map((tab) => tab.id);
+    for (const tabId of closingIds) {
+      tabs = tabs.filter((tab) => tab.id !== tabId);
+    }
+    if (!tabs.length) {
+      const fresh = createUntitledTab(modelFrom(untitledDocument()), untitledDocument());
+      set({ tabs: [fresh], activeTabId: fresh.id, ...activeDocumentFields(fresh) });
+    } else if (!tabs.some((tab) => tab.id === get().activeTabId)) {
+      const nextTab = tabs[0];
+      set({ tabs });
+      activateTab(nextTab);
+    } else {
+      set({ tabs });
     }
     await reloadWorkspace();
   },
@@ -711,14 +813,19 @@ export const useApp = create<AppState>((set, get) => {
     const next = openDocument(composeWithYaml(yaml, current.body, Boolean(current.head)), {
       workspaceMdoc: get().workspace?.workspaceMdoc
     });
-    set({ model: next, dirty: true, syncGeneration: get().syncGeneration + 1, editGeneration: get().editGeneration + 1 });
+    patchActiveTab({
+      model: next,
+      dirty: true,
+      syncGeneration: get().syncGeneration + 1,
+      editGeneration: get().editGeneration + 1
+    });
   },
   patchFrontmatter: (patch) => {
     const next = setFrontmatterValues(get().model, patch, get().workspace?.workspaceMdoc);
-    set({ model: next, dirty: true, editGeneration: get().editGeneration + 1 });
+    patchActiveTab({ model: next, dirty: true, editGeneration: get().editGeneration + 1 });
   },
   replaceFrontmatterModel: (model) => {
-    set({ model, dirty: true, editGeneration: get().editGeneration + 1 });
+    patchActiveTab({ model, dirty: true, editGeneration: get().editGeneration + 1 });
   },
   setZoom: (zoom) => set({ zoom: Math.min(2, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
   toggleLeft: () => set({ leftOpen: !get().leftOpen }),
@@ -757,7 +864,7 @@ export const useApp = create<AppState>((set, get) => {
     await yieldPaint();
     try {
       const model = modelFrom(content, get().workspace?.workspaceMdoc);
-      set({
+      patchActiveTab({
         model,
         dirty: content !== get().lastSavedContent,
         syncGeneration: get().syncGeneration + 1,
@@ -782,16 +889,16 @@ export const useApp = create<AppState>((set, get) => {
     }
     try {
       const model = modelFrom(content, get().workspace?.workspaceMdoc);
-      set({
-        model,
-        path,
-        dirty: content !== lastSavedContent,
-        lastSavedContent,
-        historyKey: historyKeyFromPath(path, get().historyKey),
-        lastDraftAt: Date.now(),
-        syncGeneration: get().syncGeneration + 1,
-        editGeneration: get().editGeneration + 1
-      });
+      appendTab(
+        createTabFromRestore(
+          model,
+          path,
+          lastSavedContent,
+          content !== lastSavedContent,
+          get().historyKey
+        )
+      );
+      set({ lastDraftAt: Date.now() });
     } finally {
       set({ busy: null });
     }

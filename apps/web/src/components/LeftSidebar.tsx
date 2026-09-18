@@ -34,14 +34,14 @@ export function LeftSidebar({ className }: { className?: string }) {
   const model = useApp((s) => s.model);
   const path = useApp((s) => s.path);
   const busy = useApp((s) => s.busy);
-  const { editor, confirmIfDirty } = useEditorUi();
+  const { editor } = useEditorUi();
   const [q, setQ] = useState("");
   const headings = useMemo(() => headingsOf(model.ast), [model.ast]);
   const results = workspace ? searchIndex(workspace.index, q) : [];
   const backs = workspace && path ? backlinksTo(workspace.index, path) : [];
 
   const openFile = (filePath: string) => {
-    confirmIfDirty(() => void useApp.getState().openWorkspaceFile(filePath));
+    void useApp.getState().openWorkspaceFile(filePath);
   };
 
   return (

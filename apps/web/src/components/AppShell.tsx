@@ -112,11 +112,11 @@ function AppShellInner({
       }
       if (meta && e.key.toLowerCase() === "n") {
         e.preventDefault();
-        confirmIfDirty(() => useApp.getState().newDocument());
+        useApp.getState().newDocument();
       }
       if (meta && e.key.toLowerCase() === "o") {
         e.preventDefault();
-        confirmIfDirty(() => void useApp.getState().openFile());
+        void useApp.getState().openFile();
       }
       if (meta && e.key.toLowerCase() === "b") {
         editorRef.current?.chain().focus().toggleBold().run();
