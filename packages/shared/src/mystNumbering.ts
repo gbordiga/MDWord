@@ -60,7 +60,7 @@ export function buildNumberingIndex(ast: GenericNode): NumberingIndex {
     if (node.type === "heading") {
       const depth = Math.min(6, Math.max(1, Number(node.depth ?? 1)));
       if (isEnumerated(node)) {
-        headingCounts[depth - 1] += 1;
+        headingCounts[depth - 1] = (headingCounts[depth - 1] ?? 0) + 1;
         for (let i = depth; i < 6; i++) headingCounts[i] = 0;
         const parts = headingCounts.slice(0, depth).filter((n) => n > 0);
         const number = parts.join(".");

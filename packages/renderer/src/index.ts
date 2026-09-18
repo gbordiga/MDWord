@@ -270,7 +270,8 @@ function renderNode(node: GenericNode): string {
         }
       }
       if (name === "math" || name === "equation") {
-        return renderNode({ type: "math", value: node.value, label: node.options?.label });
+        const options = (node.options ?? {}) as Record<string, unknown>;
+        return renderNode({ type: "math", value: node.value, label: options.label });
       }
       if (name === "figure" || name === "image") {
         return renderFigure(node);

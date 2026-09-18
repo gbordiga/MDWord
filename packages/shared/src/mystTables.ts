@@ -133,7 +133,7 @@ function listTableBody(table: GenericNode): string {
   return rows
     .map((row) => {
       const cells = row.children ?? [];
-      const first = cellText(cells[0] ?? {});
+      const first = cellText(cells[0] ?? { type: "tableCell" });
       const rest = cells.slice(1).map((c) => `  - ${cellText(c)}`);
       return [`* - ${first}`, ...rest].join("\n");
     })

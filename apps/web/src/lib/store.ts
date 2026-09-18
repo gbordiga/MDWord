@@ -465,6 +465,7 @@ export const useApp = create<AppState>((set, get) => {
     }
     if (tabId === get().activeTabId) {
       const nextTab = tabs.find((tab) => tab.id === nextId) ?? tabs[0];
+      if (!nextTab) return;
       set({ tabs });
       activateTab(nextTab);
       return;
@@ -746,8 +747,10 @@ export const useApp = create<AppState>((set, get) => {
       set({ tabs: [fresh], activeTabId: fresh.id, ...activeDocumentFields(fresh) });
     } else if (!tabs.some((tab) => tab.id === get().activeTabId)) {
       const nextTab = tabs[0];
-      set({ tabs });
-      activateTab(nextTab);
+      if (nextTab) {
+        set({ tabs });
+        activateTab(nextTab);
+      }
     } else {
       set({ tabs });
     }

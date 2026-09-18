@@ -665,11 +665,12 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
         };
       }
       if (name === "code" || name === "code-block") {
+        const options = (node.options ?? {}) as Record<string, unknown>;
         return {
           type: "codeBlock",
           attrs: {
-            language: String(node.args ?? node.options?.language ?? ""),
-            showLineNumbers: Boolean(node.options?.["lineno-start"] ?? node.options?.linenos)
+            language: String(node.args ?? options.language ?? ""),
+            showLineNumbers: Boolean(options["lineno-start"] ?? options.linenos)
           },
           content: node.value ? [textNode(String(node.value))] : blocks(node.children).flatMap((b) =>
             b.type === "paragraph" ? b.content ?? [] : [textNode("")]

@@ -23,8 +23,9 @@ function currentColWidth(view: EditorView, cellPos: number, attrs: { colspan: nu
   let parts = colspan;
   if (colwidth) {
     for (let i = 0; i < colspan; i++) {
-      if (colwidth[i]) {
-        domWidth -= colwidth[i];
+      const part = colwidth[i];
+      if (part) {
+        domWidth -= part;
         parts--;
       }
     }
@@ -107,10 +108,11 @@ function updateColumnWidth(view: EditorView, cell: number, width: number) {
     const mapIndex = row * map.width + col;
     if (row && map.map[mapIndex] === map.map[mapIndex - map.width]) continue;
     const pos = map.map[mapIndex];
+    if (pos == null) continue;
     const attrs = table.nodeAt(pos)!.attrs;
     const index = attrs.colspan === 1 ? 0 : col - map.colCount(pos);
     if (attrs.colwidth && attrs.colwidth[index] === width) continue;
-    const colwidth = attrs.colwidth ? attrs.colwidth.slice() : zeroes(attrs.colspan);
+    const colwidth = attrs.colwidth ? attrs.colwidth.slice() : zeroes(Number(attrs.colspan ?? 1));
     colwidth[index] = width;
     tr.setNodeMarkup(start + pos, undefined, { ...attrs, colwidth });
   }
@@ -139,7 +141,10 @@ function handleScaledMouseDown(
   if (!pluginState || pluginState.activeHandle === -1 || pluginState.dragging) return false;
   const cell = view.state.doc.nodeAt(pluginState.activeHandle);
   if (!cell) return false;
-  const width = currentColWidth(view, pluginState.activeHandle, cell.attrs);
+  const width = currentColWidth(view, pluginState.activeHandle, {
+    colspan: Number(cell.attrs.colspan ?? 1),
+    colwidth: Array.isArray(cell.attrs.colwidth) ? cell.attrs.colwidth : null
+  });
   view.dispatch(
     view.state.tr.setMeta(columnResizingPluginKey, {
       setDragging: { startX: event.clientX, startWidth: width }

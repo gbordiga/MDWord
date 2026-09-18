@@ -1,6 +1,6 @@
 import { TableView } from "@tiptap/extension-table";
 import type { Node as PMNode } from "@tiptap/pm/model";
-import type { NodeView } from "@tiptap/pm/view";
+import type { NodeView, ViewMutationRecord } from "@tiptap/pm/view";
 
 export class MdTableView implements NodeView {
   node: PMNode;
@@ -34,7 +34,7 @@ export class MdTableView implements NodeView {
     return true;
   }
 
-  ignoreMutation(record: MutationRecord) {
+  ignoreMutation(record: ViewMutationRecord) {
     return this.tableView.ignoreMutation(record);
   }
 

@@ -95,6 +95,6 @@ export const MystRaw = Node.create({
     ];
   },
   addNodeView() {
-    return MystRawView;
+    return ({ node, view, getPos }) => new MystRawView(node, view, getPos);
   }
 });

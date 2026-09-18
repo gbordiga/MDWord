@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { measureEditorFlowHeight } from "./pageFlow";
 
-function el(className: string, height: number, kids: ReturnType<typeof el>[] = []) {
+type FakeEl = {
+  classList: { contains: (name: string) => boolean };
+  offsetHeight: number;
+  children: FakeEl[];
+};
+
+function el(className: string, height: number, kids: FakeEl[] = []): FakeEl {
   return {
     classList: { contains: (name: string) => className.split(/\s+/).includes(name) },
     offsetHeight: height,

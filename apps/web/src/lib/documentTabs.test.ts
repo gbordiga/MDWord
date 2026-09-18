@@ -6,7 +6,13 @@ function tab(id: string, path: string | null, title = "Doc"): DocumentTab {
   return {
     id,
     path,
-    model: { frontmatter: { title }, ast: { type: "root", children: [] }, source: "", body: "", head: false } as DocumentTab["model"],
+    model: {
+      frontmatter: { title },
+      ast: { type: "root", children: [] },
+      source: "",
+      body: "",
+      head: false
+    } as unknown as DocumentTab["model"],
     dirty: false,
     lastSavedAt: null,
     lastSavedContent: "",
