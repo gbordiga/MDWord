@@ -25,8 +25,9 @@ recovery
 *.exe
 *.blockmap
 .pnpm-store
-.vercel/*
-!.vercel/project.json
+.vercel
+.cursor
+docs/COSA-DEVI-FARE.md
 apps/mobile/android/.gradle
 apps/mobile/android/build
 apps/mobile/android/app/build

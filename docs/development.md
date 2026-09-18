@@ -40,11 +40,8 @@ Packages export TypeScript source (`src/index.ts`) and are transpiled by Next.js
 
 ## Git
 
-`origin` is Origin Cursor. Optional GitHub mirror (remote name `github`):
-
 ```sh
-gh auth login
-./scripts/push-github.sh
+git push origin main
 ```
 
 ## Conventions

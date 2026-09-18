@@ -2,7 +2,7 @@
 
 Product version is **0.1.0** (`package.json`, `apps/desktop`, `apps/web`, `apps/mobile`).
 
-What only you can do (stores, signing, Windows/Mac machines) is listed in Italian in [`COSA-DEVI-FARE.md`](./COSA-DEVI-FARE.md).
+Store listings, code signing, and Apple/Google accounts stay on your machine — they are not in this repository.
 
 ## Version
 
@@ -10,7 +10,7 @@ Root, desktop, web, and mobile package versions should match the Git tag (`vX.Y.
 
 ## Web
 
-Vercel project root: this repository. Origin git does **not** auto-deploy.
+Vercel project root: this repository. Production deploy is manual (`npx vercel deploy --prod`).
 
 ```
 npx vercel deploy --prod --yes
