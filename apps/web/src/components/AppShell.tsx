@@ -30,6 +30,7 @@ import { EditorUiProvider, useEditorUi } from "@/lib/editorUi";
 import { RecoveryDialog } from "./RecoveryDialog";
 import { clearCrashDraft, readCrashDraft } from "@/lib/recovery";
 import { saveStatusText } from "@/lib/saveStatus";
+import { APP_VERSION } from "@/lib/appVersion";
 
 export function AppShell() {
   const editorRef = useRef<Editor | null>(null);
@@ -233,17 +234,22 @@ function AppShellInner({
           </span>
           <DesktopSaveStatus />
         </span>
-        <span className="inline-flex items-center gap-1.5">
-          {busy && busy.kind !== "save" ? (
-            <>
-              <Spinner size={12} />
-              <span data-testid="app-busy-label">{busy.label}</span>
-            </>
-          ) : (
-            <>
-              {view} · {diagnostics.length ? `${diagnostics.length} diagnostics` : "Ready"}
-            </>
-          )}
+        <span className="inline-flex items-center gap-3">
+          <span className="inline-flex items-center gap-1.5">
+            {busy && busy.kind !== "save" ? (
+              <>
+                <Spinner size={12} />
+                <span data-testid="app-busy-label">{busy.label}</span>
+              </>
+            ) : (
+              <>
+                {view} · {diagnostics.length ? `${diagnostics.length} diagnostics` : "Ready"}
+              </>
+            )}
+          </span>
+          <span data-testid="app-version" className="tabular-nums text-[#98a2b3]">
+            v{APP_VERSION}
+          </span>
         </span>
       </footer>
       <MobileTabBar keyboardOpen={keyboardOpen} />

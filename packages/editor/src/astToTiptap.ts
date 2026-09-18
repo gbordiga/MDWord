@@ -705,10 +705,12 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
                 .join("")
                 .trim()
             : null;
+          const stored = getTableMeta(table);
           const meta: TableMeta = {
-            caption: captionText,
-            label: String(node.label ?? node.identifier ?? "") || null,
-            sourceKind: "table"
+            ...stored,
+            caption: captionText || stored.caption,
+            label: String(node.label ?? node.identifier ?? "") || stored.label || null,
+            sourceKind: stored.sourceKind ?? "table"
           };
           return astTable(withTableMeta(table, meta), meta);
         }

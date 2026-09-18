@@ -23,5 +23,6 @@ describe("MyST spec harness", () => {
     expect(MYST_KNOWN_DIRECTIVES.has("csv-table")).toBe(true);
     const table = dir?.children?.[0]?.children?.find((c) => c.type === "table");
     expect(table).toBeTruthy();
+    expect(result.diagnostics.some((d) => /unexpected option "widths"/i.test(d.message))).toBe(false);
   });
 });

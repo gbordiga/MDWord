@@ -18,6 +18,22 @@ Second page content.
     expect(result.diagnostics.some((d) => /unknown directive/i.test(d.message))).toBe(false);
   });
 
+  it("accepts standard MyST table :widths: without a myst unexpected-option warning", () => {
+    const result = parseMarkdown(`:::{table} Caption
+:widths: 20 80
+:align: center
+
+| A | B |
+| --- | --- |
+| 1 | 2 |
+:::
+`);
+    expect(result.diagnostics.some((d) => /unexpected option "widths"/i.test(d.message))).toBe(false);
+    expect(result.diagnostics.filter((d) => d.code === "myst")).toEqual([]);
+    const dir = result.ast.children?.find((node) => node.type === "mystDirective" && node.name === "table");
+    expect(dir?.options).toMatchObject({ widths: "20 80", align: "center" });
+  });
+
   it("parses a large embedded image without hanging and keeps the payload", () => {
     const payload = "A".repeat(200_000);
     const src = `data:image/png;base64,${payload}`;

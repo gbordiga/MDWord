@@ -17,7 +17,24 @@ describe("MyST visual convert", () => {
     expect(table).toBeTruthy();
     expect(table?.attrs?.caption).toBe("Cap");
     expect(table?.attrs?.sourceKind).toBe("list-table");
+    expect(table?.attrs?.widths).toBe(JSON.stringify([1, 2]));
     expect(table?.content?.[0]?.content?.[0]?.type).toBe("tableHeader");
+  });
+
+  it("maps {table} :widths: onto column widths without parse diagnostics", () => {
+    const parsed = parseMarkdown(`:::{table} KPI
+:widths: 20 80
+
+| A | B |
+| --- | --- |
+| 1 | 2 |
+:::
+`);
+    expect(parsed.diagnostics.some((d) => /unexpected option "widths"/i.test(d.message))).toBe(false);
+    const table = astToTiptap(parsed.ast).content?.find((n) => n.type === "table");
+    expect(table?.attrs?.caption).toBe("KPI");
+    expect(table?.attrs?.widths).toBe(JSON.stringify([20, 80]));
+    expect(table?.content?.[0]?.content?.[0]?.attrs?.colwidth?.[0]).toBeGreaterThan(0);
   });
 
   it("round-trips inline cite and math through TipTap", () => {

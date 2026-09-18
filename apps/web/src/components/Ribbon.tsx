@@ -60,6 +60,7 @@ import { useEditorTick } from "@/hooks/useEditorTick";
 import { useEditorUi } from "@/lib/editorUi";
 import { Spinner } from "./Spinner";
 import { ImageRibbonTools, TableRibbonTools } from "./ContextualRibbons";
+import { MarkdownAssociationButton } from "./MarkdownAssociationControl";
 
 const MAIN_TABS: { id: RibbonTab; label: string }[] = [
   { id: "file", label: "File" },
@@ -214,6 +215,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             <Btn title="Export HTML" onClick={() => void actions.exportHtml()} disabled={fileBusy}>
               <FileCode size={16} /> Export HTML
             </Btn>
+            <MarkdownAssociationButton className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-[13px] text-[#1c1f24] hover:bg-[#eef2f6] aria-pressed:bg-[#e8eefc] aria-pressed:text-accent" />
           </>
         )}
         {ribbon === "home" && (

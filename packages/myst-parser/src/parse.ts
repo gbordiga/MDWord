@@ -3,13 +3,17 @@ import { VFile } from "vfile";
 import {
   type Diagnostic,
   type GenericNode,
+  extractTableFromDirective,
+  getTableMeta,
+  MYST_TABLE_DIRECTIVES,
   restoreEmbeddedImagesInTree,
   resolveImageReferences,
   rewriteEmbeddedImageFences,
   rewriteWikiLinksToMarkdown,
   recoverGfmTableSource,
   promotePipeParagraphs,
-  stubEmbeddedImages
+  stubEmbeddedImages,
+  withTableMeta
 } from "@mdword/shared";
 import { parseMdoc, type Mdoc } from "@mdword/layout-engine";
 import { extractFrontmatter, splitMarkdownSource, yamlToPlain } from "./frontmatter";
@@ -30,6 +34,34 @@ export interface ParseResult {
 
 function isKnownPageBreakMessage(message: string): boolean {
   return /unknown directive:\s*page-break/i.test(message);
+}
+
+/** Docutils/MyST `{table}`, `{list-table}`, and `{csv-table}` all accept `:width:` / `:widths:`. */
+function isStandardTableSizeOptionMessage(message: string): boolean {
+  return /unexpected option "(?:width|widths)" provided \(in (?:table|list-table|csv-table)\)/i.test(
+    message
+  );
+}
+
+function isKnownMystMessage(message: string): boolean {
+  return isKnownPageBreakMessage(message) || isStandardTableSizeOptionMessage(message);
+}
+
+function stampTableDirectiveMeta(ast: GenericNode): void {
+  const walk = (node: GenericNode) => {
+    if (node.type === "mystDirective" && MYST_TABLE_DIRECTIVES.has(String(node.name ?? ""))) {
+      const extracted = extractTableFromDirective(node);
+      if (extracted.table) {
+        const stamped = withTableMeta(extracted.table, {
+          ...getTableMeta(extracted.table),
+          ...extracted.meta
+        });
+        extracted.table.data = stamped.data;
+      }
+    }
+    node.children?.forEach(walk);
+  };
+  walk(ast);
 }
 
 function collectUnknown(ast: GenericNode, diagnostics: Diagnostic[]): void {
@@ -126,9 +158,10 @@ export function parseMarkdown(source: string): ParseResult {
   }
   restoreEmbeddedImagesInTree(ast, stubbed.restore);
   ast = promotePipeParagraphs(resolveImageReferences(ast));
+  stampTableDirectiveMeta(ast);
 
   for (const msg of vfile.messages) {
-    if (isKnownPageBreakMessage(msg.message)) continue;
+    if (isKnownMystMessage(msg.message)) continue;
     diagnostics.push({
       severity: msg.fatal ? "error" : "warning",
       message: msg.message,

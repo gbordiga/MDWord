@@ -2,6 +2,7 @@
 
 import { Command } from "cmdk";
 import { useApp } from "@/lib/store";
+import { useMarkdownAssociation } from "./MarkdownAssociationControl";
 export function CommandPalette({
   onInsert
 }: {
@@ -10,6 +11,7 @@ export function CommandPalette({
   const open = useApp((s) => s.paletteOpen);
   const setPalette = useApp((s) => s.setPalette);
   const actions = useApp();
+  const markdownAssociation = useMarkdownAssociation();
   if (!open) return null;
 
   const close = () => setPalette(false);
@@ -56,6 +58,17 @@ export function CommandPalette({
           <Command.Item onSelect={() => { onInsert("wikilink"); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Add wikilink</Command.Item>
           <Command.Item onSelect={() => { void actions.printDocument(); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Print</Command.Item>
           <Command.Item onSelect={() => { void actions.exportPdf(); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Export PDF</Command.Item>
+          {markdownAssociation.status?.supported ? (
+            <Command.Item
+              onSelect={() => {
+                void markdownAssociation.setAsDefault();
+                close();
+              }}
+              className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]"
+            >
+              {markdownAssociation.status.isDefault ? "MDWord already opens .md files" : "Open .md files with MDWord"}
+            </Command.Item>
+          ) : null}
         </Command.List>
       </Command>
     </div>

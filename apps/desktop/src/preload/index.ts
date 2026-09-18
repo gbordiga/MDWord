@@ -32,6 +32,8 @@ const api = {
     clearRecovery: (id: string) => ipcRenderer.invoke("app.clearRecovery", id),
     exportDiagnostics: () => ipcRenderer.invoke("app.exportDiagnostics"),
     takeLaunchFile: () => ipcRenderer.invoke("app.takeLaunchFile"),
+    getMarkdownAssociation: () => ipcRenderer.invoke("app.getMarkdownAssociation"),
+    setMarkdownAssociation: () => ipcRenderer.invoke("app.setMarkdownAssociation"),
     onOpenDocument: (handler: (path: string) => void) => {
       const listener = (_event: unknown, filePath: string) => handler(filePath);
       ipcRenderer.on("app.openDocument", listener);

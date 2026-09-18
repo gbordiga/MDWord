@@ -4,6 +4,7 @@ import type { Editor } from "@tiptap/react";
 import {
   Bold,
   Code,
+  FileCheck2,
   FilePlus,
   FileText,
   Files,
@@ -50,6 +51,7 @@ import { LeftSidebar } from "./LeftSidebar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { Sheet } from "./Sheet";
 import { ImageRibbonTools } from "./ContextualRibbons";
+import { useMarkdownAssociation } from "./MarkdownAssociationControl";
 
 function IconBtn({
   title,
@@ -323,6 +325,7 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
   const close = () => setMobileSheet(null);
   const actions = useApp();
   const { openImage, openWikilink, confirmIfDirty } = useEditorUi();
+  const markdownAssociation = useMarkdownAssociation();
 
   const run = (fn: () => void) => {
     fn();
@@ -447,6 +450,18 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
           <MoreItem label="Print" onClick={() => run(() => void actions.printDocument())} />
           <MoreItem label="Export PDF" onClick={() => run(() => void actions.exportPdf())} />
           <MoreItem label="Export HTML" onClick={() => run(() => void actions.exportHtml())} />
+          {markdownAssociation.status?.supported ? (
+            <MoreItem
+              label={
+                markdownAssociation.status.isDefault
+                  ? "MDWord already opens .md files"
+                  : "Open .md files with MDWord"
+              }
+              onClick={() => run(() => void markdownAssociation.setAsDefault())}
+            >
+              <FileCheck2 size={18} />
+            </MoreItem>
+          ) : null}
           <MoreItem
             label="Command palette"
             onClick={() =>

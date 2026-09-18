@@ -1,6 +1,6 @@
 # Releasing
 
-Product version is **0.1.0** (`package.json`, `apps/desktop`, `apps/web`, `apps/mobile`).
+Product version is **0.1.1** (`package.json`, `apps/desktop`, `apps/web`, `apps/mobile`).
 
 Store listings, code signing, and Apple/Google accounts stay on your machine — they are not in this repository.
 

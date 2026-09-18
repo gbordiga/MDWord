@@ -21,7 +21,10 @@ function copyServerChunksToRuntimeDir() {
         if (!fs.existsSync(chunksDir)) return;
         for (const file of fs.readdirSync(chunksDir)) {
           if (!file.endsWith(".js")) continue;
-          fs.copyFileSync(path.join(chunksDir, file), path.join(out, file));
+          const from = path.join(chunksDir, file);
+          const to = path.join(out, file);
+          if (fs.existsSync(to) && fs.statSync(from).size === fs.statSync(to).size) continue;
+          fs.copyFileSync(from, to);
         }
       });
     }
@@ -33,12 +36,17 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   images: { unoptimized: true },
   assetPrefix: isElectron ? "." : undefined,
-  webpack: (config, { isServer }) => {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: process.env.npm_package_version ?? "0.1.1"
+  },
+  webpack: (config, { isServer, dev }) => {
     config.resolve.alias = {
       ...config.resolve.alias,
       canvas: false
     };
-    if (isServer) {
+    // Production-only: copying into `.next/server` during `next dev` retriggers
+    // the Windows file watcher and stacks full recompiles until Node hits multi-GB.
+    if (isServer && !dev) {
       config.plugins.push(copyServerChunksToRuntimeDir());
     }
     return config;

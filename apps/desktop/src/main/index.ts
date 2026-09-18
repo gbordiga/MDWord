@@ -11,6 +11,7 @@ import {
   shouldSkipWorkspaceDir,
   shouldSkipWorkspaceFile
 } from "@mdword/shared";
+import { getMarkdownAssociationStatus, registerMarkdownAssociation } from "./fileAssociation";
 
 const isDev = !app.isPackaged;
 let pendingPrintHtml: string | null = null;
@@ -308,7 +309,7 @@ function registerIpc(): void {
   ipcMain.handle("files.open", async () => {
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
-      filters: [{ name: "Markdown", extensions: ["md", "markdown"] }]
+      filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdown", "mkd"] }]
     });
     if (result.canceled || !result.filePaths[0]) return null;
     const filePath = result.filePaths[0];
@@ -520,6 +521,10 @@ function registerIpc(): void {
     pendingOpen = null;
     return next;
   });
+
+  ipcMain.handle("app.getMarkdownAssociation", async () => getMarkdownAssociationStatus());
+
+  ipcMain.handle("app.setMarkdownAssociation", async () => registerMarkdownAssociation(app.getPath("exe")));
 
   ipcMain.handle("app.exportDiagnostics", async () => {
     return {

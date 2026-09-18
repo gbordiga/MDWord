@@ -11,6 +11,7 @@ import {
   type UserPreferences
 } from "@mdword/shared";
 import { isNativeApp, openNativeUrl, shareNativeFile, writeNativeDocument } from "./native";
+import { APP_VERSION } from "./appVersion";
 
 const DB = "mdword";
 const PREFS = "preferences";
@@ -566,7 +567,7 @@ export const webHost: HostApi = {
     },
     async exportDiagnostics() {
       return {
-        appVersion: "0.1.0",
+        appVersion: APP_VERSION,
         platform: "web",
         logs: ["telemetry=off", `electron=${isElectron()}`, `native=${isNativeApp()}`]
       };
