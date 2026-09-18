@@ -80,6 +80,20 @@ Resolution (workspace mode):
 
 A parser that does not understand wikilinks should leave `[[...]]` as text.
 
+## Mermaid diagrams
+
+Fenced `mermaid` (or `mmd`) code blocks render as diagrams in Document mode, print, PDF, and HTML export. The file keeps the source:
+
+````markdown
+```mermaid
+flowchart TB
+  Cliente([Cliente]) -->|Richieste| Commerciale
+  Commerciale --> Produzione
+```
+````
+
+The MyST `{mermaid}` directive is accepted and saved back as a ` ```mermaid ` fence when that block is edited. GitHub and other Mermaid-aware viewers can render the same fence without MDWord.
+
 ## Explicit page break
 
 ```markdown

@@ -36,13 +36,21 @@ import {
   PanelLeft,
   PanelRight,
   Scissors,
+  Workflow,
   RectangleHorizontal,
   RectangleVertical
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useApp, type RibbonTab } from "@/lib/store";
 import { FONT_SCALES, MARGIN_PRESETS, matchFontScale, matchMarginPreset } from "@mdword/layout-engine";
-import { applyBlockStyle, currentBlockStyle, insertCallout, insertPageBreak, insertTable } from "@/lib/editorCommands";
+import {
+  applyBlockStyle,
+  currentBlockStyle,
+  insertCallout,
+  insertMermaid,
+  insertPageBreak,
+  insertTable
+} from "@/lib/editorCommands";
 import { figurePosFromState } from "@mdword/editor";
 import { useEditorTick } from "@/hooks/useEditorTick";
 import { useEditorUi } from "@/lib/editorUi";
@@ -295,6 +303,9 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             </Btn>
             <Btn title="Code block" onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>
               <SquareCode size={16} /> Code
+            </Btn>
+            <Btn title="Mermaid diagram" testId="insert-mermaid" onClick={() => editor && insertMermaid(editor)}>
+              <Workflow size={16} /> Diagram
             </Btn>
             <Divider />
             <Btn title="Page break" onClick={() => editor && insertPageBreak(editor)}>

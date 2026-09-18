@@ -1,4 +1,5 @@
-export { editorExtensions, WikiLink, Callout, PageBreak, Figure, MystRaw } from "./schema";
+export { editorExtensions, WikiLink, Callout, PageBreak, Figure, MystRaw, Mermaid } from "./schema";
+export { DEFAULT_MERMAID_SOURCE } from "./mermaid";
 export { figureCaptionText, figureNodeFromState } from "./figureCaption";
 export { figurePosFromState } from "./figurePos";
 export { moveFigureTo, moveFigureBy, mappedInsertAfterDelete, updateFigureDropMark, clearFigureDropMark } from "./figureMove";

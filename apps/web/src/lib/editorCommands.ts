@@ -1,5 +1,11 @@
 import type { Editor } from "@tiptap/react";
-import { collectSearchMatches, embedImageSrc, nextMatchIndex, normalizeHref } from "@mdword/editor";
+import {
+  collectSearchMatches,
+  DEFAULT_MERMAID_SOURCE,
+  embedImageSrc,
+  nextMatchIndex,
+  normalizeHref
+} from "@mdword/editor";
 
 export function applyBlockStyle(editor: Editor, value: string): void {
   if (value === "p") editor.chain().focus().setParagraph().run();
@@ -112,10 +118,18 @@ export function insertPageBreak(editor: Editor): void {
   editor.chain().focus().insertContent({ type: "pageBreak" }).run();
 }
 
+export function insertMermaid(editor: Editor, source = DEFAULT_MERMAID_SOURCE): void {
+  editor.chain().focus().insertContent({ type: "mermaid", attrs: { source } }).run();
+}
+
 function textChunks(editor: Editor): { pos: number; text: string }[] {
   const chunks: { pos: number; text: string }[] = [];
   editor.state.doc.descendants((node, pos) => {
     if (node.isText && node.text) chunks.push({ pos, text: node.text });
+    if (node.type.name === "mermaid") {
+      const source = String(node.attrs.source ?? "");
+      if (source) chunks.push({ pos: pos + 1, text: source });
+    }
   });
   return chunks;
 }

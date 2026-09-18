@@ -53,6 +53,26 @@ describe("renderer security", () => {
     expect(html).toContain('alt="pic"');
   });
 
+  it("renders a mermaid fence as a figure, not a plain code block", () => {
+    const html = astToHtml({
+      type: "root",
+      children: [{ type: "code", lang: "mermaid", value: "flowchart TB\n  A --> B" }]
+    });
+    expect(html).toContain('class="md-mermaid"');
+    expect(html).toContain("flowchart TB");
+    expect(html).toContain("A --&gt; B");
+    expect(html).not.toMatch(/<pre><code>flowchart/);
+  });
+
+  it("renders a mermaid directive the same way", () => {
+    const html = astToHtml({
+      type: "root",
+      children: [{ type: "mystDirective", name: "mermaid", value: "sequenceDiagram\n  A->>B: hi" }]
+    });
+    expect(html).toContain('class="md-mermaid"');
+    expect(html).toContain("sequenceDiagram");
+  });
+
   it("keeps data URL images", () => {
     const html = astToHtml({
       type: "root",

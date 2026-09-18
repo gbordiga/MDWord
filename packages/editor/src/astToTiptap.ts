@@ -3,6 +3,8 @@ import {
   decodeWikiHref,
   imageNodeUrl,
   isImageLike,
+  isMermaidLanguage,
+  mermaidSourceFromNode,
   parseImageAttrList,
   promotePipeParagraphs,
   resolveImageReferences,
@@ -450,8 +452,13 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
         }))
       };
     }
+    case "mermaid":
+      return { type: "mermaid", attrs: { source: mermaidSourceFromNode(node) } };
     case "code":
     case "codeBlock": {
+      if (isMermaidLanguage(node.lang)) {
+        return { type: "mermaid", attrs: { source: mermaidSourceFromNode(node) } };
+      }
       const loose = figureFromLooseImageText([node.lang, node.meta, node.value].filter(Boolean).join("\n"));
       if (loose) return loose;
       return {
@@ -500,6 +507,9 @@ function block(node: GenericNode): TiptapNode | TiptapNode[] {
       }
       if (name === "figure" || name === "image") {
         return figureFromDirective(node);
+      }
+      if (name === "mermaid") {
+        return { type: "mermaid", attrs: { source: mermaidSourceFromNode(node) } };
       }
       return {
         type: "mystRaw",

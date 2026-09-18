@@ -28,7 +28,8 @@ import {
   Strikethrough,
   Table as TableIcon,
   Underline as UnderlineIcon,
-  Scissors
+  Scissors,
+  Workflow
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { figurePosFromState } from "@mdword/editor";
@@ -38,6 +39,7 @@ import {
   applyBlockStyle,
   currentBlockStyle,
   insertCallout,
+  insertMermaid,
   insertPageBreak,
   insertTable
 } from "@/lib/editorCommands";
@@ -352,6 +354,9 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
           </InsertItem>
           <InsertItem label="Code block" onClick={() => editor && run(() => editor.chain().focus().toggleCodeBlock().run())}>
             <SquareCode size={18} />
+          </InsertItem>
+          <InsertItem label="Mermaid diagram" onClick={() => editor && run(() => insertMermaid(editor))}>
+            <Workflow size={18} />
           </InsertItem>
           <InsertItem label="Page break" onClick={() => editor && run(() => insertPageBreak(editor))}>
             <Scissors size={18} />

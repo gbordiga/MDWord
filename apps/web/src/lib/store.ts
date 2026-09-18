@@ -41,7 +41,7 @@ import {
   type WorkspaceState
 } from "@mdword/workspace";
 import { rewriteDisplayBlobsInTree, tiptapToAst, visualProjection, type TiptapNode } from "@mdword/editor";
-import { renderPrintDocument } from "@mdword/renderer";
+import { hydrateMermaidHtml, renderPrintDocument } from "@mdword/renderer";
 
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view" | "image" | "table";
 export type LeftPanel = "files" | "outline" | "search" | "backlinks" | "history";
@@ -626,16 +626,18 @@ export const useApp = create<AppState>((set, get) => {
     try {
       const { model, path } = get();
       const host = getHost();
-      const html = renderPrintDocument({
-        ast: model.ast,
-        mdoc: model.resolvedMdoc,
-        title: displayDocumentTitle(model.frontmatter, path),
-        subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
-        date: documentDate(model.frontmatter),
-        filename: path ?? "document.md",
-        runningInBody: false,
-        pagedScriptUrl: webPagedScriptUrl(host.platform)
-      });
+      const html = await hydrateMermaidHtml(
+        renderPrintDocument({
+          ast: model.ast,
+          mdoc: model.resolvedMdoc,
+          title: displayDocumentTitle(model.frontmatter, path),
+          subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
+          date: documentDate(model.frontmatter),
+          filename: path ?? "document.md",
+          runningInBody: false,
+          pagedScriptUrl: webPagedScriptUrl(host.platform)
+        })
+      );
       await host.export.pdf(html, {});
     } finally {
       set({ busy: null });
@@ -648,16 +650,18 @@ export const useApp = create<AppState>((set, get) => {
     await yieldPaint();
     try {
       const { model, path } = get();
-      const html = renderPrintDocument({
-        ast: model.ast,
-        mdoc: model.resolvedMdoc,
-        title: displayDocumentTitle(model.frontmatter, path),
-        subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
-        date: documentDate(model.frontmatter),
-        filename: path ?? "document.md",
-        runningInBody: false,
-        pagedScriptUrl: webPagedScriptUrl(getHost().platform)
-      });
+      const html = await hydrateMermaidHtml(
+        renderPrintDocument({
+          ast: model.ast,
+          mdoc: model.resolvedMdoc,
+          title: displayDocumentTitle(model.frontmatter, path),
+          subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
+          date: documentDate(model.frontmatter),
+          filename: path ?? "document.md",
+          runningInBody: false,
+          pagedScriptUrl: webPagedScriptUrl(getHost().platform)
+        })
+      );
       set({ busy: null });
       await getHost().files.saveAs(html, (path ?? "document").replace(/\.md$/, "") + ".html");
     } catch (error) {

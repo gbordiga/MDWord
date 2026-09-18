@@ -374,6 +374,103 @@ html.keyboard-open .mdword-app {
   background: #fef3f2;
 }
 
+.ProseMirror figure.md-mermaid {
+  margin: 0.85em 0;
+  padding: 0;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.ProseMirror figure.md-mermaid.is-selected {
+  outline: 2px solid #2e90fa;
+  outline-offset: 1px;
+}
+
+.md-mermaid-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #eef2f6;
+  background: #f8fafc;
+}
+
+.md-mermaid-label {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #667085;
+}
+
+.md-mermaid-edit,
+.md-mermaid-actions button {
+  border: 1px solid #d0d5dd;
+  background: #fff;
+  color: #344054;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.md-mermaid-edit:hover,
+.md-mermaid-actions button:hover {
+  background: #f2f4f7;
+}
+
+.md-mermaid-preview {
+  padding: 12px 14px;
+  text-align: center;
+  overflow-x: auto;
+}
+
+.md-mermaid-preview svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.md-mermaid-empty,
+.md-mermaid-error {
+  margin: 0;
+  text-align: left;
+  font-size: 13px;
+  color: #667085;
+}
+
+.md-mermaid-preview.is-error .md-mermaid-error {
+  color: #b42318;
+  margin-bottom: 8px;
+}
+
+.md-mermaid-editor {
+  padding: 10px 12px 12px;
+}
+
+.md-mermaid-source {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  font-family: Consolas, "Liberation Mono", ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #f8fafc;
+}
+
+.md-mermaid-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .md-page-gap {
   pointer-events: none;
   user-select: none;

@@ -19,9 +19,13 @@ Two pipelines share tokens from the layout engine.
 - Web: print stylesheet + browser print dialog
 - Explicit `page-break` becomes `break-after: page`
 
+## Mermaid
+
+` ```mermaid ` fences become a TipTap `mermaid` node in the visual editor and a `<figure class="md-mermaid">` in print HTML. Export hydrates those figures to SVG with Mermaid `securityLevel: "strict"` so PDF/HTML stay offline and self-contained.
+
 ## HTML export
 
-Semantic HTML5: headings, figures with captions, tables, admonitions as `<aside>`, wikilinks as `<a class="wikilink">`. Sanitize any raw HTML from the source.
+Semantic HTML5: headings, figures with captions, tables, admonitions as `<aside>`, wikilinks as `<a class="wikilink">`. Sanitize any raw HTML from the source. Mermaid diagrams are inlined as SVG.
 
 ## Consistency
 

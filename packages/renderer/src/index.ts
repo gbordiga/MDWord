@@ -4,10 +4,15 @@ import {
   decodeWikiHref,
   imageNodeUrl,
   isImageLike,
+  isMermaidAstNode,
+  mermaidSourceFromNode,
   promotePipeParagraphs,
   resolveImageReferences,
   WIKI_SCHEME
 } from "@mdword/shared";
+import { mermaidFigureHtml } from "./mermaid";
+
+export { hydrateMermaidHtml, renderMermaidSvg } from "./mermaid";
 import { pageMetrics, type Mdoc } from "@mdword/layout-engine";
 import { collectTocItems, renderTocHtml } from "./toc";
 import { pageMarginCss, resolvedRunningComments, runningBarsHtml } from "./running";
@@ -132,7 +137,10 @@ function renderNode(node: GenericNode): string {
       return `<blockquote>${renderNodes(node.children)}</blockquote>`;
     case "code":
     case "codeBlock":
+      if (isMermaidAstNode(node)) return mermaidFigureHtml(mermaidSourceFromNode(node));
       return `<pre><code>${escape(String(node.value ?? ""))}</code></pre>`;
+    case "mermaid":
+      return mermaidFigureHtml(mermaidSourceFromNode(node));
     case "thematicBreak":
       return "<hr />";
     case "table":
@@ -160,6 +168,7 @@ function renderNode(node: GenericNode): string {
     case "mystDirective": {
       const name = String(node.name ?? "");
       if (name === "page-break") return `<div class="page-break"></div>`;
+      if (name === "mermaid") return mermaidFigureHtml(mermaidSourceFromNode(node));
       const kinds = ["note", "tip", "warning", "important", "caution", "danger", "error", "hint"];
       if (kinds.includes(name)) {
         return `<aside class="admonition ${escape(name)}"><p class="admonition-title">${escape(name)}</p>${renderNodes(node.children)}</aside>`;
@@ -317,6 +326,10 @@ export function renderPrintDocument(options: {
     .md-layout-float-left { float: left; margin: 0 1em 0.75em 0; }
     .md-layout-float-right { float: right; margin: 0 0 0.75em 1em; }
     figcaption { font-size: 10pt; color: #4b5563; margin-top: 6px; }
+    figure.md-mermaid { margin: 12px 0; text-align: center; }
+    figure.md-mermaid svg { max-width: 100%; height: auto; }
+    figure.md-mermaid pre.mermaid { text-align: left; white-space: pre-wrap; }
+    .md-mermaid-error { color: #b42318; font-size: 10pt; margin: 0 0 8px; }
     p { margin: 0 0 0.6em; }
     table { border-collapse: collapse; width: 100%; table-layout: fixed; margin: 12px 0; }
     th, td { border: 1px solid #ccc; padding: 4px 8px; min-width: 0; vertical-align: top; word-wrap: break-word; overflow-wrap: anywhere; }

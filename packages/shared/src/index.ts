@@ -10,3 +10,5 @@ export * from "./title";
 export * from "./lineDiff";
 export * from "./workspaceList";
 export * from "./gfmTables";
+export * from "./mermaid";
+export * from "./mermaid";

@@ -41,6 +41,10 @@ describe("round-trip fixtures", () => {
       expect(serialized).toContain("Schema della pompa.");
       expect(serialized).not.toMatch(/```\{figure\}/);
     }
+    if (file === "mermaid.md") {
+      expect(serialized).toContain("```mermaid");
+      expect(serialized).toContain("flowchart TB");
+    }
     expect(equal || JSON.stringify(second.ast).length > 0).toBe(true);
     void first;
   });

@@ -34,6 +34,10 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
   assetPrefix: isElectron ? "." : undefined,
   webpack: (config, { isServer }) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      canvas: false
+    };
     if (isServer) {
       config.plugins.push(copyServerChunksToRuntimeDir());
     }
@@ -52,7 +56,8 @@ const nextConfig: NextConfig = {
     "@mdword/workspace",
     "@mdword/indexer",
     "@mdword/plugin-sdk",
-    "@mdword/ui"
+    "@mdword/ui",
+    "mermaid"
   ]
 };
 

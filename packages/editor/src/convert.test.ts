@@ -599,4 +599,24 @@ ${ref.definition}
     expect(figure?.attrs?.src).toBe(src);
     expect(figure?.attrs?.alt).toBe("old");
   });
+
+  it("maps a mermaid fence to a mermaid node and back to a fence", () => {
+    const parsed = parseMarkdown("```mermaid\nflowchart TB\n  A --> B\n```\n");
+    const json = astToTiptap(parsed.ast);
+    const block = json.content?.find((node) => node.type === "mermaid");
+    expect(block?.attrs?.source).toContain("flowchart TB");
+    expect(collectEmptyTextPaths(json)).toEqual([]);
+    expect(() => tiptapDocFromJson(json)).not.toThrow();
+    const md = serializeMarkdown({ ast: tiptapToAst(json) });
+    expect(md).toMatch(/```mermaid/);
+    expect(md).toContain("A --> B");
+  });
+
+  it("maps a mermaid directive onto the same node", () => {
+    const parsed = parseMarkdown("```{mermaid}\nsequenceDiagram\n  Alice->>Bob: hi\n```\n");
+    const json = astToTiptap(parsed.ast);
+    const block = json.content?.find((node) => node.type === "mermaid" || node.type === "mystRaw");
+    expect(block?.type).toBe("mermaid");
+    expect(String(block?.attrs?.source ?? "")).toContain("Alice->>Bob");
+  });
 });

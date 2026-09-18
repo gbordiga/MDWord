@@ -145,6 +145,12 @@ function astBlock(node: TiptapNode, inTable = false): GenericNode {
         lang: node.attrs?.language ?? undefined,
         value: (node.content ?? []).map((n) => n.text ?? "").join("")
       };
+    case "mermaid":
+      return {
+        type: "code",
+        lang: "mermaid",
+        value: String(node.attrs?.source ?? "")
+      };
     case "horizontalRule":
       return { type: "thematicBreak" };
     case "table":
