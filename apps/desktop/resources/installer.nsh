@@ -1,4 +1,3 @@
-!include "nsDialogs.nsh"
 !include "LogicLib.nsh"
 
 Var AssociateMdCheckbox
@@ -8,8 +7,10 @@ Var AssociateMd
   StrCpy $AssociateMd 1
 !macroend
 
+!ifndef BUILD_UNINSTALLER
+!include "nsDialogs.nsh"
+
 Function mdwordAssocPage
-  !insertmacro MUI_HEADER_TEXT "Markdown files" "MDWord can open .md files when you double-click them."
   nsDialogs::Create 1018
   Pop $0
   ${If} $0 == error
@@ -26,6 +27,7 @@ FunctionEnd
 Function mdwordAssocPageLeave
   ${NSD_GetState} $AssociateMdCheckbox $AssociateMd
 FunctionEnd
+!endif
 
 !macro customPageAfterChangeDir
   Page custom mdwordAssocPage mdwordAssocPageLeave
