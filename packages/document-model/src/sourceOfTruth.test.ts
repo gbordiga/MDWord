@@ -127,4 +127,19 @@ describe("markdown source of truth", () => {
     expect(next.source).toContain("From TipTap");
     expect(next.source).toContain("Unchanged paragraph with  extra   spaces.");
   });
+
+  it("persists MyST table :align: from visual attributes", () => {
+    const model = openDocument("| A | B |\n| --- | --- |\n| 1 | 2 |\n");
+    const json = astToTiptap(model.ast);
+    const table = json.content?.find((node) => node.type === "table");
+    expect(table).toBeTruthy();
+    table!.attrs = { ...table!.attrs, align: "center", sourceKind: "table" };
+    const nextAst = tiptapToAst(json);
+    const projection = visualProjection(model.ast);
+    const next = applyVisualDocument(model, nextAst, {
+      previous: projection.ast,
+      origins: projection.origins
+    });
+    expect(next.source).toContain(":align: center");
+  });
 });

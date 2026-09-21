@@ -3,9 +3,9 @@
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
-  AlignCenter,
-  AlignLeft,
-  AlignRight,
+  AlignHorizontalJustifyCenter,
+  AlignHorizontalJustifyEnd,
+  AlignHorizontalJustifyStart,
   ArrowDown,
   ArrowUp,
   Bold,
@@ -247,22 +247,22 @@ export function EditorContextMenu() {
     items = (
       <>
         <MenuItem
-          icon={AlignLeft}
-          label="Align left"
+          icon={AlignHorizontalJustifyStart}
+          label="Position left"
           testId="editor-menu-align-left"
           checked={layout === "block-left"}
           onClick={() => run(() => setLayout("block-left"))}
         />
         <MenuItem
-          icon={AlignCenter}
-          label="Align center"
+          icon={AlignHorizontalJustifyCenter}
+          label="Position center"
           testId="editor-menu-align-center"
           checked={layout === "block-center"}
           onClick={() => run(() => setLayout("block-center"))}
         />
         <MenuItem
-          icon={AlignRight}
-          label="Align right"
+          icon={AlignHorizontalJustifyEnd}
+          label="Position right"
           testId="editor-menu-align-right"
           checked={layout === "block-right"}
           onClick={() => run(() => setLayout("block-right"))}

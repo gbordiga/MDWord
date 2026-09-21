@@ -53,7 +53,6 @@ export function ImageDialog({
     void embedImageFile(file)
       .then((embedded) => {
         setSrc(embedded);
-        if (!alt.trim()) setAlt(file.name.replace(/\.[^.]+$/, ""));
       })
       .catch(() => setError("Could not read that image."))
       .finally(() => setBusy(false));

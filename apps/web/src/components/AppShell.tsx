@@ -10,7 +10,6 @@ import { CommandPalette } from "./CommandPalette";
 import { DesktopTopBar } from "./DesktopTopBar";
 import { MobileFormatBar, MobileSheets, MobileTabBar, MobileTopBar } from "./MobileChrome";
 import { FindBar } from "./FindBar";
-import { EditorContextBar } from "./EditorContextBar";
 import { LinkBubble } from "./LinkBubble";
 import { EditorContextMenu } from "./EditorContextMenu";
 import { LinkDialog } from "./LinkDialog";
@@ -216,7 +215,6 @@ function AppShellInner({
       <Ribbon editor={editor} />
       <MobileFormatBar editor={editor} />
       <FindBar />
-      <EditorContextBar />
       <div className="relative flex min-h-0 min-w-0 flex-1">
         <WorkspaceSplit leftOpen={leftOpen} rightOpen={rightOpen}>
           <div

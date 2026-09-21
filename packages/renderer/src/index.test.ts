@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { withTableMeta } from "@mdword/shared";
 import { astToHtml, collectTocItems, headerFooterFromHtml, renderPrintDocument } from "./index";
 
 describe("renderer security", () => {
@@ -15,6 +16,30 @@ describe("renderer security", () => {
     });
     expect(html).not.toMatch(/<script/i);
     expect(html).not.toMatch(/<img[^>]+onerror/i);
+  });
+
+  it("places a table with MyST :align: using margin, not full width", () => {
+    const html = astToHtml({
+      type: "root",
+      children: [
+        withTableMeta(
+          {
+            type: "table",
+            children: [
+              {
+                type: "tableRow",
+                children: [
+                  { type: "tableCell", header: true, children: [{ type: "text", value: "A" }] },
+                  { type: "tableCell", header: true, children: [{ type: "text", value: "B" }] }
+                ]
+              }
+            ]
+          },
+          { align: "center" }
+        )
+      ]
+    });
+    expect(html).toMatch(/<table[^>]*style="width:auto;margin:0 auto;?"/);
   });
 
   it("renders a pipe paragraph as a table", () => {

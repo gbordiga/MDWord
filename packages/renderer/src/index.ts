@@ -117,7 +117,9 @@ function tableColgroup(meta: TableMeta, colCount: number): string {
 function renderTableNode(node: GenericNode, meta: TableMeta): string {
   const rows = node.children ?? [];
   const colCount = Math.max(...rows.map((r) => r.children?.length ?? 0), 1);
-  const align = meta.align ? ` style="margin:${meta.align === "center" ? "0 auto" : meta.align === "right" ? "0 0 0 auto" : "0"};"` : "";
+  const align = meta.align
+    ? ` style="width:auto;margin:${meta.align === "center" ? "0 auto" : meta.align === "right" ? "0 0 0 auto" : "0"};"`
+    : "";
   const width = meta.width ? ` width="${escape(String(meta.width))}"` : "";
   const cap = meta.caption ? `<caption>${escape(meta.caption)}</caption>` : "";
   const body = renderNodes(rows);

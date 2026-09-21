@@ -58,7 +58,7 @@ import { figurePosFromState } from "@mdword/editor";
 import { useEditorTick } from "@/hooks/useEditorTick";
 import { useEditorUi } from "@/lib/editorUi";
 import { Spinner } from "./Spinner";
-import { ImageRibbonTools, TableRibbonTools } from "./ContextualRibbons";
+import { CalloutRibbonTools, ImageRibbonTools, TableRibbonTools } from "./ContextualRibbons";
 import { MarkdownAssociationButton } from "./MarkdownAssociationControl";
 import { ImportImagesControl } from "./ImportImagesControl";
 
@@ -73,8 +73,10 @@ const MAIN_TABS: { id: RibbonTab; label: string }[] = [
 
 const CONTEXT_TABS: { id: RibbonTab; label: string }[] = [
   { id: "image", label: "Image" },
-  { id: "table", label: "Table" }
+  { id: "table", label: "Table" },
+  { id: "callout", label: "Callout" }
 ];
+const CONTEXTUAL = new Set<RibbonTab>(["image", "table", "callout"]);
 
 function Btn({
   onClick,
@@ -131,31 +133,36 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
   const fontScale = matchFontScale(actions.model.resolvedMdoc);
   const inImage = Boolean(editor && figurePosFromState(editor.state) != null);
   const inTable = Boolean(editor?.isActive("table"));
+  const inCallout = Boolean(editor?.isActive("callout"));
   const lastMain = useRef<RibbonTab>("home");
-  const prevContext = useRef({ inImage: false, inTable: false });
+  const prevContext = useRef({ inImage: false, inTable: false, inCallout: false });
 
   useEffect(() => {
-    if (ribbon !== "image" && ribbon !== "table") lastMain.current = ribbon;
+    if (!CONTEXTUAL.has(ribbon)) lastMain.current = ribbon;
   }, [ribbon]);
 
   useEffect(() => {
     const was = prevContext.current;
     if (inImage && !was.inImage) setRibbon("image");
     else if (inTable && !inImage && !was.inTable) setRibbon("table");
-    else if (!inImage && !inTable && (ribbon === "image" || ribbon === "table")) {
+    else if (inCallout && !inImage && !inTable && !was.inCallout) setRibbon("callout");
+    else if (!inImage && !inTable && !inCallout && CONTEXTUAL.has(ribbon)) {
       setRibbon(lastMain.current);
     } else if (!inImage && inTable && was.inImage) {
       setRibbon("table");
+    } else if (!inImage && !inTable && inCallout && (was.inImage || was.inTable)) {
+      setRibbon("callout");
     }
-    prevContext.current = { inImage, inTable };
-  }, [inImage, inTable, ribbon, setRibbon]);
+    prevContext.current = { inImage, inTable, inCallout };
+  }, [inCallout, inImage, inTable, ribbon, setRibbon]);
 
   return (
     <div className="hidden border-b border-[#e4e7ec] bg-white lg:block">
       <div className="flex items-center gap-1 px-2 pt-1">
         {[...MAIN_TABS, ...CONTEXT_TABS].map((tab) => {
-          const contextual = tab.id === "image" || tab.id === "table";
-          const enabled = tab.id === "image" ? inImage : tab.id === "table" ? inTable : true;
+          const contextual = CONTEXTUAL.has(tab.id);
+          const enabled =
+            tab.id === "image" ? inImage : tab.id === "table" ? inTable : tab.id === "callout" ? inCallout : true;
           return (
             <button
               key={tab.id}
@@ -509,6 +516,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
         )}
         {ribbon === "image" && <ImageRibbonTools editor={editor} enabled={inImage} />}
         {ribbon === "table" && <TableRibbonTools editor={editor} enabled={inTable} />}
+        {ribbon === "callout" && <CalloutRibbonTools editor={editor} enabled={inCallout} />}
       </div>
     </div>
   );

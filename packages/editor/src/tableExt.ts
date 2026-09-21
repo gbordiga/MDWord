@@ -18,7 +18,13 @@ const alignAttr = {
 export const MdTable = Table.extend({
   addAttributes() {
     return {
-      align: { default: null },
+      align: {
+        default: null as string | null,
+        parseHTML: (el: HTMLElement) =>
+          el.getAttribute("data-align") || el.closest(".md-table-figure")?.getAttribute("data-align"),
+        renderHTML: (attrs: { align?: string | null }) =>
+          attrs.align ? { "data-align": attrs.align } : {}
+      },
       widths: { default: null },
       tableWidth: { default: null },
       caption: { default: null },

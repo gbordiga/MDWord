@@ -51,6 +51,7 @@ export function FigureTextInput({
   testId,
   className,
   placeholder,
+  ariaLabel,
   onCommit
 }: {
   enabled: boolean;
@@ -58,6 +59,7 @@ export function FigureTextInput({
   testId?: string;
   className: string;
   placeholder?: string;
+  ariaLabel?: string;
   onCommit: (value: string) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -67,6 +69,7 @@ export function FigureTextInput({
       disabled={!enabled}
       className={className}
       placeholder={placeholder}
+      aria-label={ariaLabel ?? placeholder}
       value={enabled ? (draft ?? value) : ""}
       onFocus={() => setDraft(value)}
       onChange={(event) => {

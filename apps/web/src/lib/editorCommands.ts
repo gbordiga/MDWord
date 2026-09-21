@@ -5,13 +5,14 @@ import {
   embedImageSrc,
   nextMatchIndex,
   normalizeHref,
+  setTableAlign,
   setTableCaption,
   setTableCellAlign,
   setTableWidthsAuto,
   setTableWidthsEqual
 } from "@mdword/editor";
 
-export { setTableCellAlign, setTableCaption, setTableWidthsAuto, setTableWidthsEqual };
+export { setTableAlign, setTableCellAlign, setTableCaption, setTableWidthsAuto, setTableWidthsEqual };
 
 export function applyBlockStyle(editor: Editor, value: string): void {
   if (value === "p") editor.chain().focus().setParagraph().run();
@@ -62,7 +63,8 @@ export async function insertImage(editor: Editor, src: string, alt?: string): Pr
   const url = src.trim();
   if (!url) return false;
   const embedded = await embedImageSrc(url);
-  editor.chain().focus().setFigure({ src: embedded, alt: (alt ?? "").trim() }).run();
+  const text = (alt ?? "").trim();
+  editor.chain().focus().setFigure({ src: embedded, alt: text, caption: text }).run();
   requestAnimationFrame(() => editor.chain().focus().run());
   return true;
 }
@@ -159,13 +161,6 @@ export function insertCrossRef(editor: Editor, label?: string): void {
 export function insertFootnote(editor: Editor): void {
   const id = `fn-${Date.now()}`;
   editor.chain().focus().insertContent({ type: "footnoteRef", attrs: { identifier: id, number: "†" } }).run();
-}
-
-export function promptTableCaption(editor: Editor): void {
-  const current = String(editor.getAttributes("table").caption ?? "");
-  const value = window.prompt("Table caption", current);
-  if (value === null) return;
-  setTableCaption(editor, value.trim() || null);
 }
 
 export function setCalloutTitle(editor: Editor, title?: string): void {

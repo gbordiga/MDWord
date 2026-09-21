@@ -36,6 +36,13 @@ describe("mystTables", () => {
     expect(tableToGfm(simpleTable)).toMatch(/\| --- \| ---:/);
   });
 
+  it("writes MyST :align: for table placement", () => {
+    const meta = tableMetaFromDirective("table", { align: "center" }, "KPI");
+    const md = serializeTableMarkdown(withTableMeta(simpleTable, meta), meta);
+    expect(md).toContain(":::{table} KPI");
+    expect(md).toContain(":align: center");
+  });
+
   it("promotes to list-table directive when metadata requires it", () => {
     const meta = tableMetaFromDirective("list-table", { widths: "20 50 30", "header-rows": "1" }, "Caption");
     const md = serializeTableMarkdown(withTableMeta(simpleTable, meta), meta);

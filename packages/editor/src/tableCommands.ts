@@ -84,6 +84,19 @@ export function setTableCellAlign(editor: Editor, align: "left" | "center" | "ri
   return editor.chain().focus().setCellAttribute("align", align).run();
 }
 
+export function setTableAlign(editor: Editor, align: "left" | "center" | "right"): boolean {
+  const found = findTableSelection(editor.state);
+  if (!found) return false;
+  return editor
+    .chain()
+    .focus()
+    .updateAttributes("table", {
+      align,
+      sourceKind: found.node.attrs.sourceKind === "list-table" ? "list-table" : "table"
+    })
+    .run();
+}
+
 export function setTableWidthsAuto(editor: Editor): boolean {
   const found = findTableSelection(editor.state);
   if (!found) return false;

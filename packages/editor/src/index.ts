@@ -1,6 +1,7 @@
 export { editorExtensions, WikiLink, Callout, PageBreak, Figure, MystRaw, Mermaid } from "./schema";
 export { MdTable, MdTableCell, MdTableHeader } from "./tableExt";
 export {
+  setTableAlign,
   setTableCaption,
   setTableCellAlign,
   setTableWidthsAuto,

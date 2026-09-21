@@ -69,7 +69,7 @@ import { hydrateMermaidHtml, renderPrintDocument } from "@mdword/renderer";
 import { resolveLeftPanel, type LeftPanel } from "./leftPanel";
 
 export type OpenWorkspaceFileOptions = { preview?: boolean };
-export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view" | "image" | "table";
+export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view" | "image" | "table" | "callout";
 export type { LeftPanel } from "./leftPanel";
 export { LEFT_PANELS, resolveLeftPanel } from "./leftPanel";
 export type MobileSheet = "workspace" | "insert" | "properties" | "more" | null;

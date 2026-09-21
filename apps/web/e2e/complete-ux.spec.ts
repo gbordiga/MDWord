@@ -43,10 +43,32 @@ test("table tools add a row and can delete the table", async ({ page }) => {
   await expect(prose.locator("table")).toBeVisible();
   const rowsBefore = await prose.locator("tr").count();
   await expect(page.getByTestId("ribbon-tab-table")).toBeEnabled();
+  await page.locator("div.hidden.lg\\:block").getByTestId("table-caption").fill("Quarterly KPI");
+  await expect(prose.getByTestId("doc-table-caption")).toHaveText("Quarterly KPI");
   await page.getByTestId("table-add-row").click();
   await expect(prose.locator("tr")).toHaveCount(rowsBefore + 1);
   await page.getByTestId("table-delete").click();
   await expect(prose.locator("table")).toHaveCount(0);
+});
+
+test("table page alignment writes MyST :align:", async ({ page }) => {
+  await page.goto("/");
+  const prose = page.locator(".ProseMirror");
+  await expect(prose).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Insert" }).click();
+  await page.getByTestId("insert-table").click();
+  await expect(prose.locator("table")).toBeVisible();
+  const ribbon = page.locator("div.hidden.lg\\:block");
+  await ribbon.getByTestId("table-page-align-center").click();
+  await expect(prose.getByTestId("doc-table")).toHaveAttribute("data-align", "center");
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        window.__MDWORD_APP__!.getState().flushPendingEdits();
+        return window.__MDWORD_APP__!.getState().model.source;
+      })
+    )
+    .toContain(":align: center");
 });
 
 test("document tables fill the page with even columns", async ({ page }) => {
@@ -77,7 +99,9 @@ test("callout kind can be changed after insert", async ({ page }) => {
   await page.getByRole("button", { name: "Insert" }).click();
   await page.getByTestId("insert-callout").click();
   await expect(prose.locator("aside.callout")).toBeVisible();
-  await page.getByTestId("callout-kind").selectOption("warning");
+  await expect(page.getByTestId("editor-context-bar")).toHaveCount(0);
+  await expect(page.getByTestId("ribbon-tab-callout")).toBeEnabled();
+  await page.locator("div.hidden.lg\\:block").getByTestId("callout-kind").selectOption("warning");
   await expect(prose.locator("aside.callout-warning")).toBeVisible();
 });
 

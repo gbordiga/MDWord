@@ -70,24 +70,31 @@ export function DocumentTabBar({ compact = false }: { compact?: boolean }) {
   };
 
   useLayoutEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
     const frame = window.requestAnimationFrame(() => {
       revealActive();
       measure();
     });
-    const ro = new ResizeObserver(() => {
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTabId, measure, revealActive]);
+
+  useLayoutEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const onWindowResize = () => {
       revealActive();
       measure();
-    });
+    };
+    const ro = new ResizeObserver(() => measure());
     ro.observe(el);
     el.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", onWindowResize);
+    measure();
     return () => {
-      window.cancelAnimationFrame(frame);
       ro.disconnect();
       el.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", onWindowResize);
     };
-  }, [activeTabId, measure, revealActive, tabs]);
+  }, [measure, revealActive, tabs.length]);
 
   const requestClose = (tabId: string) => {
     const state = useApp.getState();
@@ -140,6 +147,12 @@ export function DocumentTabBar({ compact = false }: { compact?: boolean }) {
               data-testid="document-tab"
               data-active={active ? "true" : "false"}
               data-preview={tab.preview ? "true" : "false"}
+              onMouseDown={(event) => {
+                if (event.button !== 1) return;
+                event.preventDefault();
+                event.stopPropagation();
+                requestClose(tab.id);
+              }}
             >
               <button
                 type="button"

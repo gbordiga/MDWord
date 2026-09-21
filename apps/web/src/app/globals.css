@@ -798,11 +798,43 @@ html.keyboard-open .mdword-app {
   -webkit-overflow-scrolling: touch;
 }
 
+.ProseMirror .md-table-figure[data-align="left"],
+.ProseMirror .md-table-figure[data-align="center"],
+.ProseMirror .md-table-figure[data-align="right"] {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.ProseMirror .md-table-figure[data-align="left"] {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.ProseMirror .md-table-figure[data-align="center"] {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.ProseMirror .md-table-figure[data-align="right"] {
+  margin-left: auto;
+  margin-right: 0;
+}
+
 .ProseMirror .tableWrapper {
   display: block;
   width: 100%;
   max-width: 100%;
   overflow-x: visible;
+}
+
+.ProseMirror .md-table-figure:not([data-align]) table {
+  width: 100%;
+}
+
+.ProseMirror .md-table-figure[data-align] .tableWrapper,
+.ProseMirror .md-table-figure[data-align] table {
+  width: max-content;
+  max-width: 100%;
 }
 
 .ProseMirror table {

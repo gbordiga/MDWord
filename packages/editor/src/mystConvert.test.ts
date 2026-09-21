@@ -66,6 +66,23 @@ describe("MyST visual convert", () => {
     expect(md).toContain("E=mc^2");
   });
 
+  it("round-trips MyST table :align: as page placement", () => {
+    const parsed = parseMarkdown(`:::{table}
+:align: center
+
+| A | B |
+| --- | --- |
+| 1 | 2 |
+:::
+`);
+    const table = astToTiptap(parsed.ast).content?.find((n) => n.type === "table");
+    expect(table?.attrs?.align).toBe("center");
+    const ast = tiptapToAst({ type: "doc", content: [table!] });
+    const tableNode = ast.children?.find((node) => node.type === "table");
+    expect(getTableMeta(tableNode!).align).toBe("center");
+    expect(serializeTableMarkdown(tableNode!, getTableMeta(tableNode!))).toContain(":align: center");
+  });
+
   it("serializes table caption and resized column widths to MyST source", () => {
     const parsed = parseMarkdown("| a | b |\n| --- | --- |\n| 1 | 2 |");
     const doc = astToTiptap(parsed.ast);

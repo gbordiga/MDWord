@@ -50,10 +50,9 @@ async function insertFiles(view: EditorView, event: DragEvent | ClipboardEvent, 
   for (const file of unique) {
     try {
       const src = await embedImageFile(file);
-      const alt = file.name.replace(/\.[^.]+$/, "");
       insertFigure(view, pos, {
         src,
-        alt,
+        alt: "",
         caption: "",
         width: DEFAULT_IMAGE_WIDTH,
         layout: DEFAULT_IMAGE_LAYOUT,

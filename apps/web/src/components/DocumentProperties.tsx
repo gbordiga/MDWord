@@ -4,11 +4,7 @@ import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { FONT_SCALES, matchFontScale, matchMarginPreset } from "@mdword/layout-engine";
 import { documentDate, documentTitle, documentTitleKey } from "@mdword/shared";
-import { IMAGE_LAYOUTS, figureCaptionText, figureNodeFromState, figurePosFromState, widthForLayoutChange, type ImageLayout } from "@mdword/editor";
 import { useApp } from "@/lib/store";
-import { useEditorUi } from "@/lib/editorUi";
-import { useEditorTick } from "@/hooks/useEditorTick";
-import { FigureTextInput, FigureWidthInput } from "./FigureAttrInputs";
 import { FrontmatterEditor } from "./FrontmatterEditor";
 import { MarginEditor } from "./MarginEditor";
 
@@ -106,67 +102,8 @@ export function DocumentProperties({
     ?.trim();
   const testIds = variant === "panel";
 
-  const { editor } = useEditorUi();
-  useEditorTick(editor);
-  const inImage = Boolean(editor && figurePosFromState(editor.state) != null);
-  const imageAttrs = (editor ? figureNodeFromState(editor.state)?.attrs : null) ?? {};
-  const imageLayout = IMAGE_LAYOUTS.includes(imageAttrs.layout as ImageLayout)
-    ? (imageAttrs.layout as ImageLayout)
-    : "block-center";
-  const imageWidth = Number(imageAttrs.width ?? 100);
-  const imageCaption = editor ? figureCaptionText(editor.state) : "";
-
   return (
     <div>
-      {inImage && editor ? (
-        <PropertySection
-          id="image"
-          title="Image"
-          hint={`${imageWidth}% · ${imageLayout.replace("-", " ")}`}
-          defaultOpen
-          testIds={testIds}
-        >
-          <Field label="Position">
-            <select
-              data-testid={testIds ? "prop-image-layout" : undefined}
-              className={fieldClass}
-              value={imageLayout}
-              onChange={(e) => {
-                const next = e.target.value as ImageLayout;
-                editor.commands.updateFigure({
-                  layout: next,
-                  width: widthForLayoutChange(imageWidth, next)
-                });
-              }}
-            >
-              <option value="block-left">Left</option>
-              <option value="block-center">Center</option>
-              <option value="block-right">Right</option>
-              <option value="float-left">Float left</option>
-              <option value="float-right">Float right</option>
-            </select>
-          </Field>
-          <Field label="Width (%)">
-            <FigureWidthInput
-              editor={editor}
-              enabled
-              width={imageWidth}
-              testId={testIds ? "prop-image-width" : undefined}
-              className={fieldClass}
-            />
-          </Field>
-          <Field label="Caption">
-            <FigureTextInput
-              enabled
-              value={imageCaption}
-              testId={testIds ? "prop-image-caption" : "image-caption"}
-              className={fieldClass}
-              placeholder="Caption"
-              onCommit={(value) => editor.commands.setFigureCaption(value)}
-            />
-          </Field>
-        </PropertySection>
-      ) : null}
       <p className="px-3 pb-2 pt-1 text-[12px] leading-snug text-[#667085]">
         Saved in this document. Fields, page, margins, header, footer and contents all travel with the
         file.

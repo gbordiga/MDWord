@@ -51,7 +51,7 @@ import { ImportImagesControl } from "./ImportImagesControl";
 import { LeftSidebar } from "./LeftSidebar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { Sheet } from "./Sheet";
-import { ImageRibbonTools } from "./ContextualRibbons";
+import { CalloutRibbonTools, ImageRibbonTools } from "./ContextualRibbons";
 import { useMarkdownAssociation } from "./MarkdownAssociationControl";
 
 function IconBtn({
@@ -130,6 +130,17 @@ export function MobileFormatBar({ editor }: { editor: Editor | null }) {
         className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[#e4e7ec] bg-[#eef2f6] px-2 py-1 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden [&_button]:h-11 [&_input]:h-11 [&_input]:text-[16px]"
       >
         <ImageRibbonTools editor={editor} enabled />
+      </div>
+    );
+  }
+
+  if (editor?.isActive("callout")) {
+    return (
+      <div
+        data-testid="mobile-callout-bar"
+        className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[#e4e7ec] bg-[#eef2f6] px-2 py-1 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden [&_select]:h-11 [&_select]:text-[16px]"
+      >
+        <CalloutRibbonTools editor={editor} enabled />
       </div>
     );
   }

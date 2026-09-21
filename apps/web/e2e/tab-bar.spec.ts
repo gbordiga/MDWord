@@ -78,6 +78,28 @@ test("keeps the active tab in view after a narrow resize", async ({ page }) => {
   await expectActiveTabVisible(page);
 });
 
+test("keeps left overflow reachable after the last tab is selected", async ({ page }) => {
+  await seedOverflowTabs(page);
+  const bar = visibleTabBar(page);
+  const scroller = visibleScroller(page);
+  await bar.locator('[data-testid="document-tab"]').last().getByTestId("document-tab-title").click();
+  await expect(bar.getByTestId("document-tab-scroll-left")).toBeVisible();
+  const before = await scroller.evaluate((el) => el.scrollLeft);
+  expect(before).toBeGreaterThan(0);
+  await bar.getByTestId("document-tab-scroll-left").click();
+  await expect.poll(() => scroller.evaluate((el) => el.scrollLeft)).toBeLessThan(before - 20);
+  await expect(bar.getByTestId("document-tab-scroll-right")).toBeVisible();
+});
+
+test("closes a tab with a middle click on the badge", async ({ page }) => {
+  await seedOverflowTabs(page, 3);
+  const bar = visibleTabBar(page);
+  await expect(bar.locator('[data-testid="document-tab"]')).toHaveCount(3);
+  await bar.locator('[data-testid="document-tab"]').nth(1).click({ button: "middle" });
+  await expect(bar.locator('[data-testid="document-tab"]')).toHaveCount(2);
+  await expect(bar).not.toContainText("Long document title 2");
+});
+
 test("uses carets on the compact mobile tab bar", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seedOverflowTabs(page, 10);
