@@ -83,13 +83,13 @@ export function createSourceEditor(options: {
   return view;
 }
 
-export function setSource(view: EditorView, doc: string): void {
+export function setSource(view: EditorView, doc: string, options?: { undoable?: boolean }): void {
   const { display, urls } = bindStub(view, doc);
   if (view.state.doc.toString() === display) return;
   view.dispatch({
     changes: { from: 0, to: view.state.doc.length, insert: display },
     effects: setImagePayloads.of(urls),
-    annotations: setSourceAnnotation.of(true)
+    ...(options?.undoable ? {} : { annotations: setSourceAnnotation.of(true) })
   });
 }
 

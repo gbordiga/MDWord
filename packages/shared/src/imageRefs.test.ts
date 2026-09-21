@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   canonicalizeEmbeddedImages,
+  collectExternalImageUrls,
   imageNodeUrl,
   imageRefId,
   imageReference,
   isImageLike,
   resolveImageReferences,
   rewriteEmbeddedImagesToReferences,
+  rewriteExternalImageUrls,
   shouldRepairEmbeddedImages
 } from "./imageRefs";
 
@@ -122,5 +124,21 @@ ${ref.definition}
     expect(image?.url).toBe(PNG);
     expect(image?.alt).toBe("pic");
     expect(next.children?.some((n) => n.type === "definition")).toBe(false);
+  });
+
+  it("collects file-backed images and leaves embeds alone", () => {
+    const ast = {
+      type: "root",
+      children: [
+        { type: "image", url: "./foto.png", alt: "x" },
+        { type: "image", url: PNG, alt: "embedded" },
+        { type: "image", url: "https://example.com/a.png", alt: "web" },
+        { type: "definition", identifier: "img-file", url: "photos/cat.png" }
+      ]
+    };
+    expect(collectExternalImageUrls(ast)).toEqual(["./foto.png", "photos/cat.png"]);
+    const next = rewriteExternalImageUrls(ast, new Map([["./foto.png", PNG]]));
+    expect(imageNodeUrl(next.children?.[0])).toBe(PNG);
+    expect(imageNodeUrl(next.children?.[1])).toBe(PNG);
   });
 });

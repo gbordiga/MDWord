@@ -430,6 +430,23 @@ export const webHost: HostApi = {
       if (!handle) throw new Error("File handle missing");
       return textFromHandle(handle, path);
     },
+    async readDataUrl(path) {
+      const cached = fileTexts.get(path) ?? fileTexts.get(path.split("/").pop() ?? path);
+      if (cached?.startsWith("data:image/")) return cached;
+      const handle = fileHandles.get(path) ?? fileHandles.get(path.split("/").pop() ?? path);
+      if (!handle) throw new Error("File handle missing");
+      const file = await handle.getFile();
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = String(reader.result ?? "");
+          if (!result.startsWith("data:image/")) reject(new Error("not-image"));
+          else resolve(result);
+        };
+        reader.onerror = () => reject(reader.error ?? new Error("read-failed"));
+        reader.readAsDataURL(file);
+      });
+    },
     async readMany(paths) {
       const out: { path: string; content: string }[] = [];
       const concurrency = 8;
@@ -527,14 +544,17 @@ export const webHost: HostApi = {
       await copyPath(from, to);
     },
     async remove(path) {
+      const name = path.split(/[/\\]/).pop() ?? path;
+      fileTexts.delete(path);
+      fileTexts.delete(name);
+      fileHandles.delete(path);
+      fileHandles.delete(name);
+      dirHandles.delete(path);
+      if (!folderRoot) return;
       await ensureFolderWritable();
-      if (!folderRoot) throw new Error("No folder is open");
       if (path === folderRoot) throw new Error("Cannot delete the open folder");
       const parent = await resolveDir(workspaceDirname(path, folderRoot), false);
       await parent.removeEntry(workspaceBasename(path), { recursive: true });
-      fileHandles.delete(path);
-      dirHandles.delete(path);
-      fileTexts.delete(path);
     },
     async copyIntoAssets() {
       throw new Error("Copy into assets is available in the desktop app");
