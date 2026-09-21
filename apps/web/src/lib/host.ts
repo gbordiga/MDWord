@@ -95,6 +95,12 @@ type WindowFs = Window & {
 
 const fileHandles = new Map<string, FsHandle>();
 const fileTexts = new Map<string, string>();
+
+export function primeHostFile(path: string, content: string): void {
+  fileTexts.set(path, content);
+  const name = path.split(/[/\\]/).pop();
+  if (name) fileTexts.set(name, content);
+}
 const dirHandles = new Map<string, DirHandle>();
 let folderHandle: DirHandle | null = null;
 let folderRoot: string | null = null;
@@ -673,4 +679,8 @@ function waitForPagedPrint(win: Window): Promise<void> {
     };
     tick();
   });
+}
+
+if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
+  (window as Window & { __MDWORD_PRIME_FILE__?: typeof primeHostFile }).__MDWORD_PRIME_FILE__ = primeHostFile;
 }

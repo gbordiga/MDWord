@@ -3,6 +3,7 @@ export {};
 declare global {
   interface Window {
     __MDWORD_APP__?: import("zustand").StoreApi<import("@/lib/store").AppState>;
+    __MDWORD_PRIME_FILE__?: (path: string, content: string) => void;
     mdword?: import("@mdword/shared").HostApi;
     showOpenFilePicker?: (options?: unknown) => Promise<FileSystemFileHandle[]>;
     showSaveFilePicker?: (options?: unknown) => Promise<FileSystemFileHandle>;

@@ -72,9 +72,9 @@ export interface BusyState {
 
 const VISUAL_APPLY_MS = 160;
 const SOURCE_APPLY_MS = 220;
-let pendingTiptap: TiptapNode | null = null;
+let pendingTiptap: { doc: TiptapNode; tabId: string } | null = null;
 let applyTimer: ReturnType<typeof setTimeout> | null = null;
-let pendingSource: string | null = null;
+let pendingSource: { source: string; tabId: string } | null = null;
 let sourceTimer: ReturnType<typeof setTimeout> | null = null;
 let filePickerOpen = false;
 let workspaceEpoch = 0;
@@ -280,7 +280,7 @@ export const useApp = create<AppState>((set, get) => {
   const persistActiveTab = (): DocumentTab[] => snapshotActiveTab(get());
 
   const activateTab = (tab: DocumentTab, bumpSync = true) => {
-    const nextTab = bumpSync ? { ...tab, syncGeneration: tab.syncGeneration + 1 } : tab;
+    const nextTab = bumpSync ? { ...tab, syncGeneration: get().syncGeneration + 1 } : tab;
     const tabs = persistActiveTab().map((entry) => (entry.id === nextTab.id ? nextTab : entry));
     set({
       tabs,
@@ -290,7 +290,7 @@ export const useApp = create<AppState>((set, get) => {
   };
 
   const appendTab = (tab: DocumentTab) => {
-    const nextTab = { ...tab, syncGeneration: tab.syncGeneration + 1 };
+    const nextTab = { ...tab, syncGeneration: get().syncGeneration + 1 };
     const tabs = [...persistActiveTab(), nextTab];
     set({
       tabs,
@@ -326,9 +326,9 @@ export const useApp = create<AppState>((set, get) => {
       clearTimeout(applyTimer);
       applyTimer = null;
     }
-    const doc = pendingTiptap;
+    const pending = pendingTiptap;
     pendingTiptap = null;
-    if (doc) commitTiptap(doc);
+    if (pending && pending.tabId === get().activeTabId) commitTiptap(pending.doc);
   };
 
   const commitSource = (source: string) => {
@@ -346,9 +346,9 @@ export const useApp = create<AppState>((set, get) => {
       clearTimeout(sourceTimer);
       sourceTimer = null;
     }
-    const source = pendingSource;
+    const pending = pendingSource;
     pendingSource = null;
-    if (source != null) commitSource(source);
+    if (pending && pending.tabId === get().activeTabId) commitSource(pending.source);
   };
 
   const markSaved = (path: string, content: string, model: DocumentModel) => {
@@ -411,7 +411,7 @@ export const useApp = create<AppState>((set, get) => {
     if (!kinds || kinds.includes(busy.kind)) set({ busy: null });
   },
   applySource: (source) => {
-    pendingSource = source;
+    pendingSource = { source, tabId: get().activeTabId };
     if (sourceTimer != null) return;
     sourceTimer = setTimeout(() => {
       sourceTimer = null;
@@ -419,7 +419,7 @@ export const useApp = create<AppState>((set, get) => {
     }, SOURCE_APPLY_MS);
   },
   applyTiptap: (doc) => {
-    pendingTiptap = doc;
+    pendingTiptap = { doc, tabId: get().activeTabId };
     if (applyTimer != null) return;
     applyTimer = setTimeout(() => {
       applyTimer = null;
@@ -451,6 +451,8 @@ export const useApp = create<AppState>((set, get) => {
     const tab = persistActiveTab().find((entry) => entry.id === tabId);
     if (!tab) return;
     activateTab(tab);
+    discardPendingVisual();
+    discardPendingSource();
   },
   pinTab: (tabId) => {
     const tabs = persistActiveTab();
@@ -661,7 +663,7 @@ export const useApp = create<AppState>((set, get) => {
         get().historyKey,
         pending.preview
       );
-      const revealed = { ...nextTab, syncGeneration: nextTab.syncGeneration + 1 };
+      const revealed = { ...nextTab, syncGeneration: get().syncGeneration + 1 };
       set({
         tabs: commitOpenedWorkspaceTab(persistActiveTab(), revealed, plan.replaceId),
         activeTabId: revealed.id,
@@ -669,6 +671,8 @@ export const useApp = create<AppState>((set, get) => {
         busy: null,
         ...activeDocumentFields(revealed)
       });
+      discardPendingVisual();
+      discardPendingSource();
       await yieldPaint();
     } catch {
       if (pendingWorkspaceOpens.get(normalized)?.seq === seq) {

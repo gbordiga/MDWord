@@ -136,6 +136,7 @@ function VisualEditorCanvas({
   const patchMdoc = useApp((s) => s.patchMdoc);
   const zoom = useApp((s) => s.zoom);
   const applyTiptap = useApp((s) => s.applyTiptap);
+  const activeTabId = useApp((s) => s.activeTabId);
   const syncGeneration = useApp((s) => s.syncGeneration);
   const sourceGeneration = useApp((s) => s.sourceGeneration);
   const skipProgrammaticUpdate = useRef(true);
@@ -218,13 +219,18 @@ function VisualEditorCanvas({
     };
   }, [editor]);
 
-  const lastGen = useRef(syncGeneration);
-  const lastSourceGen = useRef(sourceGeneration);
+  const lastSync = useRef({ tabId: "", sync: syncGeneration, source: sourceGeneration });
+  useLayoutEffect(() => {
+    skipProgrammaticUpdate.current = true;
+  }, [activeTabId, syncGeneration, sourceGeneration]);
   useEffect(() => {
     if (!editor) return;
-    if (lastGen.current === syncGeneration && lastSourceGen.current === sourceGeneration) return;
-    lastGen.current = syncGeneration;
-    lastSourceGen.current = sourceGeneration;
+    const same =
+      lastSync.current.tabId === activeTabId &&
+      lastSync.current.sync === syncGeneration &&
+      lastSync.current.source === sourceGeneration;
+    if (same) return;
+    lastSync.current = { tabId: activeTabId, sync: syncGeneration, source: sourceGeneration };
     skipProgrammaticUpdate.current = true;
     const load = (content: TiptapNode) => {
       replaceEditorDocument(editor, content);
@@ -240,7 +246,7 @@ function VisualEditorCanvas({
       });
       useApp.getState().finishBusy(["open", "workspace"]);
     }
-  }, [editor, syncGeneration, sourceGeneration]);
+  }, [editor, activeTabId, syncGeneration, sourceGeneration]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
