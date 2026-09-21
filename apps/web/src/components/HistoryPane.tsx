@@ -3,14 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { countLineChanges, diffLines, foldEmbeddedDataUrls } from "@mdword/shared";
 import { listHistory, readHistory, type HistoryListItem } from "@/lib/documentHistory";
+import { safeHistoryDiffLine, summarizeHistoryChanges } from "@/lib/historySummary";
 import { useApp } from "@/lib/store";
-
-const DIFF_LINE_MAX = 240;
-
-function displayDiffLine(text: string): string {
-  const folded = foldEmbeddedDataUrls(text);
-  return folded.length > DIFF_LINE_MAX ? `${folded.slice(0, DIFF_LINE_MAX)}…` : folded;
-}
 
 type Selection = { kind: "unsaved" } | { kind: "snapshot"; id: string };
 
@@ -30,8 +24,9 @@ export function HistoryPane() {
   const source = useApp((s) => s.model.source);
   const lastSavedAt = useApp((s) => s.lastSavedAt);
   const [items, setItems] = useState<HistoryListItem[]>([]);
-  const [selection, setSelection] = useState<Selection>(dirty ? { kind: "unsaved" } : { kind: "unsaved" });
+  const [selection, setSelection] = useState<Selection>({ kind: "unsaved" });
   const [baseContent, setBaseContent] = useState(lastSavedContent);
+  const [showDetails, setShowDetails] = useState(false);
 
   const current = useMemo(() => foldEmbeddedDataUrls(source), [source]);
   const foldedBase = useMemo(() => foldEmbeddedDataUrls(baseContent), [baseContent]);
@@ -62,7 +57,15 @@ export function HistoryPane() {
 
   const changes = useMemo(() => diffLines(foldedBase, current), [foldedBase, current]);
   const counts = useMemo(() => countLineChanges(changes), [changes]);
+  const summary = useMemo(
+    () => summarizeHistoryChanges(baseContent, source),
+    [baseContent, source]
+  );
   const hasUnsaved = dirty && current !== foldEmbeddedDataUrls(lastSavedContent);
+  const detailChanges = useMemo(
+    () => changes.filter((change) => change.kind !== "equal").slice(0, 40),
+    [changes]
+  );
 
   const restore = () => {
     if (selection.kind !== "snapshot") return;
@@ -125,29 +128,46 @@ export function HistoryPane() {
           </button>
         ) : null}
       </div>
-      <pre
+      <div
         data-testid="history-diff"
-        className="min-h-0 flex-1 overflow-auto bg-[#f8fafc] p-2 font-mono text-[11px] leading-5"
+        className="min-h-0 flex-1 overflow-auto bg-[#f8fafc] p-2 text-[12px] leading-5"
       >
-        {changes.every((c) => c.kind === "equal") ? (
+        {summary.facts.length === 0 && changes.every((c) => c.kind === "equal") ? (
           <span className="text-[#667085]">No differences.</span>
         ) : (
-          changes
-            .filter((c) => c.kind !== "equal")
-            .map((change, i) => (
-              <div
-                key={`${change.kind}-${i}`}
-                className={
-                  change.kind === "add"
-                    ? "bg-[#ecfdf3] text-[#067647]"
-                    : "bg-[#fef3f2] text-[#b42318]"
-                }
+          <>
+            <ul data-testid="history-summary" className="space-y-1 text-[#1c1f24]">
+              {summary.facts.map((fact) => (
+                <li key={fact}>{fact}</li>
+              ))}
+            </ul>
+            {detailChanges.length ? (
+              <details
+                className="mt-3"
+                data-testid="history-details"
+                open={showDetails}
+                onToggle={(event) => setShowDetails((event.target as HTMLDetailsElement).open)}
               >
-                {change.kind === "add" ? "+" : "-"} {displayDiffLine(change.text || " ")}
-              </div>
-            ))
+                <summary className="cursor-pointer text-[11px] font-medium text-[#667085]">Show details</summary>
+                {showDetails ? (
+                  <pre className="mt-2 font-mono text-[11px] leading-5">
+                    {detailChanges.map((change, i) => (
+                      <div
+                        key={`${change.kind}-${i}`}
+                        className={
+                          change.kind === "add" ? "bg-[#ecfdf3] text-[#067647]" : "bg-[#fef3f2] text-[#b42318]"
+                        }
+                      >
+                        {change.kind === "add" ? "+" : "-"} {safeHistoryDiffLine(change.text || " ")}
+                      </div>
+                    ))}
+                  </pre>
+                ) : null}
+              </details>
+            ) : null}
+          </>
         )}
-      </pre>
+      </div>
     </div>
   );
 }
