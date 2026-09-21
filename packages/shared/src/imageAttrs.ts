@@ -1,5 +1,5 @@
 export type ImageAttrList = {
-  width?: string;
+  width?: string | number;
   align?: string;
   className?: string;
 };

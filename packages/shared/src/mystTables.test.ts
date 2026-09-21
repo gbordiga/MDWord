@@ -55,7 +55,7 @@ describe("mystTables", () => {
     const wrapped = withTableMeta(simpleTable, meta);
     expect(tableMetaNeedsDirective(meta, simpleTable)).toBe(true);
     const { ast, snippets } = substituteRichTables({ type: "root", children: [wrapped] });
-    expect(ast.children?.[0].type).toBe("html");
+    expect(ast.children?.[0]?.type).toBe("html");
     expect(snippets[0]).toContain(":::{table} KPI");
   });
 

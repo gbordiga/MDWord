@@ -1,5 +1,6 @@
 import { findParentNode } from "@tiptap/core";
 import type { Editor } from "@tiptap/core";
+import type {} from "@tiptap/extension-table";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
 export function findTableSelection(state: Editor["state"]) {

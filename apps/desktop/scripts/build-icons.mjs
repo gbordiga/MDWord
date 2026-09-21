@@ -4,24 +4,41 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 const resources = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../resources");
-const svg = path.join(resources, "icon.svg");
-const pngPath = path.join(resources, "icon.png");
-const icoPath = path.join(resources, "icon.ico");
+const webPublic = path.resolve(resources, "../../web/public");
+const icoSizes = [16, 24, 32, 48, 64, 128, 256];
 
-if (!fs.existsSync(svg)) {
-  console.error("Missing", svg);
-  process.exit(1);
+async function writePngAndIco(svgPath, pngPath, icoPath) {
+  if (!fs.existsSync(svgPath)) {
+    console.error("Missing", svgPath);
+    process.exit(1);
+  }
+  const pngs = [];
+  for (const size of icoSizes) {
+    pngs.push(await sharp(svgPath).resize(size, size).png().toBuffer());
+  }
+  await sharp(svgPath).resize(512, 512).png().toFile(pngPath);
+  fs.writeFileSync(icoPath, packIco(pngs));
+  console.log("wrote", pngPath, "and", icoPath);
 }
 
-const sizes = [16, 24, 32, 48, 64, 128, 256];
-const pngs = [];
-for (const size of sizes) {
-  pngs.push(await sharp(svg).resize(size, size).png().toBuffer());
-}
+await writePngAndIco(
+  path.join(resources, "icon.svg"),
+  path.join(resources, "icon.png"),
+  path.join(resources, "icon.ico")
+);
+await writePngAndIco(
+  path.join(resources, "file-icon.svg"),
+  path.join(resources, "file-icon.png"),
+  path.join(resources, "file-icon.ico")
+);
 
-await sharp(svg).resize(512, 512).png().toFile(pngPath);
-fs.writeFileSync(icoPath, packIco(pngs));
-console.log("wrote", pngPath, "and", icoPath);
+if (fs.existsSync(webPublic)) {
+  const appSvg = path.join(resources, "icon.svg");
+  await sharp(appSvg).resize(192, 192).png().toFile(path.join(webPublic, "icon-192.png"));
+  await sharp(appSvg).resize(512, 512).png().toFile(path.join(webPublic, "icon-512.png"));
+  await sharp(appSvg).resize(180, 180).png().toFile(path.join(webPublic, "apple-touch-icon.png"));
+  console.log("wrote web public icons");
+}
 
 function packIco(buffers) {
   const count = buffers.length;

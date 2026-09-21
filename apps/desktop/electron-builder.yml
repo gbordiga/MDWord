@@ -12,6 +12,8 @@ asar: true
 extraResources:
   - from: resources/web
     to: web
+  - from: resources/file-icon.ico
+    to: file-icon.ico
 extraMetadata:
   name: mdword
   author: Giacomo Bordiga
@@ -25,7 +27,7 @@ fileAssociations:
     description: Markdown document
     mimeType: text/markdown
     role: Editor
-    icon: icon.ico
+    icon: file-icon.ico
 win:
   icon: resources/icon.ico
   target:
@@ -35,7 +37,7 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
-  include: installer.nsh
+  include: resources/installer.nsh
   installerIcon: resources/icon.ico
   uninstallerIcon: resources/icon.ico
   installerHeaderIcon: resources/icon.ico

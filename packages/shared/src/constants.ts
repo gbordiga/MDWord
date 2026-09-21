@@ -1,5 +1,5 @@
 export const APP_NAME = "MDWord";
-export const APP_VERSION = "0.1.2";
+export const APP_VERSION = "0.1.3";
 export const MDOC_VERSION = 1;
 export const PAGE_BREAK_DIRECTIVE = "page-break";
 

@@ -113,10 +113,10 @@ export interface HostApi {
     takeLaunchFile(): Promise<string | null>;
     onOpenDocument(handler: (path: string) => void): () => void;
     onPrintDocument?(handler: () => void): () => void;
-    /** Windows desktop only: whether MDWord is the default .md handler. */
-    getMarkdownAssociation?(): Promise<{ supported: boolean; isDefault: boolean }>;
-    /** Register MDWord for .md files and open Settings if Windows still requires a user choice. */
-    setMarkdownAssociation?(): Promise<{ supported: boolean; isDefault: boolean }>;
+    /** Windows desktop only: whether MDWord is the default Markdown handler. */
+    getMarkdownAssociation?(): Promise<{ supported: boolean; isDefault: boolean; missing?: string[] }>;
+    /** Register MDWord for Markdown files and ask Windows which app should open .md. */
+    setMarkdownAssociation?(): Promise<{ supported: boolean; isDefault: boolean; missing?: string[] }>;
   };
   export: {
     pdf(

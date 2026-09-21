@@ -467,8 +467,8 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
             <MoreItem
               label={
                 markdownAssociation.status.isDefault
-                  ? "MDWord already opens .md files"
-                  : "Open .md files with MDWord"
+                  ? "MDWord is the default app for Markdown files"
+                  : "Set MDWord as the default app for .md files"
               }
               onClick={() => run(() => void markdownAssociation.setAsDefault())}
             >

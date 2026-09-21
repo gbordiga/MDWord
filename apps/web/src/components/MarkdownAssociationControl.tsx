@@ -7,6 +7,7 @@ import { getHost } from "@/lib/host";
 export type MarkdownAssociationStatus = {
   supported: boolean;
   isDefault: boolean;
+  missing?: string[];
 };
 
 export function useMarkdownAssociation(): {
@@ -21,13 +22,31 @@ export function useMarkdownAssociation(): {
       setStatus({ supported: false, isDefault: false });
       return;
     }
-    void read().then(setStatus);
+    const refresh = () => {
+      void read().then(setStatus);
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, []);
 
   const setAsDefault = useCallback(async () => {
     const write = getHost().app.setMarkdownAssociation;
     if (!write) return;
     setStatus(await write());
+    const read = getHost().app.getMarkdownAssociation;
+    if (!read) return;
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      void read().then((next) => {
+        setStatus(next);
+        if (next.isDefault || Date.now() - started > 60_000) window.clearInterval(timer);
+      });
+    }, 800);
   }, []);
 
   return { status, setAsDefault };
@@ -45,15 +64,23 @@ export function MarkdownAssociationButton({
   return (
     <button
       type="button"
-      title={status.isDefault ? "MDWord already opens .md files" : "Use MDWord to open .md files"}
-      aria-label={status.isDefault ? "MDWord already opens .md files" : "Open .md files with MDWord"}
+      title={
+        status.isDefault
+          ? "Double-clicking .md, .markdown, .mdown and .mkd files already opens MDWord"
+          : "Windows hides .md in Settings. This opens the Open with dialog for a .md file — choose MDWord and Always. .markdown, .mdown and .mkd are registered too."
+      }
+      aria-label={
+        status.isDefault
+          ? "MDWord is the default app for Markdown files"
+          : "Set MDWord as the default app for .md files"
+      }
       aria-pressed={status.isDefault}
       data-testid={testId}
       onClick={() => void setAsDefault()}
       className={className}
     >
       <FileCheck2 size={16} />
-      {status.isDefault ? ".md default" : "Open .md files"}
+      {status.isDefault ? "Default for Markdown" : "Set as .md default"}
     </button>
   );
 }

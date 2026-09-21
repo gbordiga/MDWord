@@ -66,7 +66,9 @@ export function CommandPalette({
               }}
               className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]"
             >
-              {markdownAssociation.status.isDefault ? "MDWord already opens .md files" : "Open .md files with MDWord"}
+              {markdownAssociation.status.isDefault
+                ? "MDWord is the default app for Markdown files"
+                : "Set MDWord as the default app for .md files"}
             </Command.Item>
           ) : null}
         </Command.List>

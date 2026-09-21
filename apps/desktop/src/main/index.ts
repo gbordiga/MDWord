@@ -12,7 +12,11 @@ import {
   shouldSkipWorkspaceDir,
   shouldSkipWorkspaceFile
 } from "@mdword/shared";
-import { getMarkdownAssociationStatus, registerMarkdownAssociation } from "./fileAssociation";
+import {
+  getMarkdownAssociationStatus,
+  registerMarkdownAssociation,
+  writeMarkdownAssociation
+} from "./fileAssociation";
 
 const isDev = !app.isPackaged;
 let pendingPrintHtml: string | null = null;
@@ -101,6 +105,14 @@ function windowIconPath(): string | undefined {
   if (process.platform === "win32" && existsSync(ico)) return ico;
   if (existsSync(png)) return png;
   return undefined;
+}
+
+function markdownFileIconPath(): string | undefined {
+  const candidates = [
+    path.join(process.resourcesPath, "file-icon.ico"),
+    path.join(__dirname, "../../resources/file-icon.ico")
+  ];
+  return candidates.find((candidate) => existsSync(candidate));
 }
 
 protocol.registerSchemesAsPrivileged([
@@ -296,6 +308,7 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   mkdirSync(userData("recovery"), { recursive: true });
   mkdirSync(userData("logs"), { recursive: true });
+  void writeMarkdownAssociation(app.getPath("exe"), process.platform, markdownFileIconPath());
   registerIpc();
   for (const filePath of markdownPathsFromArgv(process.argv)) queueOpenDocument(filePath);
   createWindow();
@@ -531,7 +544,9 @@ function registerIpc(): void {
 
   ipcMain.handle("app.getMarkdownAssociation", async () => getMarkdownAssociationStatus());
 
-  ipcMain.handle("app.setMarkdownAssociation", async () => registerMarkdownAssociation(app.getPath("exe")));
+  ipcMain.handle("app.setMarkdownAssociation", async () =>
+    registerMarkdownAssociation(app.getPath("exe"), process.platform, markdownFileIconPath())
+  );
 
   ipcMain.handle("app.exportDiagnostics", async () => {
     return {
