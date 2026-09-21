@@ -1,11 +1,14 @@
 import { isMarkdownFileName, type HostApi, type HostFileStat } from "@mdword/shared";
 import {
   indexMarkdown,
+  searchHits,
   searchIndex,
   backlinksTo,
   resolveWikiTarget,
   brokenLinks,
   type IndexedDocument,
+  type SearchHit,
+  type SearchHitField,
   type WorkspaceIndex
 } from "@mdword/indexer";
 import { parseMdoc, type Mdoc } from "@mdword/layout-engine";
@@ -145,7 +148,7 @@ export async function loadWorkspace(
   return indexWorkspace(host, await listWorkspace(host, root));
 }
 
-export { searchIndex, backlinksTo, resolveWikiTarget, brokenLinks };
+export { searchHits, searchIndex, backlinksTo, resolveWikiTarget, brokenLinks };
 export { applySavedDocument, isInsideWorkspace, upsertWorkspaceFile } from "./files";
 export {
   buildFileTree,
@@ -167,4 +170,4 @@ export {
   workspaceEntryName,
   workspaceParentPath
 } from "./mutations";
-export type { IndexedDocument, WorkspaceIndex };
+export type { IndexedDocument, SearchHit, SearchHitField, WorkspaceIndex };

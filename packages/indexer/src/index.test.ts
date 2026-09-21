@@ -4,6 +4,7 @@ import {
   brokenLinks,
   indexMarkdown,
   resolveWikiTarget,
+  searchHits,
   searchIndex
 } from "./index";
 
@@ -70,5 +71,10 @@ describe("indexer", () => {
     };
     expect(searchIndex(docs, "pump").map((d) => d.path)).toEqual(["a.md"]);
     expect(searchIndex(docs, "world").map((d) => d.path)).toEqual(["a.md"]);
+    expect(searchIndex(docs, "")).toEqual([]);
+    expect(searchIndex(docs, "   ")).toEqual([]);
+    const bodyHit = searchHits(docs, "world")[0];
+    expect(bodyHit?.field).toBe("body");
+    expect(bodyHit?.excerpt.toLowerCase()).toContain("world");
   });
 });

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { X } from "lucide-react";
-import { searchIndex } from "@mdword/indexer";
+import { searchHits, type SearchHitField } from "@mdword/indexer";
 import { cn } from "@mdword/ui";
 import { useApp } from "@/lib/store";
 import { Spinner } from "./Spinner";
@@ -11,6 +11,20 @@ import { focusHeading } from "@/lib/editorCommands";
 import { useEditorUi } from "@/lib/editorUi";
 import { HistoryPane } from "./HistoryPane";
 import { FileTree } from "./FileTree";
+
+function relativeWorkspacePath(path: string, root?: string | null): string {
+  const norm = path.replace(/\\/g, "/");
+  if (!root) return norm;
+  const prefix = root.replace(/\\/g, "/").replace(/\/$/, "");
+  return norm.startsWith(`${prefix}/`) ? norm.slice(prefix.length + 1) : norm;
+}
+
+function searchFieldLabel(field: SearchHitField): string {
+  if (field === "title") return "Matched in title";
+  if (field === "path") return "Matched in path";
+  if (field === "tags") return "Matched in tags";
+  return "Matched in text";
+}
 
 function headingsOf(ast: GenericNode): { text: string; depth: number }[] {
   const out: { text: string; depth: number }[] = [];
@@ -37,7 +51,7 @@ export function LeftSidebar({ className }: { className?: string }) {
   const { editor } = useEditorUi();
   const [q, setQ] = useState("");
   const headings = useMemo(() => headingsOf(model.ast), [model.ast]);
-  const results = workspace ? searchIndex(workspace.index, q) : [];
+  const results = workspace ? searchHits(workspace.index, q) : [];
 
   const openFile = (filePath: string, options?: { preview?: boolean }) => {
     void useApp.getState().openWorkspaceFile(filePath, options);
@@ -111,27 +125,44 @@ export function LeftSidebar({ className }: { className?: string }) {
         {left === "search" && (
           <div>
             <input
+              data-testid="workspace-search"
               className="mb-2 w-full rounded-md border border-[#e4e7ec] px-2 py-2 text-[16px] lg:py-1 lg:text-[13px]"
-              placeholder="Search workspace"
+              placeholder="Search the open folder (title, path, text, tags)"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
             <ul>
-              {results.map((d) => (
-                <li key={d.path}>
+              {results.map((hit) => (
+                <li key={hit.document.path}>
                   <button
                     type="button"
                     data-testid="search-result"
-                    className="w-full truncate rounded px-2 py-2 text-left hover:bg-[#f2f4f7]"
-                    onClick={() => openFile(d.path, { preview: true })}
-                    onDoubleClick={() => openFile(d.path, { preview: false })}
+                    className="w-full rounded px-2 py-2 text-left hover:bg-[#f2f4f7]"
+                    onClick={() => openFile(hit.document.path, { preview: true })}
+                    onDoubleClick={() => openFile(hit.document.path, { preview: false })}
                   >
-                    {d.title}
+                    <div className="truncate font-medium text-[#1c1f24]">{hit.document.title}</div>
+                    <div data-testid="search-result-path" className="truncate text-[11px] text-[#667085]">
+                      {relativeWorkspacePath(hit.document.path, workspace?.root)}
+                    </div>
+                    {hit.excerpt ? (
+                      <div data-testid="search-result-excerpt" className="mt-0.5 line-clamp-2 text-[12px] text-[#344054]">
+                        {hit.excerpt}
+                      </div>
+                    ) : null}
+                    <div data-testid="search-result-field" className="mt-0.5 text-[11px] text-[#98a2b3]">
+                      {searchFieldLabel(hit.field)}
+                    </div>
                   </button>
                 </li>
               ))}
             </ul>
-            {workspace && q && results.length === 0 && (
+            {workspace && !q.trim() && (
+              <p data-testid="search-empty-hint" className="p-2 text-[#667085]">
+                Type to search the open folder by title, path, text, or tags.
+              </p>
+            )}
+            {workspace && q.trim() && results.length === 0 && (
               <p className="p-2 text-[#667085]">No matching documents.</p>
             )}
             {!workspace && <p className="p-2 text-[#667085]">Open a folder to search across files.</p>}
