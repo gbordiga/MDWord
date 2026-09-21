@@ -66,10 +66,12 @@ import {
 } from "@mdword/workspace";
 import { rewriteDisplayBlobsInTree, tiptapToAst, visualProjection, type TiptapNode } from "@mdword/editor";
 import { hydrateMermaidHtml, renderPrintDocument } from "@mdword/renderer";
+import { resolveLeftPanel, type LeftPanel } from "./leftPanel";
 
 export type OpenWorkspaceFileOptions = { preview?: boolean };
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view" | "image" | "table";
-export type LeftPanel = "files" | "outline" | "search" | "backlinks" | "history";
+export type { LeftPanel } from "./leftPanel";
+export { LEFT_PANELS, resolveLeftPanel } from "./leftPanel";
 export type MobileSheet = "workspace" | "insert" | "properties" | "more" | null;
 export type BusyKind = "open" | "save" | "folder" | "export" | "workspace";
 
@@ -475,8 +477,9 @@ export const useApp = create<AppState>((set, get) => {
   },
   setRibbon: (ribbon) => set({ ribbon }),
   setLeft: (left) => {
+    const panel = resolveLeftPanel(left);
     const compact = typeof window !== "undefined" && window.innerWidth < 1024;
-    set(compact ? { left, mobileSheet: "workspace" } : { left, leftOpen: true });
+    set(compact ? { left: panel, mobileSheet: "workspace" } : { left: panel, leftOpen: true });
   },
   newDocument: () => {
     discardPendingVisual();

@@ -18,7 +18,6 @@ import {
   Search,
   Files,
   ListTree,
-  GitBranch,
   History,
   FilePlus,
   FolderOpen,
@@ -481,9 +480,6 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             </Btn>
             <Btn title="Search files" onClick={() => actions.setLeft("search")}>
               <Search size={16} />
-            </Btn>
-            <Btn title="Backlinks" onClick={() => actions.setLeft("backlinks")}>
-              <GitBranch size={16} />
             </Btn>
             <Btn title="History" onClick={() => actions.setLeft("history")}>
               <History size={16} />

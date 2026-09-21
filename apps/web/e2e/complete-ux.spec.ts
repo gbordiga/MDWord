@@ -26,6 +26,8 @@ test("outline jumps to a heading", async ({ page }) => {
   await page.getByRole("button", { name: "Home" }).click();
   await page.getByTestId("ribbon-style").selectOption("1");
   await page.getByRole("button", { name: "View" }).click();
+  await expect(page.getByTitle("Backlinks")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "backlinks", exact: true })).toHaveCount(0);
   await page.getByTitle("Outline").click();
   await expect(page.getByTestId("outline-item").filter({ hasText: "Jump here" })).toBeVisible();
   await page.getByTestId("outline-item").filter({ hasText: "Jump here" }).click();
