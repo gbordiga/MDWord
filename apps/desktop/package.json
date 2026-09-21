@@ -11,7 +11,7 @@
     "dev": "node scripts/dev.mjs",
     "icons": "node scripts/build-icons.mjs",
     "build": "node scripts/build-icons.mjs && node scripts/build.mjs",
-    "dist": "node scripts/build-icons.mjs && node scripts/build.mjs && electron-builder --config electron-builder.yml",
+    "dist": "node scripts/build-icons.mjs && node scripts/build.mjs && electron-builder --config electron-builder.yml --publish never",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
