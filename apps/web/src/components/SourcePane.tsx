@@ -12,6 +12,7 @@ export function SourcePane() {
   const fromSourceRef = useRef(false);
   const model = useApp((s) => s.model);
   const applySource = useApp((s) => s.applySource);
+  const activeTabId = useApp((s) => s.activeTabId);
   const syncGeneration = useApp((s) => s.syncGeneration);
   const lastSync = useRef(syncGeneration);
   const [ready, setReady] = useState(false);
@@ -45,7 +46,7 @@ export function SourcePane() {
     lastSync.current = syncGeneration;
     useApp.getState().flushPendingEdits();
     setSource(viewRef.current, useApp.getState().model.source);
-  }, [syncGeneration, model]);
+  }, [activeTabId, syncGeneration, model]);
 
   useEffect(() => {
     useApp.getState().finishBusy(["open", "workspace"]);
