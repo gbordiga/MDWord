@@ -105,7 +105,7 @@ function TreeRow({
   expanded: Set<string>;
   currentPath: string | null;
   onToggle: (path: string) => void;
-  onOpenFile: (path: string) => void;
+  onOpenFile: (path: string, options?: { preview?: boolean }) => void;
   onContextMenu: (event: ReactMouseEvent, target: MenuTarget) => void;
 }) {
   const open = node.isDirectory && expanded.has(node.path);
@@ -134,7 +134,7 @@ function TreeRow({
     }
     if (openable && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault();
-      onOpenFile(node.path);
+      onOpenFile(node.path, { preview: true });
     }
   };
 
@@ -160,7 +160,12 @@ function TreeRow({
           title={node.name}
           style={{ paddingLeft }}
           className={rowClass}
-          onClick={() => (node.isDirectory ? onToggle(node.path) : onOpenFile(node.path))}
+          onClick={() => (node.isDirectory ? onToggle(node.path) : onOpenFile(node.path, { preview: true }))}
+          onDoubleClick={(event) => {
+            if (node.isDirectory) return;
+            event.preventDefault();
+            onOpenFile(node.path, { preview: false });
+          }}
           onContextMenu={(event) => onContextMenu(event, target)}
           onKeyDown={onKeyDown}
         >
@@ -338,7 +343,7 @@ export function FileTree({
   files: { path: string; name: string; isDirectory: boolean }[];
   root: string;
   currentPath: string | null;
-  onOpenFile: (path: string) => void;
+  onOpenFile: (path: string, options?: { preview?: boolean }) => void;
 }) {
   const tree = useMemo(() => buildFileTree(files, root), [files, root]);
   const lastRoot = useRef(root);
@@ -426,7 +431,7 @@ export function FileTree({
         const dest = await actions.createWorkspaceFile(nameDialog.parentPath, nameValue);
         expandFolder(nameDialog.parentPath);
         setNameDialog(null);
-        if (isOpenableWorkspaceFile(dest.split(/[/\\]/).pop() || dest)) onOpenFile(dest);
+        if (isOpenableWorkspaceFile(dest.split(/[/\\]/).pop() || dest)) onOpenFile(dest, { preview: false });
         return;
       }
       if (nameDialog.mode === "folder") {
@@ -550,9 +555,9 @@ export function FileTree({
               expanded={expanded}
               currentPath={currentPath}
               onToggle={toggle}
-              onOpenFile={(path) => {
+              onOpenFile={(path, options) => {
                 setActiveFolder(workspaceParentPath(path, root));
-                onOpenFile(path);
+                onOpenFile(path, options);
               }}
               onContextMenu={openMenu}
             />

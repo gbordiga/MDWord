@@ -40,8 +40,8 @@ export function LeftSidebar({ className }: { className?: string }) {
   const results = workspace ? searchIndex(workspace.index, q) : [];
   const backs = workspace && path ? backlinksTo(workspace.index, path) : [];
 
-  const openFile = (filePath: string) => {
-    void useApp.getState().openWorkspaceFile(filePath);
+  const openFile = (filePath: string, options?: { preview?: boolean }) => {
+    void useApp.getState().openWorkspaceFile(filePath, options);
   };
 
   return (
@@ -124,7 +124,8 @@ export function LeftSidebar({ className }: { className?: string }) {
                     type="button"
                     data-testid="search-result"
                     className="w-full truncate rounded px-2 py-2 text-left hover:bg-[#f2f4f7]"
-                    onClick={() => openFile(d.path)}
+                    onClick={() => openFile(d.path, { preview: true })}
+                    onDoubleClick={() => openFile(d.path, { preview: false })}
                   >
                     {d.title}
                   </button>
@@ -146,7 +147,8 @@ export function LeftSidebar({ className }: { className?: string }) {
                   type="button"
                   data-testid="backlink-result"
                   className="w-full truncate rounded px-2 py-2 text-left hover:bg-[#f2f4f7]"
-                  onClick={() => openFile(d.path)}
+                  onClick={() => openFile(d.path, { preview: true })}
+                  onDoubleClick={() => openFile(d.path, { preview: false })}
                 >
                   {d.title}
                 </button>
