@@ -25,11 +25,15 @@ import { addHistorySnapshot, historyKeyFromPath, newUntitledHistoryKey } from ".
 import { clearCrashDraft, writeCrashDraft } from "./recovery";
 import {
   activeDocumentFields,
+  commitOpenedWorkspaceTab,
   createTabFromOpen,
   createTabFromRestore,
   createUntitledTab,
   findTabByPath,
   neighborTabId,
+  normalizeTabPath,
+  pinDocumentTab,
+  resolveWorkspaceTabOpen,
   snapshotActiveTab,
   type DocumentTab
 } from "./documentTabs";
@@ -54,6 +58,7 @@ import {
 import { rewriteDisplayBlobsInTree, tiptapToAst, visualProjection, type TiptapNode } from "@mdword/editor";
 import { hydrateMermaidHtml, renderPrintDocument } from "@mdword/renderer";
 
+export type OpenWorkspaceFileOptions = { preview?: boolean };
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view" | "image" | "table";
 export type LeftPanel = "files" | "outline" | "search" | "backlinks" | "history";
 export type MobileSheet = "workspace" | "insert" | "properties" | "more" | null;
@@ -74,6 +79,8 @@ let sourceTimer: ReturnType<typeof setTimeout> | null = null;
 let filePickerOpen = false;
 let workspaceEpoch = 0;
 let draftWrite: Promise<void> | null = null;
+let workspaceOpenSeq = 0;
+const pendingWorkspaceOpens = new Map<string, { seq: number; preview: boolean }>();
 
 async function withFilePicker<T>(run: () => Promise<T>): Promise<T | undefined> {
   if (filePickerOpen) return undefined;
@@ -187,13 +194,14 @@ export interface AppState {
   setLeft: (panel: LeftPanel) => void;
   newDocument: () => void;
   switchTab: (tabId: string) => void;
+  pinTab: (tabId: string) => void;
   closeTab: (tabId: string) => void;
   openFile: () => Promise<void>;
   saveFile: () => Promise<void>;
   saveFileAs: () => Promise<void>;
   openFolder: () => Promise<void>;
-  openWorkspaceFile: (filePath: string) => Promise<void>;
-  openWorkspaceFileByTitle: (title: string) => Promise<boolean>;
+  openWorkspaceFile: (filePath: string, options?: OpenWorkspaceFileOptions) => Promise<void>;
+  openWorkspaceFileByTitle: (title: string, options?: OpenWorkspaceFileOptions) => Promise<boolean>;
   refreshWorkspace: () => Promise<void>;
   createWorkspaceFile: (parentPath: string, name: string) => Promise<string>;
   createWorkspaceFolder: (parentPath: string, name: string) => Promise<string>;
@@ -253,7 +261,8 @@ export const useApp = create<AppState>((set, get) => {
 
   const patchActiveTab = (partial: Partial<DocumentTab>) => {
     const state = get();
-    const tabs = state.tabs.map((tab) => (tab.id === state.activeTabId ? { ...tab, ...partial } : tab));
+    const nextPartial = partial.dirty === true ? { ...partial, preview: false } : partial;
+    const tabs = state.tabs.map((tab) => (tab.id === state.activeTabId ? { ...tab, ...nextPartial } : tab));
     set({
       tabs,
       ...(partial.model !== undefined ? { model: partial.model } : {}),
@@ -443,6 +452,12 @@ export const useApp = create<AppState>((set, get) => {
     if (!tab) return;
     activateTab(tab);
   },
+  pinTab: (tabId) => {
+    const tabs = persistActiveTab();
+    const current = tabs.find((tab) => tab.id === tabId);
+    if (!current?.preview) return;
+    set({ tabs: pinDocumentTab(tabs, tabId) });
+  },
   closeTab: (tabId) => {
     flushVisualEdits();
     flushSourceEdits();
@@ -601,39 +616,73 @@ export const useApp = create<AppState>((set, get) => {
       if (epoch === workspaceEpoch) set({ busy: null });
     }
   },
-  openWorkspaceFile: async (filePath) => {
+  openWorkspaceFile: async (filePath, options) => {
+    flushVisualEdits();
+    flushSourceEdits();
     discardPendingVisual();
     discardPendingSource();
-    const existing = findTabByPath(get().tabs, filePath);
-    if (existing) {
-      get().switchTab(existing.id);
-      set({ mobileSheet: null });
+    const previewRequested = options?.preview === true;
+    const mode = previewRequested ? "preview" : "pinned";
+    const early = resolveWorkspaceTabOpen(persistActiveTab(), filePath, mode);
+    if (early.existingId) {
+      set({ tabs: early.tabs, mobileSheet: null });
+      get().switchTab(early.existingId);
       return;
     }
+    const normalized = normalizeTabPath(filePath);
+    const seq = ++workspaceOpenSeq;
+    const prev = pendingWorkspaceOpens.get(normalized);
+    const preview = prev?.preview === false ? false : previewRequested;
+    pendingWorkspaceOpens.set(normalized, { seq, preview });
     const host = getHost();
     beginBusy({ kind: "workspace", label: "Opening document…", blocking: true });
     await yieldPaint();
     try {
       const result = await host.files.openPath(filePath);
+      const pending = pendingWorkspaceOpens.get(normalized);
+      if (!pending || pending.seq !== seq) return;
+      pendingWorkspaceOpens.delete(normalized);
+      const plan = resolveWorkspaceTabOpen(
+        persistActiveTab(),
+        result.path,
+        pending.preview ? "preview" : "pinned"
+      );
       void clearCrashDraft();
-      appendTab(createTabFromOpen(result.path, result.content, modelFrom(result.content, get().workspace?.workspaceMdoc), get().historyKey));
-      set({ mobileSheet: null, busy: null });
+      if (plan.existingId) {
+        set({ tabs: plan.tabs, mobileSheet: null, busy: null });
+        get().switchTab(plan.existingId);
+        await yieldPaint();
+        return;
+      }
+      const nextTab = createTabFromOpen(
+        result.path,
+        result.content,
+        modelFrom(result.content, get().workspace?.workspaceMdoc),
+        get().historyKey,
+        pending.preview
+      );
+      const revealed = { ...nextTab, syncGeneration: nextTab.syncGeneration + 1 };
+      set({
+        tabs: commitOpenedWorkspaceTab(persistActiveTab(), revealed, plan.replaceId),
+        activeTabId: revealed.id,
+        mobileSheet: null,
+        busy: null,
+        ...activeDocumentFields(revealed)
+      });
       await yieldPaint();
     } catch {
-      set({ busy: null });
+      if (pendingWorkspaceOpens.get(normalized)?.seq === seq) {
+        pendingWorkspaceOpens.delete(normalized);
+        set({ busy: null });
+      }
     }
   },
-  openWorkspaceFileByTitle: async (title) => {
-    const { workspace, path, tabs } = get();
+  openWorkspaceFileByTitle: async (title, options) => {
+    const { workspace, path } = get();
     if (!workspace) return false;
     const resolved = resolveWikiTarget(workspace.index, path ?? "", title);
     if (!resolved) return false;
-    const existing = findTabByPath(tabs, resolved);
-    if (existing) {
-      get().switchTab(existing.id);
-      return true;
-    }
-    await get().openWorkspaceFile(resolved);
+    await get().openWorkspaceFile(resolved, options);
     return true;
   },
   refreshWorkspace: () => reloadWorkspace(),

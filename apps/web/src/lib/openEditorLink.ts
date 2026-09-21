@@ -20,7 +20,7 @@ function openHref(href: string): boolean {
 function openWiki(target: string): boolean {
   const name = target.trim();
   if (!name) return false;
-  void useApp.getState().openWorkspaceFileByTitle(name);
+  void useApp.getState().openWorkspaceFileByTitle(name, { preview: true });
   return true;
 }
 

@@ -56,3 +56,20 @@ test("right-clicking a file opens the workspace context menu", async ({ page }) 
   await expect(page.getByTestId("workspace-name-dialog")).toBeVisible();
   await expect(page.getByTestId("workspace-name-input")).toHaveValue("readme.md");
 });
+
+test("preview tabs render in italic and pin on double click", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
+  await page.evaluate(() => {
+    const store = window.__MDWORD_APP__;
+    if (!store) throw new Error("App store is not available");
+    const state = store.getState();
+    store.setState({
+      tabs: state.tabs.map((tab, index) => (index === 0 ? { ...tab, preview: true } : tab))
+    });
+  });
+  const preview = page.locator('[data-testid="document-tab"]:visible').first();
+  await expect(preview).toHaveAttribute("data-preview", "true");
+  await preview.getByTestId("document-tab-title").dblclick();
+  await expect(preview).toHaveAttribute("data-preview", "false");
+});

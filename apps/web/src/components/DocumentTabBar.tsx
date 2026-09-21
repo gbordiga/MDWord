@@ -10,6 +10,7 @@ export function DocumentTabBar({ compact = false }: { compact?: boolean }) {
   const activeTabId = useApp((s) => s.activeTabId);
   const activeDirty = useApp((s) => s.dirty);
   const switchTab = useApp((s) => s.switchTab);
+  const pinTab = useApp((s) => s.pinTab);
   const closeTab = useApp((s) => s.closeTab);
   const { confirmIfDirty } = useEditorUi();
 
@@ -44,14 +45,17 @@ export function DocumentTabBar({ compact = false }: { compact?: boolean }) {
             }`}
             data-testid="document-tab"
             data-active={active ? "true" : "false"}
+            data-preview={tab.preview ? "true" : "false"}
           >
             <button
               type="button"
-              title={title}
+              title={tab.preview ? `${title} (Preview)` : title}
+              data-testid="document-tab-title"
               className={`min-w-0 flex-1 truncate px-2.5 text-left ${compact ? "py-1 text-[12px]" : "py-1.5 text-[13px]"} ${
                 active ? "font-medium text-[#1c1f24]" : "text-[#344054]"
-              }`}
+              } ${tab.preview ? "italic" : ""}`}
               onClick={() => switchTab(tab.id)}
+              onDoubleClick={() => pinTab(tab.id)}
             >
               {title}
               {dirty ? <span className="ml-1 text-accent">•</span> : null}
