@@ -1,6 +1,7 @@
 import type { DocumentModel } from "@mdword/document-model";
 import { displayDocumentTitle } from "@mdword/shared";
 import { historyKeyFromPath, newUntitledHistoryKey } from "./documentHistory";
+import { emptyDocumentUndo, type DocumentUndoState } from "./documentUndo";
 import { untitledDocument } from "./untitled";
 
 export interface DocumentTab {
@@ -15,6 +16,7 @@ export interface DocumentTab {
   syncGeneration: number;
   sourceGeneration: number;
   editGeneration: number;
+  documentUndo: DocumentUndoState;
 }
 
 export type WorkspaceTabOpenMode = "preview" | "pinned";
@@ -50,6 +52,7 @@ export function activeDocumentFields(tab: DocumentTab): {
   syncGeneration: number;
   sourceGeneration: number;
   editGeneration: number;
+  documentUndo: DocumentUndoState;
 } {
   return {
     model: tab.model,
@@ -60,7 +63,8 @@ export function activeDocumentFields(tab: DocumentTab): {
     historyKey: tab.historyKey,
     syncGeneration: tab.syncGeneration,
     sourceGeneration: tab.sourceGeneration,
-    editGeneration: tab.editGeneration
+    editGeneration: tab.editGeneration,
+    documentUndo: tab.documentUndo
   };
 }
 
@@ -76,6 +80,7 @@ export function snapshotActiveTab(state: {
   syncGeneration: number;
   sourceGeneration: number;
   editGeneration: number;
+  documentUndo: DocumentUndoState;
 }): DocumentTab[] {
   return state.tabs.map((tab) =>
     tab.id === state.activeTabId
@@ -89,7 +94,8 @@ export function snapshotActiveTab(state: {
           historyKey: state.historyKey,
           syncGeneration: state.syncGeneration,
           sourceGeneration: state.sourceGeneration,
-          editGeneration: state.editGeneration
+          editGeneration: state.editGeneration,
+          documentUndo: state.documentUndo
         }
       : tab
   );
@@ -107,7 +113,8 @@ export function createUntitledTab(model: DocumentModel, source = untitledDocumen
     historyKey: newUntitledHistoryKey(),
     syncGeneration: 0,
     sourceGeneration: 0,
-    editGeneration: 0
+    editGeneration: 0,
+    documentUndo: emptyDocumentUndo()
   };
 }
 
@@ -129,7 +136,8 @@ export function createTabFromOpen(
     historyKey: historyKeyFromPath(path, historyKeySeed),
     syncGeneration: 0,
     sourceGeneration: 0,
-    editGeneration: 0
+    editGeneration: 0,
+    documentUndo: emptyDocumentUndo()
   };
 }
 
@@ -151,7 +159,8 @@ export function createTabFromRestore(
     historyKey: historyKeyFromPath(path, historyKeySeed),
     syncGeneration: 0,
     sourceGeneration: 0,
-    editGeneration: 0
+    editGeneration: 0,
+    documentUndo: emptyDocumentUndo()
   };
 }
 

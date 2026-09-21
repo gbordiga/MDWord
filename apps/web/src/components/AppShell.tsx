@@ -100,6 +100,19 @@ function AppShellInner({
         e.preventDefault();
         void useApp.getState().saveFile();
       }
+      if (meta && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.shiftKey) useApp.getState().redoDocument();
+        else useApp.getState().undoDocument();
+        return;
+      }
+      if (meta && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        e.stopPropagation();
+        useApp.getState().redoDocument();
+        return;
+      }
       if (meta && e.key.toLowerCase() === "f") {
         e.preventDefault();
         e.stopPropagation();

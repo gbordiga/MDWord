@@ -32,7 +32,8 @@ function tab(
     historyKey: "k",
     syncGeneration: 0,
     sourceGeneration: 0,
-    editGeneration: 0
+    editGeneration: 0,
+    documentUndo: { past: [], future: [], lastKind: null, lastAt: 0 }
   };
 }
 

@@ -21,6 +21,15 @@ import { pageMetrics, type Mdoc } from "@mdword/layout-engine";
 import { parseDocument } from "yaml";
 import { getHost } from "./host";
 import { untitledDocument } from "./untitled";
+import {
+  emptyDocumentUndo,
+  frontmatterUndoKind,
+  mdocUndoKind,
+  recordDocumentChange,
+  redoDocumentChange,
+  undoDocumentChange,
+  type DocumentUndoState
+} from "./documentUndo";
 import { addHistorySnapshot, historyKeyFromPath, newUntitledHistoryKey } from "./documentHistory";
 import { clearCrashDraft, writeCrashDraft } from "./recovery";
 import {
@@ -77,6 +86,7 @@ let applyTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSource: { source: string; tabId: string } | null = null;
 let sourceTimer: ReturnType<typeof setTimeout> | null = null;
 let filePickerOpen = false;
+let applyingDocumentUndo = false;
 let workspaceEpoch = 0;
 let draftWrite: Promise<void> | null = null;
 let workspaceOpenSeq = 0;
@@ -186,6 +196,7 @@ export interface AppState {
   lastDraftAt: number | null;
   lastSavedContent: string;
   historyKey: string;
+  documentUndo: DocumentUndoState;
   busy: BusyState | null;
   applySource: (source: string) => void;
   applyTiptap: (doc: TiptapNode) => void;
@@ -225,6 +236,8 @@ export interface AppState {
   saveDraft: () => Promise<void>;
   restoreHistory: (content: string) => Promise<void>;
   applyRecoveredDraft: (content: string, path: string | null) => Promise<void>;
+  undoDocument: () => boolean;
+  redoDocument: () => boolean;
 }
 
 function modelFrom(source: string, workspaceMdoc?: Mdoc): DocumentModel {
@@ -273,7 +286,8 @@ export const useApp = create<AppState>((set, get) => {
       ...(partial.historyKey !== undefined ? { historyKey: partial.historyKey } : {}),
       ...(partial.syncGeneration !== undefined ? { syncGeneration: partial.syncGeneration } : {}),
       ...(partial.sourceGeneration !== undefined ? { sourceGeneration: partial.sourceGeneration } : {}),
-      ...(partial.editGeneration !== undefined ? { editGeneration: partial.editGeneration } : {})
+      ...(partial.editGeneration !== undefined ? { editGeneration: partial.editGeneration } : {}),
+      ...(partial.documentUndo !== undefined ? { documentUndo: partial.documentUndo } : {})
     });
   };
 
@@ -311,10 +325,14 @@ export const useApp = create<AppState>((set, get) => {
         workspaceMdoc: get().workspace?.workspaceMdoc
       });
       if (next.source === current.source) return;
+      const documentUndo = applyingDocumentUndo
+        ? get().documentUndo
+        : recordDocumentChange(get().documentUndo, current.source, next.source, "text");
       patchActiveTab({
         model: next,
-        dirty: true,
-        editGeneration: get().editGeneration + 1
+        dirty: next.source !== get().lastSavedContent,
+        editGeneration: get().editGeneration + 1,
+        documentUndo
       });
     } catch (error) {
       console.error("Could not apply visual edits", error);
@@ -332,13 +350,36 @@ export const useApp = create<AppState>((set, get) => {
   };
 
   const commitSource = (source: string) => {
+    const previous = get().model.source;
     const model = modelFrom(source, get().workspace?.workspaceMdoc);
+    if (model.source === previous) return;
+    const documentUndo = applyingDocumentUndo
+      ? get().documentUndo
+      : recordDocumentChange(get().documentUndo, previous, model.source, "text");
     patchActiveTab({
       model,
-      dirty: true,
+      dirty: model.source !== get().lastSavedContent,
       sourceGeneration: get().sourceGeneration + 1,
-      editGeneration: get().editGeneration + 1
+      editGeneration: get().editGeneration + 1,
+      documentUndo
     });
+  };
+
+  const applyRestoredSource = (source: string, documentUndo: DocumentUndoState) => {
+    applyingDocumentUndo = true;
+    try {
+      const model = modelFrom(source, get().workspace?.workspaceMdoc);
+      patchActiveTab({
+        model,
+        dirty: source !== get().lastSavedContent,
+        syncGeneration: get().syncGeneration + 1,
+        sourceGeneration: get().sourceGeneration + 1,
+        editGeneration: get().editGeneration + 1,
+        documentUndo
+      });
+    } finally {
+      applyingDocumentUndo = false;
+    }
   };
 
   const flushSourceEdits = () => {
@@ -400,6 +441,7 @@ export const useApp = create<AppState>((set, get) => {
   lastDraftAt: null,
   lastSavedContent: initialTab.lastSavedContent,
   historyKey: initialTab.historyKey,
+  documentUndo: initialTab.documentUndo,
   busy: null,
   flushPendingEdits: () => {
     flushVisualEdits();
@@ -869,19 +911,45 @@ export const useApp = create<AppState>((set, get) => {
     const next = openDocument(composeWithYaml(yaml, current.body, Boolean(current.head)), {
       workspaceMdoc: get().workspace?.workspaceMdoc
     });
+    if (next.source === current.source) return;
     patchActiveTab({
       model: next,
-      dirty: true,
+      dirty: next.source !== get().lastSavedContent,
       syncGeneration: get().syncGeneration + 1,
-      editGeneration: get().editGeneration + 1
+      editGeneration: get().editGeneration + 1,
+      documentUndo: recordDocumentChange(
+        get().documentUndo,
+        current.source,
+        next.source,
+        mdocUndoKind(current.mdoc, mdoc)
+      )
     });
   },
   patchFrontmatter: (patch) => {
-    const next = setFrontmatterValues(get().model, patch, get().workspace?.workspaceMdoc);
-    patchActiveTab({ model: next, dirty: true, editGeneration: get().editGeneration + 1 });
+    const current = get().model;
+    const next = setFrontmatterValues(current, patch, get().workspace?.workspaceMdoc);
+    if (next.source === current.source) return;
+    patchActiveTab({
+      model: next,
+      dirty: next.source !== get().lastSavedContent,
+      editGeneration: get().editGeneration + 1,
+      documentUndo: recordDocumentChange(
+        get().documentUndo,
+        current.source,
+        next.source,
+        frontmatterUndoKind(patch)
+      )
+    });
   },
   replaceFrontmatterModel: (model) => {
-    patchActiveTab({ model, dirty: true, editGeneration: get().editGeneration + 1 });
+    const current = get().model;
+    if (model.source === current.source) return;
+    patchActiveTab({
+      model,
+      dirty: (model.source ?? "") !== get().lastSavedContent,
+      editGeneration: get().editGeneration + 1,
+      documentUndo: recordDocumentChange(get().documentUndo, current.source, model.source ?? "", "frontmatter")
+    });
   },
   setZoom: (zoom) => set({ zoom: Math.min(2, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
   toggleLeft: () => set({ leftOpen: !get().leftOpen }),
@@ -913,6 +981,24 @@ export const useApp = create<AppState>((set, get) => {
     });
     await draftWrite;
   },
+  undoDocument: () => {
+    flushVisualEdits();
+    flushSourceEdits();
+    const current = get().model.source;
+    const next = undoDocumentChange(get().documentUndo, current);
+    if (!next) return false;
+    applyRestoredSource(next.source, next.state);
+    return true;
+  },
+  redoDocument: () => {
+    flushVisualEdits();
+    flushSourceEdits();
+    const current = get().model.source;
+    const next = redoDocumentChange(get().documentUndo, current);
+    if (!next) return false;
+    applyRestoredSource(next.source, next.state);
+    return true;
+  },
   restoreHistory: async (content) => {
     discardPendingVisual();
     discardPendingSource();
@@ -924,7 +1010,8 @@ export const useApp = create<AppState>((set, get) => {
         model,
         dirty: content !== get().lastSavedContent,
         syncGeneration: get().syncGeneration + 1,
-        editGeneration: get().editGeneration + 1
+        editGeneration: get().editGeneration + 1,
+        documentUndo: emptyDocumentUndo()
       });
     } finally {
       set({ busy: null });
