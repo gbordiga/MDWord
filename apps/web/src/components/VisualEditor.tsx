@@ -40,6 +40,25 @@ function tiptapContentFromAst(ast: Parameters<typeof astToTiptap>[0]): TiptapNod
   }
 }
 
+function VisualEditorFallback({ error, onOpenSource }: { error?: Error | null; onOpenSource: () => void }) {
+  return (
+    <div
+      className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-[#d8dee6] px-6 text-center"
+      data-testid="visual-editor-error"
+    >
+      <p className="text-[15px] font-medium text-[#1c1f24]">This document could not be shown in visual mode.</p>
+      {error?.message ? <p className="max-w-md text-[13px] text-[#667085]">{error.message}</p> : null}
+      <button
+        type="button"
+        className="rounded-md bg-[#2f6fed] px-3 py-2 text-[13px] text-white"
+        onClick={onOpenSource}
+      >
+        Open as source
+      </button>
+    </div>
+  );
+}
+
 class VisualEditorBoundary extends Component<
   { resetKey: number; onOpenSource: () => void; children: ReactNode },
   { error: Error | null }
@@ -62,22 +81,7 @@ class VisualEditorBoundary extends Component<
 
   override render() {
     if (this.state.error) {
-      return (
-        <div
-          className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-[#d8dee6] px-6 text-center"
-          data-testid="visual-editor-error"
-        >
-          <p className="text-[15px] font-medium text-[#1c1f24]">This document could not be shown in visual mode.</p>
-          <p className="max-w-md text-[13px] text-[#667085]">{this.state.error.message}</p>
-          <button
-            type="button"
-            className="rounded-md bg-[#2f6fed] px-3 py-2 text-[13px] text-white"
-            onClick={this.props.onOpenSource}
-          >
-            Open as source
-          </button>
-        </div>
-      );
+      return <VisualEditorFallback error={this.state.error} onOpenSource={this.props.onOpenSource} />;
     }
     return this.props.children;
   }
@@ -140,7 +144,9 @@ function VisualEditorCanvas({
   const syncGeneration = useApp((s) => s.syncGeneration);
   const sourceGeneration = useApp((s) => s.sourceGeneration);
   const skipProgrammaticUpdate = useRef(true);
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const { openContextMenu } = useEditorUi();
+  const openSource = () => useApp.getState().setView("source");
 
   const editor = useEditor({
     extensions: editorExtensions(),
@@ -232,14 +238,12 @@ function VisualEditorCanvas({
     if (same) return;
     lastSync.current = { tabId: activeTabId, sync: syncGeneration, source: sourceGeneration };
     skipProgrammaticUpdate.current = true;
-    const load = (content: TiptapNode) => {
-      replaceEditorDocument(editor, content);
-    };
     try {
-      load(tiptapContentFromAst(useApp.getState().model.ast));
+      replaceEditorDocument(editor, astToTiptap(useApp.getState().model.ast));
+      setLoadError(null);
     } catch (error) {
       console.error("Visual editor could not load document content", error);
-      load({ type: "doc", content: [{ type: "paragraph" }] });
+      setLoadError(error instanceof Error ? error : new Error("This document could not be shown in visual mode."));
     } finally {
       requestAnimationFrame(() => {
         skipProgrammaticUpdate.current = false;
@@ -324,6 +328,10 @@ function VisualEditorCanvas({
       ro.disconnect();
     };
   }, [scale, canvasHeight, metrics.widthPx, metrics.heightPx, padTop, padBottom]);
+
+  if (loadError) {
+    return <VisualEditorFallback error={loadError} onOpenSource={openSource} />;
+  }
 
   return (
     <div className="relative min-h-0 min-w-0 flex-1 bg-[#d8dee6]">

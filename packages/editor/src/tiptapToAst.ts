@@ -38,56 +38,33 @@ import {
 
 
 
-function unwrapMarks(node: TiptapNode): GenericNode[] {
-
-  if (node.type === "text") {
-
-    let inner: GenericNode = { type: "text", value: node.text ?? "" };
-
-    const marks = [...(node.marks ?? [])].reverse();
-
-    for (const mark of marks) {
-
-      if (mark.type === "bold") inner = { type: "strong", children: [inner] };
-
-      else if (mark.type === "italic") inner = { type: "emphasis", children: [inner] };
-
-      else if (mark.type === "strike") inner = { type: "delete", children: [inner] };
-
-      else if (mark.type === "underline") inner = { type: "underline", children: [inner] };
-
-      else if (mark.type === "subscript") inner = { type: "subscript", children: [inner] };
-
-      else if (mark.type === "superscript") inner = { type: "superscript", children: [inner] };
-
-      else if (mark.type === "abbreviation") {
-
-        inner = {
-
-          type: "abbreviation",
-
-          title: mark.attrs?.title,
-
-          children: [inner]
-
-        };
-
-      } else if (mark.type === "code") inner = { type: "inlineCode", value: node.text ?? "" };
-
-      else if (mark.type === "link") {
-
-        inner = { type: "link", url: mark.attrs?.href, children: [inner] };
-
-      }
-
-    }
-
-    return [inner];
-
+function wrapMark(inner: GenericNode, mark: NonNullable<TiptapNode["marks"]>[number]): GenericNode {
+  if (mark.type === "bold") return { type: "strong", children: [inner] };
+  if (mark.type === "italic") return { type: "emphasis", children: [inner] };
+  if (mark.type === "strike") return { type: "delete", children: [inner] };
+  if (mark.type === "underline") return { type: "underline", children: [inner] };
+  if (mark.type === "subscript") return { type: "subscript", children: [inner] };
+  if (mark.type === "superscript") return { type: "superscript", children: [inner] };
+  if (mark.type === "abbreviation") {
+    return { type: "abbreviation", title: mark.attrs?.title, children: [inner] };
   }
+  return inner;
+}
 
-  return astInline(node);
-
+function unwrapMarks(node: TiptapNode): GenericNode[] {
+  if (node.type !== "text") return astInline(node);
+  const marks = node.marks ?? [];
+  const hasCode = marks.some((mark) => mark.type === "code");
+  let inner: GenericNode = hasCode
+    ? { type: "inlineCode", value: node.text ?? "" }
+    : { type: "text", value: node.text ?? "" };
+  const link = marks.find((mark) => mark.type === "link");
+  if (link) inner = { type: "link", url: link.attrs?.href, children: [inner] };
+  for (const mark of marks) {
+    if (mark.type === "code" || mark.type === "link") continue;
+    inner = wrapMark(inner, mark);
+  }
+  return [inner];
 }
 
 
