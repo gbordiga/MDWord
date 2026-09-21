@@ -16,6 +16,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - run: pnpm test
       - run: pnpm --filter @mdword/web typecheck
       - run: pnpm build:web
@@ -31,7 +33,16 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - name: Install dependencies
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm install --frozen-lockfile; then
+              exit 0
+            fi
+            echo "pnpm install failed (attempt ${attempt}), retrying..."
+            sleep 20
+          done
+          exit 1
       - run: pnpm build:web
       - run: mkdir -p apps/desktop/resources/web && cp -R apps/web/out/* apps/desktop/resources/web/
       - run: pnpm --filter @mdword/desktop dist -- --linux
