@@ -37,7 +37,7 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
   assetPrefix: isElectron ? "." : undefined,
   env: {
-    NEXT_PUBLIC_APP_VERSION: process.env.npm_package_version ?? "0.1.1"
+    NEXT_PUBLIC_APP_VERSION: process.env.npm_package_version ?? "0.1.2"
   },
   webpack: (config, { isServer, dev }) => {
     config.resolve.alias = {
