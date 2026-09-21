@@ -25,6 +25,7 @@ export { figurePosFromState } from "./figurePos";
 export { moveFigureTo, moveFigureBy, mappedInsertAfterDelete, updateFigureDropMark, clearFigureDropMark } from "./figureMove";
 export { dropPosFromBlockRects, isNoopFigureMove } from "./figureMove";
 export { embedImageFile, embedImageSrc, scaleToMaxEdge, shouldKeepOriginal } from "./imageEmbed";
+export { applyFigureSources, collectEditorExternalFigures } from "./importImages";
 export { displayImageSrc, canonicalImageSrc, rewriteDisplayBlobsInTree } from "./imageDisplay";
 export { isFigureInteracting, onFigureIdle } from "./figureInteraction";
 export { PageGaps, pageGapsKey, snapPageGapPos, collectPageGapPositions } from "./pageGaps";

@@ -47,6 +47,7 @@ import {
 import { useEditorTick } from "@/hooks/useEditorTick";
 import { useEditorUi } from "@/lib/editorUi";
 import { Spinner } from "./Spinner";
+import { ImportImagesControl } from "./ImportImagesControl";
 import { LeftSidebar } from "./LeftSidebar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { Sheet } from "./Sheet";
@@ -385,6 +386,7 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
           >
             <ListTree size={18} />
           </InsertItem>
+          <ImportImagesControl editor={editor} variant="menu" onStart={close} />
         </div>
       </Sheet>
       <Sheet open={sheet === "more"} onClose={close} side="bottom" title="More" testId="sheet-more">

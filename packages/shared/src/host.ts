@@ -81,6 +81,8 @@ export interface HostApi {
     openFolder(): Promise<string | null>;
     list(folder: string): Promise<HostFileStat[]>;
     read(path: string): Promise<string>;
+    /** Read a workspace file as a data URL (images). Missing files should reject. */
+    readDataUrl?(path: string): Promise<string>;
     /** Batch read for workspace indexing. Missing/unreadable paths are omitted. */
     readMany?(paths: string[]): Promise<{ path: string; content: string }[]>;
     write(path: string, content: string): Promise<void>;

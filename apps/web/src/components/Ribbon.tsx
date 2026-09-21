@@ -61,6 +61,7 @@ import { useEditorUi } from "@/lib/editorUi";
 import { Spinner } from "./Spinner";
 import { ImageRibbonTools, TableRibbonTools } from "./ContextualRibbons";
 import { MarkdownAssociationButton } from "./MarkdownAssociationControl";
+import { ImportImagesControl } from "./ImportImagesControl";
 
 const MAIN_TABS: { id: RibbonTab; label: string }[] = [
   { id: "file", label: "File" },
@@ -421,6 +422,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
         )}
         {ribbon === "references" && (
           <>
+            <ImportImagesControl editor={editor} />
             <Btn
               title="Show a live table of contents generated from headings"
               testId="insert-toc"

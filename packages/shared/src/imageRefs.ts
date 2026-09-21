@@ -2,6 +2,7 @@ import { findDataUrlRanges } from "./dataUrl";
 import { collapseDuplicateTables, wrapLeadingTableImages } from "./gfmTables";
 import { formatImageAttrList, isImageAttrTitle, parseImageAttrList } from "./imageAttrs";
 import type { GenericNode } from "./constants";
+import { isHttpUrl } from "./paths";
 
 const ID_PREFIX = "img-";
 
@@ -27,6 +28,40 @@ export function normalizeDataUrl(url: string): string {
 export function isEmbeddedImageUrl(url: string): boolean {
   const value = url.trim();
   return value.startsWith("data:image/") || value.startsWith("blob:");
+}
+
+export function isExternalImageUrl(url: string): boolean {
+  const value = url.trim();
+  if (!value || isEmbeddedImageUrl(value) || isHttpUrl(value)) return false;
+  return true;
+}
+
+export function collectExternalImageUrls(ast: GenericNode): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const walk = (node: GenericNode) => {
+    const url = imageNodeUrl(node);
+    const collectable = isImageLike(node) || node.type === "definition";
+    if (collectable && isExternalImageUrl(url) && !seen.has(url)) {
+      seen.add(url);
+      out.push(url);
+    }
+    node.children?.forEach(walk);
+  };
+  walk(ast);
+  return out;
+}
+
+export function rewriteExternalImageUrls(ast: GenericNode, replacements: Map<string, string>): GenericNode {
+  const url = imageNodeUrl(ast);
+  const nextUrl = url ? replacements.get(url) : undefined;
+  const children = ast.children?.map((child) => rewriteExternalImageUrls(child, replacements));
+  if (!nextUrl && children === ast.children) return ast;
+  return {
+    ...ast,
+    ...(nextUrl ? { url: nextUrl, urlSource: nextUrl, src: nextUrl } : {}),
+    ...(children ? { children } : {})
+  };
 }
 
 function fnv1aHex(text: string): string {

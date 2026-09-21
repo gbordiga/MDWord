@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   MAX_WORKSPACE_LIST_DEPTH,
   MAX_WORKSPACE_LIST_ENTRIES,
+  imageMimeFromPath,
   isMarkdownFileName,
   sanitizeExportFileName,
   shouldSkipWorkspaceDir,
@@ -396,6 +397,12 @@ function registerIpc(): void {
   ipcMain.handle("files.read", async (_e, filePath: unknown) => {
     const resolved = assertSafePath(z.string().parse(filePath), [...allowedRoots]);
     return fs.readFile(resolved, "utf8");
+  });
+
+  ipcMain.handle("files.readDataUrl", async (_e, filePath: unknown) => {
+    const resolved = assertSafePath(z.string().parse(filePath), [...allowedRoots]);
+    const buf = await fs.readFile(resolved);
+    return `data:${imageMimeFromPath(resolved)};base64,${buf.toString("base64")}`;
   });
 
   ipcMain.handle("files.readMany", async (_e, payload: unknown) => {
