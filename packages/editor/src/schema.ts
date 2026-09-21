@@ -1,4 +1,5 @@
 import StarterKit from "@tiptap/starter-kit";
+import Code from "@tiptap/extension-code";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { MdTable, MdTableRow, MdTableCell, MdTableHeader } from "./tableExt";
@@ -30,10 +31,12 @@ export function editorExtensions() {
       orderedList: { HTMLAttributes: { class: "md-list md-list-ordered" } },
       listItem: { HTMLAttributes: { class: "md-list-item" } },
       blockquote: { HTMLAttributes: { class: "md-quote" } },
+      code: false,
       codeBlock: { HTMLAttributes: { class: "md-code" } },
       horizontalRule: { HTMLAttributes: { class: "md-hr" } }
     }),
     Underline,
+    Code.extend({ excludes: "" }),
     Link.configure({
       openOnClick: false,
       autolink: true,

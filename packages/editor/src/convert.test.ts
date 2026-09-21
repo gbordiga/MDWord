@@ -612,6 +612,33 @@ ${ref.definition}
     expect(md).toContain("A --> B");
   });
 
+  it("renders bold links whose label is inline code, including dot-folder paths", () => {
+    const md = [
+      "# AGENTS",
+      "",
+      "Istruzioni operative del vault: **[`.agents/AGENT.md`](.agents/AGENT.md)**",
+      "Memoria di progetto: **[`memory/MEMORY.md`](memory/MEMORY.md)**",
+      "",
+      "Le NC in `QMS/Gruppo/Audit Certificazione/` — vedere `.agents/AGENT.md`."
+    ].join("\n");
+    const parsed = parseMarkdown(md);
+    const json = astToTiptap(parsed.ast);
+    expect(collectEmptyTextPaths(json)).toEqual([]);
+    expect(() => tiptapDocFromJson(json)).not.toThrow();
+    const doc = tiptapDocFromJson(json);
+    expect(doc.textContent).toContain("AGENTS");
+    expect(doc.textContent).toContain(".agents/AGENT.md");
+    expect(doc.textContent).toContain("memory/MEMORY.md");
+    const linked = JSON.stringify(json);
+    expect(linked).toContain('".agents/AGENT.md"');
+    expect(linked).toContain('"code"');
+    expect(linked).toContain('"link"');
+    const roundTrip = serializeMarkdown({ ast: tiptapToAst(json) });
+    expect(roundTrip).toContain(".agents/AGENT.md");
+    expect(roundTrip).toContain("memory/MEMORY.md");
+    expect(() => tiptapDocFromJson(astToTiptap(parseMarkdown(roundTrip).ast))).not.toThrow();
+  });
+
   it("maps a mermaid directive onto the same node", () => {
     const parsed = parseMarkdown("```{mermaid}\nsequenceDiagram\n  Alice->>Bob: hi\n```\n");
     const json = astToTiptap(parsed.ast);
