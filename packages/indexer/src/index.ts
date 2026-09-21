@@ -99,20 +99,53 @@ export function indexMarkdown(
   };
 }
 
-export function searchIndex(
-  index: WorkspaceIndex,
-  query: string
-): IndexedDocument[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return index.documents;
-  return index.documents.filter((d) => {
-    return (
-      d.title.toLowerCase().includes(q) ||
-      d.path.toLowerCase().includes(q) ||
-      d.tags.some((t) => t.toLowerCase().includes(q)) ||
-      d.plainText.toLowerCase().includes(q)
-    );
-  });
+export type SearchHitField = "title" | "path" | "tags" | "body";
+
+export interface SearchHit {
+  document: IndexedDocument;
+  field: SearchHitField;
+  excerpt: string;
+}
+
+export function excerptAround(text: string, query: string, radius = 42): string {
+  const haystack = text.replace(/\s+/g, " ").trim();
+  const needle = query.trim();
+  if (!haystack) return "";
+  const index = haystack.toLowerCase().indexOf(needle.toLowerCase());
+  if (index < 0) return haystack.slice(0, radius * 2);
+  const from = Math.max(0, index - radius);
+  const to = Math.min(haystack.length, index + needle.length + radius);
+  return `${from > 0 ? "…" : ""}${haystack.slice(from, to)}${to < haystack.length ? "…" : ""}`;
+}
+
+function hitFor(document: IndexedDocument, query: string): SearchHit | null {
+  const q = query.toLowerCase();
+  if (document.title.toLowerCase().includes(q)) {
+    return { document, field: "title", excerpt: excerptAround(document.title, query) };
+  }
+  if (document.path.toLowerCase().includes(q)) {
+    return { document, field: "path", excerpt: excerptAround(document.path, query) };
+  }
+  const tag = document.tags.find((item) => item.toLowerCase().includes(q));
+  if (tag) {
+    return { document, field: "tags", excerpt: excerptAround(tag, query) };
+  }
+  if (document.plainText.toLowerCase().includes(q)) {
+    return { document, field: "body", excerpt: excerptAround(document.plainText, query) };
+  }
+  return null;
+}
+
+export function searchHits(index: WorkspaceIndex, query: string): SearchHit[] {
+  const q = query.trim();
+  if (!q) return [];
+  return index.documents
+    .map((document) => hitFor(document, q))
+    .filter((hit): hit is SearchHit => hit != null);
+}
+
+export function searchIndex(index: WorkspaceIndex, query: string): IndexedDocument[] {
+  return searchHits(index, query).map((hit) => hit.document);
 }
 
 export function backlinksTo(index: WorkspaceIndex, path: string): IndexedDocument[] {
