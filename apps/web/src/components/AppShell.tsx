@@ -23,7 +23,7 @@ import { getHost } from "@/lib/host";
 import { configureNativeChrome, hideNativeSplash } from "@/lib/native";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
 import { useCtrlWheelZoom } from "@/hooks/useCtrlWheelZoom";
-import { recoveredDraftDiffers, useCrashDraft, usePeriodicCrashDraft, useUnsavedCloseGuard } from "@/hooks/useCrashDraft";
+import { recoveredDraftDiffers, useCrashDraft, useDesktopCloseGuard, usePeriodicCrashDraft, useUnsavedCloseGuard } from "@/hooks/useCrashDraft";
 import { insertTable, selectionText } from "@/lib/editorCommands";
 import { EditorUiProvider, useEditorUi } from "@/lib/editorUi";
 import { RecoveryDialog } from "./RecoveryDialog";
@@ -59,13 +59,14 @@ function AppShellInner({
   const diagnostics = useApp((s) => s.model.diagnostics);
   const busy = useApp((s) => s.busy);
   const { keyboardOpen } = useVisualViewport();
-  const { openLink, openImage, openWikilink, dialog, closeDialog, confirm, confirmIfDirty, closeConfirm } =
+  const { openLink, openImage, openWikilink, dialog, closeDialog, confirm, confirmIfDirty, openConfirm, closeConfirm } =
     useEditorUi();
   const [recovery, setRecovery] = useState<{ content: string; title?: string; path: string | null } | null>(null);
   useCtrlWheelZoom();
   useCrashDraft();
   usePeriodicCrashDraft();
   useUnsavedCloseGuard();
+  useDesktopCloseGuard(openConfirm);
 
   useEffect(() => {
     const collapseChrome = () => {
@@ -271,7 +272,14 @@ function AppShellInner({
       <LinkDialog open={dialog === "link"} editor={editor} onClose={closeDialog} />
       <ImageDialog open={dialog === "image"} editor={editor} onClose={closeDialog} />
       <WikilinkDialog open={dialog === "wikilink"} editor={editor} onClose={closeDialog} />
-      <ConfirmDialog confirm={confirm} onClose={closeConfirm} />
+      <ConfirmDialog
+        confirm={confirm}
+        onDismiss={closeConfirm}
+        onClose={() => {
+          confirm?.onCancel?.();
+          closeConfirm();
+        }}
+      />
       {recovery ? (
         <RecoveryDialog
           title={recovery.title}

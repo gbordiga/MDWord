@@ -35,6 +35,14 @@ const api = {
     takeLaunchFile: () => ipcRenderer.invoke("app.takeLaunchFile"),
     getMarkdownAssociation: () => ipcRenderer.invoke("app.getMarkdownAssociation"),
     setMarkdownAssociation: () => ipcRenderer.invoke("app.setMarkdownAssociation"),
+    notifyCloseGuardReady: () => ipcRenderer.send("app.closeGuardReady"),
+    allowClose: () => ipcRenderer.send("app.allowClose"),
+    cancelClose: () => ipcRenderer.send("app.cancelClose"),
+    onRequestClose: (handler: () => void) => {
+      const listener = () => handler();
+      ipcRenderer.on("app.requestClose", listener);
+      return () => ipcRenderer.removeListener("app.requestClose", listener);
+    },
     onOpenDocument: (handler: (path: string) => void) => {
       const listener = (_event: unknown, filePath: string) => handler(filePath);
       ipcRenderer.on("app.openDocument", listener);

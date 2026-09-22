@@ -118,6 +118,11 @@ export function createUntitledTab(model: DocumentModel, source = untitledDocumen
   };
 }
 
+/** A fresh document that has never been edited and has no path. */
+export function isPristineUntitledTab(tab: Pick<DocumentTab, "path" | "dirty">): boolean {
+  return tab.path == null && !tab.dirty;
+}
+
 export function createTabFromOpen(
   path: string,
   content: string,
@@ -208,8 +213,11 @@ export function commitOpenedWorkspaceTab(
   if (replaceId) {
     return tabs.map((tab) => (tab.id === replaceId ? nextTab : tab));
   }
-  const leftoverDirtyPreview =
-    nextTab.preview ? tabs.find((tab) => tab.preview && tab.dirty) : undefined;
-  const base = leftoverDirtyPreview ? pinDocumentTab(tabs, leftoverDirtyPreview.id) : tabs;
+  const stripped =
+    tabs.length === 1 && tabs[0] && isPristineUntitledTab(tabs[0]) ? [] : tabs;
+  const leftoverDirtyPreview = nextTab.preview
+    ? stripped.find((tab) => tab.preview && tab.dirty)
+    : undefined;
+  const base = leftoverDirtyPreview ? pinDocumentTab(stripped, leftoverDirtyPreview.id) : stripped;
   return [...base, nextTab];
 }

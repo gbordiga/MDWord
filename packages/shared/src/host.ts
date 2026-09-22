@@ -113,10 +113,28 @@ export interface HostApi {
     takeLaunchFile(): Promise<string | null>;
     onOpenDocument(handler: (path: string) => void): () => void;
     onPrintDocument?(handler: () => void): () => void;
-    /** Windows desktop only: whether MDWord is the default Markdown handler. */
-    getMarkdownAssociation?(): Promise<{ supported: boolean; isDefault: boolean; missing?: string[] }>;
-    /** Register MDWord for Markdown files and ask Windows which app should open .md. */
-    setMarkdownAssociation?(): Promise<{ supported: boolean; isDefault: boolean; missing?: string[] }>;
+    /** Desktop: the main process is asking whether this window may close. */
+    onRequestClose?(handler: () => void): () => void;
+    /** Desktop: the close guard is listening, so a blocked close can be delivered. */
+    notifyCloseGuardReady?(): void;
+    /** Desktop: the user saved or discarded, so the window may close. */
+    allowClose?(): void;
+    /** Desktop: the user cancelled, so a quit in progress must not continue. */
+    cancelClose?(): void;
+    /** Desktop: whether MDWord is the default Markdown handler. */
+    getMarkdownAssociation?(): Promise<{
+      supported: boolean;
+      isDefault: boolean;
+      missing?: string[];
+      platform?: "win32" | "darwin" | "linux" | "other";
+    }>;
+    /** Register MDWord for Markdown files and open the OS default-app settings. */
+    setMarkdownAssociation?(): Promise<{
+      supported: boolean;
+      isDefault: boolean;
+      missing?: string[];
+      platform?: "win32" | "darwin" | "linux" | "other";
+    }>;
   };
   export: {
     pdf(

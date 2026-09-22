@@ -17,6 +17,9 @@ export type ConfirmState = {
   title: string;
   message: string;
   action: () => void;
+  /** When set, Save uses this instead of saving only the active document. */
+  save?: () => Promise<boolean>;
+  onCancel?: () => void;
 } | null;
 
 export type EditorContextMenuState = { x: number; y: number } | null;
@@ -32,7 +35,8 @@ interface EditorUiValue {
   openContextMenu: (x: number, y: number) => void;
   closeContextMenu: () => void;
   closeDialog: () => void;
-  confirmIfDirty: (action: () => void) => void;
+  confirmIfDirty: (action: () => void, options?: { when?: boolean; save?: () => Promise<boolean> }) => void;
+  openConfirm: (state: NonNullable<ConfirmState>) => void;
   closeConfirm: () => void;
 }
 
@@ -49,15 +53,21 @@ export function EditorUiProvider({
   const [confirm, setConfirm] = useState<ConfirmState>(null);
   const [contextMenu, setContextMenu] = useState<EditorContextMenuState>(null);
 
-  const confirmIfDirty = useCallback((action: () => void) => {
-    if (!useApp.getState().dirty) {
+  const openConfirm = useCallback((state: NonNullable<ConfirmState>) => {
+    setConfirm(state);
+  }, []);
+
+  const confirmIfDirty = useCallback((action: () => void, options?: { when?: boolean; save?: () => Promise<boolean> }) => {
+    const dirty = options?.when ?? useApp.getState().dirty;
+    if (!dirty) {
       action();
       return;
     }
     setConfirm({
       title: "Unsaved changes",
       message: "This document has unsaved changes. Save them before continuing, or discard them.",
-      action
+      action,
+      save: options?.save
     });
   }, []);
 
@@ -83,9 +93,10 @@ export function EditorUiProvider({
       closeContextMenu: () => setContextMenu(null),
       closeDialog: () => setDialog(null),
       confirmIfDirty,
+      openConfirm,
       closeConfirm: () => setConfirm(null)
     }),
-    [editor, dialog, confirm, contextMenu, confirmIfDirty]
+    [editor, dialog, confirm, contextMenu, confirmIfDirty, openConfirm]
   );
 
   return <EditorUiContext.Provider value={value}>{children}</EditorUiContext.Provider>;

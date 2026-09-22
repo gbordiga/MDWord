@@ -8,26 +8,36 @@ import type { ConfirmState } from "@/lib/editorUi";
 
 export function ConfirmDialog({
   confirm,
-  onClose
+  onClose,
+  onDismiss
 }: {
   confirm: ConfirmState;
   onClose: () => void;
+  /** Clears the dialog without running the cancel callback. Used by Save and Discard. */
+  onDismiss?: () => void;
 }) {
   const [saving, setSaving] = useState(false);
   if (!confirm) return null;
 
+  const dismiss = onDismiss ?? onClose;
+
   const discard = () => {
     const action = confirm.action;
-    onClose();
+    dismiss();
     action();
   };
 
   const saveThen = async () => {
     setSaving(true);
     try {
-      await useApp.getState().saveFile();
-      if (useApp.getState().dirty) return;
-      onClose();
+      const saved = confirm.save
+        ? await confirm.save()
+        : await (async () => {
+            await useApp.getState().saveFile();
+            return !useApp.getState().dirty;
+          })();
+      if (!saved) return;
+      dismiss();
       confirm.action();
     } finally {
       setSaving(false);

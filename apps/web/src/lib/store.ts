@@ -212,6 +212,10 @@ export interface AppState {
   openFile: () => Promise<void>;
   saveFile: () => Promise<void>;
   saveFileAs: () => Promise<void>;
+  /** Save one tab. Returns false when the user cancels or the write fails. */
+  saveTab: (tabId: string) => Promise<boolean>;
+  /** Save every dirty tab. Returns false when any document is still dirty. */
+  saveAllDirty: () => Promise<boolean>;
   openFolder: () => Promise<void>;
   openWorkspaceFile: (filePath: string, options?: OpenWorkspaceFileOptions) => Promise<void>;
   openWorkspaceFileByTitle: (title: string, options?: OpenWorkspaceFileOptions) => Promise<boolean>;
@@ -556,9 +560,17 @@ export const useApp = create<AppState>((set, get) => {
     try {
       const model = modelFrom(result.content, get().workspace?.workspaceMdoc);
       void clearCrashDraft();
-      appendTab(createTabFromOpen(result.path, result.content, model, get().historyKey));
+      const revealed = {
+        ...createTabFromOpen(result.path, result.content, model, get().historyKey),
+        syncGeneration: get().syncGeneration + 1
+      };
+      set({
+        tabs: commitOpenedWorkspaceTab(persistActiveTab(), revealed, null),
+        activeTabId: revealed.id,
+        ...activeDocumentFields(revealed),
+        busy: null
+      });
       await yieldPaint();
-      set({ busy: null });
     } catch (error) {
       console.error("Could not open document", error);
       set({ busy: null });
@@ -633,6 +645,26 @@ export const useApp = create<AppState>((set, get) => {
     } finally {
       set({ busy: null });
     }
+  },
+  saveTab: async (tabId) => {
+    flushVisualEdits();
+    flushSourceEdits();
+    const tab = persistActiveTab().find((entry) => entry.id === tabId);
+    if (!tab?.dirty) return true;
+    if (get().activeTabId !== tabId) activateTab(tab);
+    await get().saveFile();
+    return !persistActiveTab().some((entry) => entry.id === tabId && entry.dirty);
+  },
+  saveAllDirty: async () => {
+    flushVisualEdits();
+    flushSourceEdits();
+    const dirty = persistActiveTab().filter((tab) => tab.dirty);
+    const ordered = [...dirty.filter((tab) => tab.path), ...dirty.filter((tab) => !tab.path)];
+    for (const tab of ordered) {
+      const saved = await get().saveTab(tab.id);
+      if (!saved) return false;
+    }
+    return true;
   },
   openFolder: async () => {
     const root = await withFilePicker(async () => {
