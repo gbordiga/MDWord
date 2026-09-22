@@ -8,6 +8,7 @@ import {
   type ImageLayout
 } from "./imageModel";
 import { displayImageSrc } from "./imageDisplay";
+import { imagePreviewLoader, isEmbeddedOrRemoteImageSrc } from "./imagePreview";
 import { beginFigureInteraction, endFigureInteraction } from "./figureInteraction";
 import { figureText } from "./figureCaption";
 import { clearFigureDropMark, moveFigureTo, updateFigureDropMark } from "./figureMove";
@@ -94,6 +95,21 @@ export function createFigureView({
   };
 
   let shownSrc = "";
+  let srcGeneration = 0;
+  const paintSrc = (nextSrc: string) => {
+    img.setAttribute("data-src", nextSrc);
+    const generation = ++srcGeneration;
+    const preview = imagePreviewLoader();
+    if (!nextSrc || isEmbeddedOrRemoteImageSrc(nextSrc) || !preview) {
+      img.src = nextSrc ? displayImageSrc(nextSrc) : "";
+      return;
+    }
+    void preview(nextSrc).then((resolved) => {
+      if (generation !== srcGeneration) return;
+      if (resolved) img.src = displayImageSrc(resolved);
+      else img.removeAttribute("src");
+    });
+  };
   const apply = (next: ProseNode) => {
     if (resizing || dragging) return;
     const width = clampImageWidth(Number(next.attrs.width ?? DEFAULT_IMAGE_WIDTH));
@@ -106,7 +122,7 @@ export function createFigureView({
     const nextSrc = String(next.attrs.src ?? "");
     if (nextSrc !== shownSrc) {
       shownSrc = nextSrc;
-      img.src = displayImageSrc(nextSrc);
+      paintSrc(nextSrc);
     }
     const text = figureText(next.attrs.alt, next.attrs.caption);
     if (img.alt !== text) img.alt = text;

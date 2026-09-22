@@ -1,3 +1,4 @@
+import { NodeSelection } from "@tiptap/pm/state";
 import type { Editor } from "@tiptap/react";
 import {
   collectSearchMatches,
@@ -80,6 +81,24 @@ export function insertWikilink(editor: Editor, target: string, label?: string): 
       attrs: { target: dest, label: (label ?? dest).trim() || dest }
     })
     .run();
+  return true;
+}
+
+export function updateWikilink(editor: Editor, target: string, label?: string): boolean {
+  const dest = target.trim();
+  if (!dest || !editor.isActive("wikiLink")) return false;
+  const text = (label ?? "").trim() || dest;
+  return editor.chain().focus().updateAttributes("wikiLink", { target: dest, label: text }).run();
+}
+
+export function removeWikilink(editor: Editor): boolean {
+  const { selection, schema } = editor.state;
+  if (!(selection instanceof NodeSelection) || selection.node.type.name !== "wikiLink") return false;
+  const label = String(selection.node.attrs.label || selection.node.attrs.target || "");
+  const tr = editor.state.tr;
+  if (label) tr.replaceWith(selection.from, selection.to, schema.text(label));
+  else tr.delete(selection.from, selection.to);
+  editor.view.dispatch(tr);
   return true;
 }
 

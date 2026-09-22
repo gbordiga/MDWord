@@ -12,6 +12,49 @@ export function isImageLike(node: { type?: unknown } | undefined | null): boolea
   return node?.type === "image" || node?.type === "imageReference";
 }
 
+/** Wrap image destinations that contain spaces so CommonMark keeps the whole path. */
+export function quoteSpacedImageDestinations(source: string): string {
+  const parts = source.split(/(```[\s\S]*?```|~~~[\s\S]*?~~~)/g);
+  return parts
+    .map((part, index) => (index % 2 === 1 ? part : quoteSpacedImageDestinationsPlain(part)))
+    .join("");
+}
+
+function quoteSpacedImageDestinationsPlain(source: string): string {
+  return source.replace(/!\[([^\]]*)\]\(([^)\n]+)\)/g, (full, alt: string, dest: string) => {
+    const body = dest.trim();
+    if (!body || body.startsWith("<") || body.startsWith("data:") || !/\s/.test(body)) return full;
+    const titled = body.match(/^(.*?)\s+("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')$/);
+    if (titled) {
+      const url = titled[1]?.trim() ?? "";
+      if (!url || url.startsWith("<") || !/\s/.test(url)) return full;
+      return `![${alt}](<${url}>) ${titled[2]}`;
+    }
+    return `![${alt}](<${body}>)`;
+  });
+}
+
+function decodeImageNodeUrl(node: GenericNode): void {
+  const url = imageNodeUrl(node);
+  if (!url || url.startsWith("data:") || url.startsWith("blob:") || !url.includes("%")) return;
+  let decoded = url;
+  try {
+    decoded = decodeURIComponent(url);
+  } catch {
+    return;
+  }
+  if (decoded === url) return;
+  node.url = decoded;
+  if (typeof node.urlSource === "string") node.urlSource = decoded;
+  if (typeof node.src === "string") node.src = decoded;
+}
+
+/** MyST percent-encodes spaces inside `<destinations>`. Keep the path readable. */
+export function decodeFileImageUrls(node: GenericNode): void {
+  if (isImageLike(node) || node.type === "definition") decodeImageNodeUrl(node);
+  node.children?.forEach(decodeFileImageUrls);
+}
+
 export function imageNodeUrl(node: GenericNode | undefined | null): string {
   if (!node) return "";
   return String(node.url ?? node.urlSource ?? node.src ?? "").trim();

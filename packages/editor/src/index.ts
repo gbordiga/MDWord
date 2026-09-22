@@ -28,6 +28,7 @@ export { dropPosFromBlockRects, isNoopFigureMove } from "./figureMove";
 export { embedImageFile, embedImageSrc, scaleToMaxEdge, shouldKeepOriginal } from "./imageEmbed";
 export { applyFigureSources, collectEditorExternalFigures } from "./importImages";
 export { displayImageSrc, canonicalImageSrc, rewriteDisplayBlobsInTree } from "./imageDisplay";
+export { setImagePreviewLoader } from "./imagePreview";
 export { isFigureInteracting, onFigureIdle } from "./figureInteraction";
 export { PageGaps, pageGapsKey, snapPageGapPos, collectPageGapPositions } from "./pageGaps";
 export type { PageGapsStorage } from "./pageGaps";

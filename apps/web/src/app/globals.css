@@ -509,7 +509,7 @@ html.keyboard-open .mdword-app {
   background: #e8eefc;
   border-radius: 4px;
   padding: 0 4px;
-  cursor: pointer;
+  cursor: text;
 }
 
 .wikilink.broken {

@@ -130,6 +130,28 @@ function assertSafePath(input: string, roots: string[]): string {
   return resolved;
 }
 
+function assertImageRead(input: string): string {
+  try {
+    return assertSafePath(input, [...allowedRoots]);
+  } catch (error) {
+    const resolved = path.resolve(input);
+    if (!/\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(resolved)) throw error;
+    const near = [...allowedRoots].some((root) => {
+      const rel = path.relative(root, resolved);
+      if (!rel.startsWith("..") && !path.isAbsolute(rel)) return true;
+      const parts = rel.split(path.sep);
+      let ups = 0;
+      for (const part of parts) {
+        if (part !== "..") break;
+        ups += 1;
+      }
+      return ups > 0 && ups <= 4 && parts.slice(ups).every((part) => part !== "..");
+    });
+    if (!near) throw error;
+    return resolved;
+  }
+}
+
 async function atomicWrite(filePath: string, content: string): Promise<void> {
   const dir = path.dirname(filePath);
   await fs.mkdir(dir, { recursive: true });
@@ -431,7 +453,7 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("files.readDataUrl", async (_e, filePath: unknown) => {
-    const resolved = assertSafePath(z.string().parse(filePath), [...allowedRoots]);
+    const resolved = assertImageRead(z.string().parse(filePath));
     const buf = await fs.readFile(resolved);
     return `data:${imageMimeFromPath(resolved)};base64,${buf.toString("base64")}`;
   });

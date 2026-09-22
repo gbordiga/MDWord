@@ -30,6 +30,7 @@ import { RecoveryDialog } from "./RecoveryDialog";
 import { clearCrashDraft, readCrashDraft } from "@/lib/recovery";
 import { saveStatusText } from "@/lib/saveStatus";
 import { APP_VERSION } from "@/lib/appVersion";
+import "@/lib/imagePreview";
 
 export function AppShell() {
   const editorRef = useRef<Editor | null>(null);

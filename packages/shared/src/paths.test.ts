@@ -9,6 +9,22 @@ describe("path traversal", () => {
 });
 
 describe("resolveExternalImagePath", () => {
+  it("resolves a relative image that climbs out of the document folder", () => {
+    expect(
+      resolveExternalImagePath(
+        "../../image/ID016/Gestione prodotto non conforme.gif",
+        "/vault/docs/notes/page.md",
+        "/vault"
+      )
+    ).toBe("/vault/image/ID016/Gestione prodotto non conforme.gif");
+  });
+
+  it("decodes percent-encoded spaces before joining", () => {
+    expect(
+      resolveExternalImagePath("../../image/Gestione%20prodotto.gif", "/vault/docs/notes/page.md")
+    ).toBe("/vault/image/Gestione prodotto.gif");
+  });
+
   it("resolves a relative image next to the document", () => {
     expect(resolveExternalImagePath("photos/cat.png", "/notes/readme.md", "/notes")).toBe(
       "/notes/photos/cat.png"
