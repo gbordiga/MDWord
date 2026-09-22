@@ -7,25 +7,76 @@ export interface WikiLinkParts {
   raw: string;
 }
 
-/** Accepts `[[target|label]]` and GFM-table `[[target\|label]]`. */
-const WIKI_RE =
-  /\[\[([^\]|#\n]+?)(?:#([^\]|\n]+?))?(?:\\?\|([^\]]+?))?\]\]/g;
-
 function cleanWikiPart(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const cleaned = stripTrailingBackslashes(value).trim();
   return cleaned || undefined;
 }
 
-export function parseWikiLinkInner(raw: string): WikiLinkParts | null {
-  const match = new RegExp(`^${WIKI_RE.source}$`).exec(raw);
-  if (!match) return null;
+/** Linear parse of `[[target#section|label]]` / `[[target\|label]]`. */
+function parseWikiLinkAt(source: string, from: number): WikiLinkParts | null {
+  if (source[from] !== "[" || source[from + 1] !== "[") return null;
+  let i = from + 2;
+  const targetStart = i;
+  while (i < source.length) {
+    const ch = source[i] ?? "";
+    if (ch === "]" || ch === "|" || ch === "#" || ch === "\n") break;
+    i += 1;
+  }
+  if (i === targetStart) return null;
+  const targetRaw = source.slice(targetStart, i);
+
+  let sectionRaw: string | undefined;
+  if (source[i] === "#") {
+    i += 1;
+    const sectionStart = i;
+    while (i < source.length) {
+      const ch = source[i] ?? "";
+      if (ch === "]" || ch === "|" || ch === "\n") break;
+      i += 1;
+    }
+    if (i === sectionStart) return null;
+    sectionRaw = source.slice(sectionStart, i);
+  }
+
+  let labelRaw: string | undefined;
+  if (source[i] === "|" || (source[i] === "\\" && source[i + 1] === "|")) {
+    if (source[i] === "\\") i += 1;
+    i += 1;
+    const labelStart = i;
+    while (i < source.length && source[i] !== "]") i += 1;
+    if (i === labelStart) return null;
+    labelRaw = source.slice(labelStart, i);
+  }
+
+  if (source[i] !== "]" || source[i + 1] !== "]") return null;
   return {
-    target: cleanWikiPart(match[1]) ?? "",
-    section: cleanWikiPart(match[2]),
-    label: cleanWikiPart(match[3]),
-    raw
+    target: cleanWikiPart(targetRaw) ?? "",
+    section: cleanWikiPart(sectionRaw),
+    label: cleanWikiPart(labelRaw),
+    raw: source.slice(from, i + 2)
   };
+}
+
+function eachWikiLink(source: string, visit: (parts: WikiLinkParts, from: number, to: number) => void): void {
+  let i = 0;
+  while (i < source.length) {
+    if (source[i] === "[" && source[i + 1] === "[") {
+      const parts = parseWikiLinkAt(source, i);
+      if (parts) {
+        visit(parts, i, i + parts.raw.length);
+        i += parts.raw.length;
+        continue;
+      }
+    }
+    i += 1;
+  }
+}
+
+export function parseWikiLinkInner(raw: string): WikiLinkParts | null {
+  const parts = parseWikiLinkAt(raw, 0);
+  if (!parts || parts.raw !== raw) return null;
+  return { ...parts, raw };
 }
 
 export function formatWikiLink(parts: WikiLinkParts): string {
@@ -36,16 +87,9 @@ export function formatWikiLink(parts: WikiLinkParts): string {
 
 export function extractWikiLinks(source: string): WikiLinkParts[] {
   const out: WikiLinkParts[] = [];
-  const re = new RegExp(WIKI_RE.source, "g");
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(source))) {
-    out.push({
-      target: cleanWikiPart(m[1]) ?? "",
-      section: cleanWikiPart(m[2]),
-      label: cleanWikiPart(m[3]),
-      raw: m[0]
-    });
-  }
+  eachWikiLink(source, (parts) => {
+    out.push(parts);
+  });
   return out;
 }
 
@@ -99,19 +143,21 @@ export function decodeWikiHref(href: string): WikiLinkParts | null {
 /** Rewrite [[wikilinks]] to markdown links so MyST/CommonMark can parse them. */
 export function rewriteWikiLinksToMarkdown(source: string): string {
   const { masked, fences } = maskFences(source);
-  const rewritten = masked.replace(WIKI_RE, (raw, target, section, label) => {
-    const parts: WikiLinkParts = {
-      target: cleanWikiPart(String(target)) ?? "",
-      section: cleanWikiPart(section ? String(section) : undefined),
-      label: cleanWikiPart(label ? String(label) : undefined),
-      raw
-    };
-    if (!parts.target) return raw;
-    const text =
-      parts.label ||
-      (parts.section ? `${parts.target}#${parts.section}` : parts.target);
-    return `[${text}](<${encodeWikiHref(parts)}>)`;
+  let rewritten = "";
+  let last = 0;
+  eachWikiLink(masked, (parts, from, to) => {
+    rewritten += masked.slice(last, from);
+    if (!parts.target) {
+      rewritten += parts.raw;
+    } else {
+      const text =
+        parts.label ||
+        (parts.section ? `${parts.target}#${parts.section}` : parts.target);
+      rewritten += `[${text}](<${encodeWikiHref(parts)}>)`;
+    }
+    last = to;
   });
+  rewritten += masked.slice(last);
   return unmaskFences(rewritten, fences);
 }
 
