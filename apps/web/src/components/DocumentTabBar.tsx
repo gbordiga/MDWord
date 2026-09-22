@@ -102,7 +102,10 @@ export function DocumentTabBar({ compact = false }: { compact?: boolean }) {
     if (!tab) return;
     const dirty = tabId === state.activeTabId ? state.dirty : tab.dirty;
     if (dirty) {
-      confirmIfDirty(() => closeTab(tabId));
+      confirmIfDirty(() => closeTab(tabId), {
+        when: true,
+        save: () => useApp.getState().saveTab(tabId)
+      });
       return;
     }
     closeTab(tabId);

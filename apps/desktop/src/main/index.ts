@@ -145,6 +145,10 @@ async function atomicWrite(filePath: string, content: string): Promise<void> {
 
 let mainWindow: BrowserWindow | null = null;
 let pendingOpen: string | null = null;
+let closeConfirmed = false;
+let quitAfterClose = false;
+let closeGuardReady = false;
+let closeRequested = false;
 const allowedRoots = new Set<string>([app.getPath("userData")]);
 const MARKDOWN_EXT = /\.(md|markdown|mdown|mkd)$/i;
 
@@ -246,8 +250,18 @@ function createWindow(): void {
     void mainWindow.loadURL("mdword://app/index.html");
   }
   mainWindow.once("ready-to-show", () => mainWindow?.show());
-  mainWindow.webContents.on("will-prevent-unload", (event) => {
+  mainWindow.webContents.on("did-start-navigation", (_event, _url, _isInPlace, isMainFrame) => {
+    if (isMainFrame) closeGuardReady = false;
+  });
+  mainWindow.on("close", (event) => {
+    if (closeConfirmed || !mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.webContents.isCrashed()) {
+      closeConfirmed = true;
+      return;
+    }
     event.preventDefault();
+    closeRequested = true;
+    if (closeGuardReady) mainWindow.webContents.send("app.requestClose");
   });
   mainWindow.webContents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown") return;
@@ -312,6 +326,10 @@ app.whenReady().then(() => {
   registerIpc();
   for (const filePath of markdownPathsFromArgv(process.argv)) queueOpenDocument(filePath);
   createWindow();
+});
+
+app.on("before-quit", () => {
+  if (!closeConfirmed) quitAfterClose = true;
 });
 
 app.on("window-all-closed", () => {
@@ -540,6 +558,29 @@ function registerIpc(): void {
     const next = pendingOpen;
     pendingOpen = null;
     return next;
+  });
+
+  ipcMain.on("app.closeGuardReady", () => {
+    closeGuardReady = true;
+    if (closeRequested && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("app.requestClose");
+    }
+  });
+
+  ipcMain.on("app.cancelClose", () => {
+    quitAfterClose = false;
+    closeRequested = false;
+  });
+
+  ipcMain.on("app.allowClose", () => {
+    closeConfirmed = true;
+    closeRequested = false;
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      app.quit();
+      return;
+    }
+    if (quitAfterClose) app.quit();
+    else mainWindow.close();
   });
 
   ipcMain.handle("app.getMarkdownAssociation", async () => getMarkdownAssociationStatus());

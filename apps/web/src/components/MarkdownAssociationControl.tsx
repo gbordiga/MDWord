@@ -8,7 +8,19 @@ export type MarkdownAssociationStatus = {
   supported: boolean;
   isDefault: boolean;
   missing?: string[];
+  platform?: "win32" | "darwin" | "linux" | "other";
 };
+
+function associationHint(status: MarkdownAssociationStatus): string {
+  if (status.isDefault) return "Double-clicking Markdown files already opens MDWord.";
+  if (status.platform === "darwin") {
+    return "Opens System Settings so you can choose MDWord for Markdown files.";
+  }
+  if (status.platform === "linux") {
+    return "Registers MDWord as the Freedesktop handler for Markdown and opens your system file-type settings.";
+  }
+  return "Opens Windows Settings so you can choose MDWord for .md, .markdown, .mdown and .mkd.";
+}
 
 export function useMarkdownAssociation(): {
   status: MarkdownAssociationStatus | null;
@@ -64,11 +76,7 @@ export function MarkdownAssociationButton({
   return (
     <button
       type="button"
-      title={
-        status.isDefault
-          ? "Double-clicking .md, .markdown, .mdown and .mkd files already opens MDWord"
-          : "Windows hides .md in Settings. This opens the Open with dialog for a .md file — choose MDWord and Always. .markdown, .mdown and .mkd are registered too."
-      }
+      title={associationHint(status)}
       aria-label={
         status.isDefault
           ? "MDWord is the default app for Markdown files"

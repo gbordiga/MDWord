@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   commitOpenedWorkspaceTab,
   findTabByPath,
+  isPristineUntitledTab,
   neighborTabId,
   pinDocumentTab,
   resolveWorkspaceTabOpen,
@@ -103,6 +104,19 @@ describe("documentTabs", () => {
   it("pins a preview tab in place", () => {
     const tabs = [tab("1", "a.md", "A", { preview: true })];
     expect(pinDocumentTab(tabs, "1")[0]?.preview).toBe(false);
+  });
+
+  it("replaces a pristine Untitled tab when opening a file", () => {
+    const tabs = [tab("untitled", null, "Untitled")];
+    expect(isPristineUntitledTab(tabs[0]!)).toBe(true);
+    const committed = commitOpenedWorkspaceTab(tabs, tab("next", "/notes/only.md", "only"), null);
+    expect(committed.map((entry) => entry.id)).toEqual(["next"]);
+  });
+
+  it("keeps a dirty Untitled tab when opening another file", () => {
+    const tabs = [tab("untitled", null, "Untitled", { dirty: true })];
+    const committed = commitOpenedWorkspaceTab(tabs, tab("next", "/notes/only.md", "only"), null);
+    expect(committed.map((entry) => entry.id)).toEqual(["untitled", "next"]);
   });
 
   it("appends a pinned open without touching an existing preview", () => {
