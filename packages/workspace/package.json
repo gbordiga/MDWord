@@ -10,6 +10,6 @@
     "@mdword/shared": "workspace:*",
     "@mdword/indexer": "workspace:*",
     "@mdword/layout-engine": "workspace:*",
-    "yaml": "^2.7.0"
+    "yaml": "^2.9.1"
   }
 }

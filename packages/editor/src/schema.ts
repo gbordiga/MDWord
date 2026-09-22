@@ -1,7 +1,7 @@
 import StarterKit from "@tiptap/starter-kit";
-import Code from "@tiptap/extension-code";
-import Link from "@tiptap/extension-link";
-import Placeholder from "@tiptap/extension-placeholder";
+import { Code } from "@tiptap/extension-code";
+import { Link } from "@tiptap/extension-link";
+import { Placeholder } from "@tiptap/extensions";
 import { MdTable, MdTableRow, MdTableCell, MdTableHeader } from "./tableExt";
 import {
   Subscript,
@@ -14,9 +14,8 @@ import {
 } from "./mystInline";
 import { MathBlock } from "./mathBlock";
 import { MystNumbering } from "./mystNumberingPlugin";
-import TaskList from "@tiptap/extension-task-list";
-import TaskItem from "@tiptap/extension-task-item";
-import Underline from "@tiptap/extension-underline";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
+import { Underline } from "@tiptap/extension-underline";
 import { WikiLink, Callout, PageBreak, MystRaw } from "./extensions";
 import { Mermaid } from "./mermaid";
 import { Figure } from "./figure";
@@ -32,6 +31,8 @@ export function editorExtensions() {
       listItem: { HTMLAttributes: { class: "md-list-item" } },
       blockquote: { HTMLAttributes: { class: "md-quote" } },
       code: false,
+      link: false,
+      underline: false,
       codeBlock: { HTMLAttributes: { class: "md-code" } },
       horizontalRule: { HTMLAttributes: { class: "md-hr" } }
     }),

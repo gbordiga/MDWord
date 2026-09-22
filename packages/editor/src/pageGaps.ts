@@ -13,6 +13,12 @@ export type PageGapsStorage = {
 
 export const pageGapsKey = new PluginKey<DecorationSet>("pageGaps");
 
+declare module "@tiptap/core" {
+  interface Storage {
+    pageGaps: PageGapsStorage;
+  }
+}
+
 export type PageGapBlock = { pos: number; height: number };
 
 /** Place a gap before a block that would start in the bottom margin of the current page. */

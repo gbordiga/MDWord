@@ -152,6 +152,7 @@ function VisualEditorCanvas({
     extensions: editorExtensions(),
     content: tiptapContentFromAst(useApp.getState().model.ast),
     immediatelyRender: false,
+    shouldRerenderOnTransaction: true,
     editorProps: {
       attributes: {
         class: "md-prose",
