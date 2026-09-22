@@ -3,7 +3,7 @@
   "compilerOptions": {
     "noEmit": true,
     "module": "CommonJS",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "types": ["node"]
   },
   "include": ["src"]
