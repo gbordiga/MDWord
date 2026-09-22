@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "copy-paged": "node ./scripts/copy-paged.mjs",
-    "dev": "node ./scripts/free-port.mjs 3000 && node ./scripts/copy-paged.mjs && next dev --port 3000",
-    "build": "node ./scripts/copy-paged.mjs && next build",
+    "dev": "node ./scripts/free-port.mjs 3000 && node ./scripts/copy-paged.mjs && next dev --webpack --port 3000",
+    "build": "node ./scripts/copy-paged.mjs && next build --webpack",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "node -e \"console.log('next lint was removed in Next 16; run pnpm typecheck instead')\"",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test"
   },
@@ -27,7 +27,7 @@
     "@tiptap/react": "^3.31.3",
     "cmdk": "^1.1.1",
     "lucide-react": "^1.47.0",
-    "next": "^15.5.25",
+    "next": "^16.3.6",
     "pagedjs": "^0.4.3",
     "@capacitor/browser": "^7.0.3",
     "@capacitor/core": "^7.4.4",

@@ -33,6 +33,8 @@ function copyServerChunksToRuntimeDir() {
 
 const nextConfig: NextConfig = {
   output: "export",
+  // Next 16 writes AGENTS.md/CLAUDE.md on `next dev` unless this is off.
+  agentRules: false,
   trailingSlash: true,
   images: { unoptimized: true },
   assetPrefix: isElectron ? "." : undefined,
