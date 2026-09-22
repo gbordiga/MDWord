@@ -36,6 +36,25 @@ describe("mystTables", () => {
     expect(tableToGfm(simpleTable)).toMatch(/\| --- \| ---:/);
   });
 
+  it("escapes backslashes before pipes in GFM cells", () => {
+    const table: GenericNode = {
+      type: "table",
+      children: [
+        {
+          type: "tableRow",
+          children: [{ type: "tableCell", children: [{ type: "text", value: "a|b" }] }]
+        },
+        {
+          type: "tableRow",
+          children: [{ type: "tableCell", children: [{ type: "text", value: "c\\d|e" }] }]
+        }
+      ]
+    };
+    const md = tableToGfm(table);
+    expect(md).toContain("| a\\|b |");
+    expect(md).toContain("| c\\\\d\\|e |");
+  });
+
   it("writes MyST :align: for table placement", () => {
     const meta = tableMetaFromDirective("table", { align: "center" }, "KPI");
     const md = serializeTableMarkdown(withTableMeta(simpleTable, meta), meta);

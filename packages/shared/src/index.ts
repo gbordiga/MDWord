@@ -2,6 +2,7 @@ export * from "./dataUrl";
 export * from "./imageAttrs";
 export * from "./imageRefs";
 export * from "./units";
+export * from "./strings";
 export * from "./paths";
 export * from "./host";
 export * from "./constants";

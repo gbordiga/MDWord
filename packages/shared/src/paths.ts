@@ -1,3 +1,5 @@
+import { stripTrailingSeps } from "./strings";
+
 /** POSIX-style relative path helpers. Never talk to the filesystem here. */
 
 export function normalizeDocPath(input: string): string {
@@ -87,7 +89,7 @@ export function resolveExternalImagePath(
     const base = documentPath ? dirname(documentPath) : workspaceRoot ?? "";
     if (!base) return value;
     const rel = normalizeDocPath(value);
-    const prefix = base.replace(/[\\/]+$/, "");
+    const prefix = stripTrailingSeps(base);
     const sep = prefix.includes("\\") ? "\\" : "/";
     return `${prefix}${sep}${rel.replace(/\//g, sep === "\\" ? "\\" : "/")}`;
   } catch {

@@ -1,4 +1,4 @@
-import { isMarkdownFileName } from "@mdword/shared";
+import { isMarkdownFileName, toPosixPath } from "@mdword/shared";
 import type { WorkspaceFileEntry } from "./files";
 
 export interface FileTreeNode {
@@ -9,7 +9,7 @@ export interface FileTreeNode {
 }
 
 function posix(p: string): string {
-  return p.replace(/\\/g, "/").replace(/\/+$/, "");
+  return toPosixPath(p);
 }
 
 function parentPath(filePath: string): string {

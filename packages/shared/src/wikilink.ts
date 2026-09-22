@@ -1,3 +1,5 @@
+import { stripTrailingBackslashes } from "./strings";
+
 export interface WikiLinkParts {
   target: string;
   section?: string;
@@ -11,7 +13,7 @@ const WIKI_RE =
 
 function cleanWikiPart(value: string | undefined): string | undefined {
   if (!value) return undefined;
-  const cleaned = value.replace(/\\+$/g, "").trim();
+  const cleaned = stripTrailingBackslashes(value).trim();
   return cleaned || undefined;
 }
 
@@ -47,15 +49,27 @@ export function extractWikiLinks(source: string): WikiLinkParts[] {
   return out;
 }
 
-const FENCE_RE = /(^|\n)(```|~~~)[^\n]*\n[\s\S]*?\n\2[^\n]*?(?=\n|$)/g;
-
 function maskFences(source: string): { masked: string; fences: string[] } {
   const fences: string[] = [];
-  const masked = source.replace(FENCE_RE, (block) => {
-    const i = fences.push(block) - 1;
-    return `\n%%MDOC_FENCE_${i}%%\n`;
-  });
-  return { masked, fences };
+  const lines = source.split("\n");
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i] ?? "";
+    const marker = line.startsWith("```") ? "```" : line.startsWith("~~~") ? "~~~" : "";
+    if (!marker) {
+      out.push(line);
+      i += 1;
+      continue;
+    }
+    const start = i;
+    i += 1;
+    while (i < lines.length && !(lines[i] ?? "").startsWith(marker)) i += 1;
+    if (i < lines.length) i += 1;
+    const idx = fences.push(lines.slice(start, i).join("\n")) - 1;
+    out.push(`%%MDOC_FENCE_${idx}%%`);
+  }
+  return { masked: out.join("\n"), fences };
 }
 
 function unmaskFences(source: string, fences: string[]): string {
@@ -101,20 +115,54 @@ export function rewriteWikiLinksToMarkdown(source: string): string {
   return unmaskFences(rewritten, fences);
 }
 
+function isSpace(ch: string): boolean {
+  return ch === " " || ch === "\t";
+}
+
+function rewriteWikiMarkdownAt(markdown: string, i: number): { replacement: string; end: number } | null {
+  if (markdown[i] !== "[") return null;
+  const textEnd = markdown.indexOf("]", i + 1);
+  if (textEnd < 0 || markdown[textEnd + 1] !== "(") return null;
+  let j = textEnd + 2;
+  while (j < markdown.length && isSpace(markdown[j] ?? "")) j += 1;
+  if (markdown[j] === "<") j += 1;
+  if (!markdown.startsWith(WIKI_SCHEME, j)) return null;
+  let k = j;
+  while (k < markdown.length) {
+    const ch = markdown[k] ?? "";
+    if (ch === ")" || ch === ">" || isSpace(ch)) break;
+    k += 1;
+  }
+  const href = markdown.slice(j, k);
+  if (markdown[k] === ">") k += 1;
+  while (k < markdown.length && isSpace(markdown[k] ?? "")) k += 1;
+  if (markdown[k] !== ")") return null;
+  const text = markdown.slice(i + 1, textEnd);
+  const all = markdown.slice(i, k + 1);
+  const decoded = decodeWikiHref(href);
+  if (!decoded) return { replacement: all, end: k + 1 };
+  const implicit = decoded.section ? `${decoded.target}#${decoded.section}` : decoded.target;
+  const replacement =
+    !text || text === implicit
+      ? formatWikiLink({ ...decoded, label: undefined, raw: rawSafe(decoded) })
+      : formatWikiLink({ ...decoded, label: text, raw: rawSafe(decoded) });
+  return { replacement, end: k + 1 };
+}
+
 export function rewriteMarkdownToWikiLinks(markdown: string): string {
-  return markdown.replace(
-    /\[([^\]]+)\]\(\s*<?(mdoc-wiki:[^)\s>]+)>?\s*\)/g,
-    (_all, text: string, href: string) => {
-      const decoded = decodeWikiHref(href);
-      if (!decoded) return _all;
-      const implicit =
-        decoded.section ? `${decoded.target}#${decoded.section}` : decoded.target;
-      if (!text || text === implicit) {
-        return formatWikiLink({ ...decoded, label: undefined, raw: rawSafe(decoded) });
-      }
-      return formatWikiLink({ ...decoded, label: text, raw: rawSafe(decoded) });
+  let out = "";
+  let i = 0;
+  while (i < markdown.length) {
+    const hit = rewriteWikiMarkdownAt(markdown, i);
+    if (hit) {
+      out += hit.replacement;
+      i = hit.end;
+      continue;
     }
-  );
+    out += markdown[i];
+    i += 1;
+  }
+  return out;
 }
 
 function rawSafe(parts: WikiLinkParts): string {

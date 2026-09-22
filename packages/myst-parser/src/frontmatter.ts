@@ -1,5 +1,5 @@
 import { parseDocument, Document as YamlDocument } from "yaml";
-import type { Diagnostic } from "@mdword/shared";
+import { stripTrailingWhitespace, type Diagnostic } from "@mdword/shared";
 
 export interface FrontmatterExtraction {
   yaml: YamlDocument | null;
@@ -94,7 +94,7 @@ export function yamlToPlain(doc: YamlDocument | null): Record<string, unknown> {
 }
 
 export function dumpYaml(doc: YamlDocument): string {
-  return doc.toString({ lineWidth: 0 }).replace(/\s+$/, "");
+  return stripTrailingWhitespace(doc.toString({ lineWidth: 0 }));
 }
 
 export function setYamlMapValue(

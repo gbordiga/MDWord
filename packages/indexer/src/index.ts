@@ -22,10 +22,41 @@ export interface WorkspaceIndex {
   documents: IndexedDocument[];
 }
 
-const FENCE = /^(?:`{3,}|~{3,})/;
-const ATX = /^(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$/;
-const SETEXT_1 = /^=+[ \t]*$/;
-const SETEXT_2 = /^-{2,}[ \t]*$/;
+function isFenceLine(line: string): boolean {
+  return line.startsWith("```") || line.startsWith("~~~");
+}
+
+function parseAtxHeading(line: string): { depth: number; text: string } | null {
+  let depth = 0;
+  while (depth < line.length && depth < 6 && line.charCodeAt(depth) === 35) depth += 1;
+  if (depth === 0) return null;
+  const after = line[depth];
+  if (after !== " " && after !== "\t") return null;
+  let end = line.length;
+  while (end > depth + 1 && (line.charCodeAt(end - 1) === 32 || line.charCodeAt(end - 1) === 9)) end -= 1;
+  while (end > depth + 1 && line.charCodeAt(end - 1) === 35) end -= 1;
+  while (end > depth + 1 && (line.charCodeAt(end - 1) === 32 || line.charCodeAt(end - 1) === 9)) end -= 1;
+  const text = line.slice(depth + 1, end);
+  if (!text) return null;
+  return { depth, text };
+}
+
+function isSetext1(line: string): boolean {
+  if (!line.startsWith("=")) return false;
+  let i = 0;
+  while (i < line.length && line[i] === "=") i += 1;
+  while (i < line.length && (line[i] === " " || line[i] === "\t")) i += 1;
+  return i === line.length;
+}
+
+function isSetext2(line: string): boolean {
+  if (!line.startsWith("--")) return false;
+  let i = 0;
+  while (i < line.length && line[i] === "-") i += 1;
+  if (i < 2) return false;
+  while (i < line.length && (line[i] === " " || line[i] === "\t")) i += 1;
+  return i === line.length;
+}
 
 function parseFrontmatter(source: string): { frontmatter: Record<string, unknown>; body: string } {
   const extracted = extractFrontmatter(source);
@@ -33,7 +64,11 @@ function parseFrontmatter(source: string): { frontmatter: Record<string, unknown
 }
 
 function headingText(raw: string): string {
-  return raw.replace(/\s*\{[^}]*\}\s*$/, "").trim();
+  const s = raw.trim();
+  if (!s.endsWith("}")) return s;
+  const open = s.lastIndexOf("{");
+  if (open < 0) return s;
+  return s.slice(0, open).trim();
 }
 
 function extractHeadings(body: string): IndexedDocument["headings"] {
@@ -42,26 +77,24 @@ function extractHeadings(body: string): IndexedDocument["headings"] {
   let inFence = false;
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i] ?? "";
-    if (FENCE.test(line)) {
+    if (isFenceLine(line)) {
       inFence = !inFence;
       continue;
     }
     if (inFence) continue;
-    const atx = ATX.exec(line);
+    const atx = parseAtxHeading(line);
     if (atx) {
-      const text = headingText(atx[2] ?? "");
-      if (text) {
-        headings.push({ text, slug: headingSlug(text), depth: atx[1]?.length ?? 1 });
-      }
+      const text = headingText(atx.text);
+      if (text) headings.push({ text, slug: headingSlug(text), depth: atx.depth });
       continue;
     }
     const next = lines[i + 1] ?? "";
     const text = line.trim();
     if (!text) continue;
-    if (SETEXT_1.test(next)) {
+    if (isSetext1(next)) {
       headings.push({ text: headingText(text), slug: headingSlug(text), depth: 1 });
       i += 1;
-    } else if (SETEXT_2.test(next)) {
+    } else if (isSetext2(next)) {
       headings.push({ text: headingText(text), slug: headingSlug(text), depth: 2 });
       i += 1;
     }

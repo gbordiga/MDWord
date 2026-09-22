@@ -112,8 +112,12 @@ function gfmDelimiter(cells: GenericNode[]): string {
     .join(" | ");
 }
 
+function escapeGfmCell(text: string): string {
+  return text.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
+}
+
 function gfmRow(cells: GenericNode[]): string {
-  return `| ${cells.map((cell) => cellText(cell).replace(/\|/g, "\\|")).join(" | ")} |`;
+  return `| ${cells.map((cell) => escapeGfmCell(cellText(cell))).join(" | ")} |`;
 }
 
 export function tableToGfm(table: GenericNode): string {

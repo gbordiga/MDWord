@@ -1,6 +1,7 @@
 import type { GenericNode } from "@mdword/shared";
 import {
   decodeWikiHref,
+  stripTrailingBackslashes,
   extractTableFromDirective,
   getTableMeta,
   imageNodeUrl,
@@ -89,7 +90,7 @@ function inline(nodes: GenericNode[] | undefined): TiptapNode[] {
         const url = String(node.url ?? "");
         if (url.startsWith(WIKI_SCHEME)) {
           const wiki = decodeWikiHref(url);
-          const target = String(wiki?.target ?? "").replace(/\\+$/g, "").trim();
+          const target = stripTrailingBackslashes(String(wiki?.target ?? "")).trim();
           const label = inline(node.children)
             .map((n) => n.text)
             .filter(Boolean)
@@ -178,7 +179,30 @@ function findImageNode(node: GenericNode | undefined): GenericNode | undefined {
 }
 
 function looksLikeImageMarkup(text: string): boolean {
-  return /^\s*!\[[^\]]*\](?:\([^)]*\)|\[[^\]]+\])\s*(?:\{[^}]*\})?\s*$/.test(text);
+  const s = text.trim();
+  if (!s.startsWith("![")) return false;
+  const altEnd = s.indexOf("]", 2);
+  if (altEnd < 0) return false;
+  let p = altEnd + 1;
+  if (s[p] === "(") {
+    const close = s.indexOf(")", p + 1);
+    if (close < 0) return false;
+    p = close + 1;
+  } else if (s[p] === "[") {
+    const close = s.indexOf("]", p + 1);
+    if (close < 0) return false;
+    p = close + 1;
+  } else {
+    return false;
+  }
+  while (p < s.length && (s[p] === " " || s[p] === "\t")) p += 1;
+  if (p >= s.length) return true;
+  if (s[p] !== "{") return false;
+  const curlyEnd = s.indexOf("}", p + 1);
+  if (curlyEnd < 0) return false;
+  p = curlyEnd + 1;
+  while (p < s.length && (s[p] === " " || s[p] === "\t")) p += 1;
+  return p >= s.length;
 }
 
 function captionFromNodes(nodes: GenericNode[] | undefined): TiptapNode | null {

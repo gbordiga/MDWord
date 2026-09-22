@@ -1,3 +1,4 @@
+import { stripTrailingSeps } from "@mdword/shared";
 import { relativeWorkspacePath } from "./tree";
 
 export function workspaceUsesWinSep(root: string): boolean {
@@ -15,7 +16,7 @@ export function joinWorkspacePath(root: string, ...parts: string[]): string {
       extra.push(bit);
     }
   }
-  const prefix = root.replace(/[\\/]+$/, "");
+  const prefix = stripTrailingSeps(root);
   if (extra.length === 0) return prefix;
   return `${prefix}${sep}${extra.join(sep)}`;
 }

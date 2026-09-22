@@ -275,8 +275,105 @@ function markdownImageFromFence(full: string, first: string, body: string): stri
  * Data-URL `{image}` / `:::figure` arguments become a CommonMark image,
  * wrapped in `:::figure` when width, caption, or layout must be kept.
  */
+function parseTickImageHeader(header: string): string | null {
+  const trimmed = header.trim();
+  if (trimmed.length < 7 || trimmed[0] !== "{") return null;
+  const close = trimmed.indexOf("}");
+  if (close < 0) return null;
+  const kind = trimmed.slice(1, close).toLowerCase();
+  if (kind !== "image" && kind !== "figure") return null;
+  return trimmed.slice(close + 1);
+}
+
+function rewriteTickImageFences(md: string): string {
+  let out = "";
+  let i = 0;
+  while (i < md.length) {
+    const start = md.indexOf("```", i);
+    if (start === -1) {
+      out += md.slice(i);
+      break;
+    }
+    const lineEnd = md.indexOf("\n", start);
+    if (lineEnd === -1) {
+      out += md.slice(i);
+      break;
+    }
+    const first = parseTickImageHeader(md.slice(start + 3, lineEnd));
+    if (first == null) {
+      out += md.slice(i, start + 3);
+      i = start + 3;
+      continue;
+    }
+    const close = md.indexOf("```", lineEnd + 1);
+    if (close === -1) {
+      out += md.slice(i);
+      break;
+    }
+    const body = md.slice(lineEnd + 1, close);
+    const full = md.slice(start, close + 3);
+    out += md.slice(i, start) + markdownImageFromFence(full, first, body);
+    i = close + 3;
+  }
+  return out;
+}
+
+function parseColonImageHeader(header: string): string | null {
+  let p = 0;
+  if (header[p] !== ":") return null;
+  p += 1;
+  let extra = 0;
+  while (extra < 3 && header[p] === ":") {
+    extra += 1;
+    p += 1;
+  }
+  while (header[p] === " " || header[p] === "\t") p += 1;
+  if (header[p] === "{") p += 1;
+  const rest = header.slice(p);
+  const kind = rest.slice(0, 6).toLowerCase() === "figure"
+    ? "figure"
+    : rest.slice(0, 5).toLowerCase() === "image"
+      ? "image"
+      : "";
+  if (!kind) return null;
+  p += kind.length;
+  if (header[p] === "}") p += 1;
+  return header.slice(p);
+}
+
+function rewriteColonImageFences(md: string): string {
+  let out = "";
+  let i = 0;
+  while (i < md.length) {
+    const start = md.indexOf(":", i);
+    if (start === -1) {
+      out += md.slice(i);
+      break;
+    }
+    const lineEnd = md.indexOf("\n", start);
+    if (lineEnd === -1) {
+      out += md.slice(i);
+      break;
+    }
+    const first = parseColonImageHeader(md.slice(start, lineEnd));
+    if (first == null) {
+      out += md.slice(i, start + 1);
+      i = start + 1;
+      continue;
+    }
+    const close = md.indexOf(":::", lineEnd + 1);
+    if (close === -1) {
+      out += md.slice(i);
+      break;
+    }
+    const body = md.slice(lineEnd + 1, close);
+    const full = md.slice(start, close + 3);
+    out += md.slice(i, start) + markdownImageFromFence(full, first, body);
+    i = close + 3;
+  }
+  return out;
+}
+
 export function rewriteEmbeddedImageFences(md: string): string {
-  return md
-    .replace(/```\{(?:image|figure)\}[ \t]*([^\n]*)\n([\s\S]*?)```/gi, markdownImageFromFence)
-    .replace(/:::{0,3}[ \t]*\{?(?:figure|image)\}?[ \t]*([^\n]*)\n([\s\S]*?):::/gi, markdownImageFromFence);
+  return rewriteColonImageFences(rewriteTickImageFences(md));
 }
