@@ -109,7 +109,7 @@ pnpm build:web
 pnpm dist          # desktop installers
 ```
 
-Node 20+, pnpm. License [MIT](LICENSE).
+Node 26+, pnpm. License [MIT](LICENSE).
 
 ---
 
