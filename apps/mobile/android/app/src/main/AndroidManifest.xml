@@ -10,7 +10,7 @@
         android:theme="@style/AppTheme">
 
         <activity
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
@@ -46,6 +46,17 @@
                 <data android:pathPattern=".*\\.mkd" />
                 <data android:pathPattern=".*\\..*\\.md" />
                 <data android:pathPattern=".*\\..*\\.markdown" />
+            </intent-filter>
+                    <!-- mdword-markdown -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="text/*" />
+                <data android:pathPattern=".*\\.md" />
+                <data android:pathPattern=".*\\.markdown" />
             </intent-filter>
         </activity>
 

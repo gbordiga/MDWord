@@ -11,19 +11,19 @@
     "patch-native": "node ./scripts/patch-native.mjs"
   },
   "dependencies": {
-    "@capacitor/android": "^7.4.4",
-    "@capacitor/app": "^7.1.0",
-    "@capacitor/browser": "^7.0.3",
-    "@capacitor/core": "^7.4.4",
-    "@capacitor/filesystem": "^7.1.4",
-    "@capacitor/ios": "^7.4.4",
-    "@capacitor/keyboard": "^7.0.3",
-    "@capacitor/share": "^7.0.2",
-    "@capacitor/splash-screen": "^7.0.3",
-    "@capacitor/status-bar": "^7.0.3"
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/browser": "^8.0.4",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/filesystem": "^8.1.3",
+    "@capacitor/ios": "^8.5.2",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/share": "^8.0.2",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.4.4",
+    "@capacitor/cli": "^8.5.2",
     "sharp": "^0.35.4",
     "typescript": "^7.0.2"
   }
