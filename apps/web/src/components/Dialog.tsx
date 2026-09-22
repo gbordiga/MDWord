@@ -103,7 +103,7 @@ export function DialogField({
 }
 
 export const dialogInputClass =
-  "w-full rounded-md border border-[#e4e7ec] px-3 py-2 text-[16px] outline-none focus:border-accent lg:text-[13px]";
+  "w-full rounded-md border border-[#e4e7ec] px-3 py-2 text-[16px] outline-hidden focus:border-accent lg:text-[13px]";
 
 export function DialogButton({
   children,

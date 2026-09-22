@@ -107,7 +107,7 @@ function RibbonCaptionField({
         testId={testId}
         ariaLabel={label}
         placeholder={label}
-        className="h-7 w-40 border-0 bg-transparent px-0 text-[13px] text-[#1c1f24] outline-none placeholder:text-[#98a2b3]"
+        className="h-7 w-40 border-0 bg-transparent px-0 text-[13px] text-[#1c1f24] outline-hidden placeholder:text-[#98a2b3]"
         onCommit={onCommit}
       />
     </label>

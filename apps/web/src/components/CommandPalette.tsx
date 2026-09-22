@@ -28,7 +28,7 @@ export function CommandPalette({
         <Command.Input
           autoFocus
           placeholder="Type a command…"
-          className="w-full border-b border-[#e4e7ec] px-4 py-3 text-[16px] outline-none lg:text-[15px]"
+          className="w-full border-b border-[#e4e7ec] px-4 py-3 text-[16px] outline-hidden lg:text-[15px]"
         />
         <Command.List className="max-h-[min(24rem,calc(var(--app-height,100dvh)-5rem))] overflow-auto p-2">
           <Command.Item

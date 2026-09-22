@@ -1,6 +1,13 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@source "../../../../packages/ui/src";
+
+@theme {
+  --color-paper: #ffffff;
+  --color-workspace: #d8dee6;
+  --color-ink: #1c1f24;
+  --color-accent: #1d4ed8;
+  --shadow-page: 0 1px 2px rgb(16 24 40 / 8%), 0 18px 40px rgb(16 24 40 / 12%);
+}
 
 :root {
   --md-bg: #d8dee6;
