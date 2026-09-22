@@ -72,27 +72,59 @@ export function imageMimeFromPath(filePath: string): string {
   return "image/png";
 }
 
+/** Decode %20 and friends in file paths. Leaves data, blob, and http URLs alone. */
+export function decodeFileUrl(url: string): string {
+  const value = url.trim();
+  if (!value || value.startsWith("data:") || value.startsWith("blob:") || isHttpUrl(value)) return value;
+  if (!value.includes("%")) return value;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * Join a relative path onto a directory, including `..`.
+ * A Windows drive letter is never popped. Returns null if `..` escapes the drive or the root.
+ */
+export function resolveAgainstDirectory(base: string, relative: string): string | null {
+  const rel = decodeFileUrl(relative).replace(/\\/g, "/");
+  if (isAbsoluteFilePath(rel)) return rel;
+  const normalizedBase = stripTrailingSeps(base).replace(/\\/g, "/");
+  if (!normalizedBase) return rel || null;
+  const baseParts = normalizedBase.split("/").filter((part) => part.length > 0);
+  const drive = /^[a-zA-Z]:$/.test(baseParts[0] ?? "") ? baseParts.shift()! : null;
+  const leadingSlash = normalizedBase.startsWith("/");
+  for (const part of rel.split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") {
+      if (baseParts.length === 0) return null;
+      baseParts.pop();
+      continue;
+    }
+    baseParts.push(part);
+  }
+  const body = baseParts.join("/");
+  if (drive) return body ? `${drive}/${body}` : `${drive}/`;
+  if (leadingSlash) return `/${body}`;
+  return body || null;
+}
+
 /** Resolve a document-relative or workspace-relative image path. */
 export function resolveExternalImagePath(
   src: string,
   documentPath: string | null,
   workspaceRoot?: string | null
 ): string | null {
-  let value = src.trim();
+  let value = decodeFileUrl(src);
   if (!value) return null;
   value = value.replace(/^file:\/\//i, "");
   if (/^\/[a-zA-Z]:\//.test(value)) value = value.slice(1);
   value = value.replace(/\\/g, "/");
   if (isHttpUrl(value)) return null;
-  try {
-    if (isAbsoluteFilePath(value)) return value;
-    const base = documentPath ? dirname(documentPath) : workspaceRoot ?? "";
-    if (!base) return value;
-    const rel = normalizeDocPath(value);
-    const prefix = stripTrailingSeps(base);
-    const sep = prefix.includes("\\") ? "\\" : "/";
-    return `${prefix}${sep}${rel.replace(/\//g, sep === "\\" ? "\\" : "/")}`;
-  } catch {
-    return null;
-  }
+  if (isAbsoluteFilePath(value)) return value;
+  const base = documentPath ? dirname(documentPath) : workspaceRoot ?? "";
+  if (!base) return value;
+  return resolveAgainstDirectory(base, value);
 }

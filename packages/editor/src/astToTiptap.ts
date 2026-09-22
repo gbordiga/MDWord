@@ -1,5 +1,6 @@
 import type { GenericNode } from "@mdword/shared";
 import {
+  decodeFileUrl,
   decodeWikiHref,
   stripTrailingBackslashes,
   extractTableFromDirective,
@@ -265,7 +266,7 @@ function figureAttrsFromImage(
   image: GenericNode | undefined,
   extra?: { url?: unknown; alt?: unknown; width?: unknown; align?: unknown; className?: unknown; label?: unknown; caption?: string }
 ): TiptapNode["attrs"] {
-  const src = canonicalImageSrc(imageNodeUrl(image) || String(extra?.url ?? ""));
+  const src = decodeFileUrl(canonicalImageSrc(imageNodeUrl(image) || String(extra?.url ?? "")));
   const listed = parseImageAttrList(String(image?.title ?? ""));
   const width = parseWidthPercent(image?.width ?? extra?.width ?? listed?.width);
   const layout: ImageLayout = layoutFromMyst(
@@ -361,11 +362,18 @@ function figureFromLooseImageText(text: string): TiptapNode | null {
       });
     }
   }
-  const md = raw.match(/!\[([^\]]*)\]\((data:image\/[^)]+|blob:[^)\s]+|[^)\s]+)\)(?:\s*\{([^}]+)\})?/);
+  const md = raw.match(/!\[([^\]]*)\]\((<[^>\n]+>|data:image\/[^)]+|blob:[^)\s]+|[^)\n]+)\)(?:\s*\{([^}]+)\})?/);
   if (md?.[2]) {
+    let src = md[2].trim();
+    if (src.startsWith("<") && src.endsWith(">")) src = src.slice(1, -1).trim();
+    else if (/\s/.test(src)) {
+      const titled = src.match(/^(.*?)\s+("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')$/);
+      if (titled?.[1]) src = titled[1].trim();
+      else if (!raw.trim().startsWith("![")) return null;
+    }
     const listed = parseImageAttrList(md[3] ? `{${md[3]}}` : "");
     return figureNode({
-      src: canonicalImageSrc(md[2]),
+      src: canonicalImageSrc(src),
       alt: md[1] ?? "",
       width: parseWidthPercent(listed?.width),
       layout: listed ? layoutFromMyst(listed.align, listed.className) : DEFAULT_IMAGE_LAYOUT,

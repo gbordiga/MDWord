@@ -1,27 +1,82 @@
 import type { Editor } from "@tiptap/react";
+import { NodeSelection } from "@tiptap/pm/state";
 import { normalizeHref } from "@mdword/editor";
+import { resolveExternalImagePath } from "@mdword/shared";
 import { getHost } from "@/lib/host";
 import { useApp } from "@/lib/store";
+
+const EDITABLE_FILE = /\.(md|markdown|mdown|mkd|txt)$/i;
 
 export function isModifiedClick(event: MouseEvent): boolean {
   return event.button === 0 && (event.ctrlKey || event.metaKey);
 }
 
-function openHref(href: string): boolean {
-  const url = normalizeHref(href);
-  if (!url) return false;
-  if (/^https?:/i.test(url) || url.startsWith("mailto:")) {
-    void getHost().shell.openExternal(url);
-    return true;
-  }
-  return false;
+function alertLink(message: string): void {
+  window.alert(message);
 }
 
-function openWiki(target: string): boolean {
+export function openWikiTarget(target: string): void {
   const name = target.trim();
-  if (!name) return false;
-  void useApp.getState().openWorkspaceFileByTitle(name, { preview: true });
-  return true;
+  if (!name) {
+    alertLink("Could not open this link.");
+    return;
+  }
+  const state = useApp.getState();
+  if (!state.workspace) {
+    alertLink("Open a folder to follow this link.");
+    return;
+  }
+  void state.openWorkspaceFileByTitle(name, { preview: true }).then((ok) => {
+    if (!ok) alertLink(`Could not find “${name}”.`);
+  });
+}
+
+export function openEditorHref(href: string): void {
+  const url = normalizeHref(href);
+  if (!url) {
+    alertLink("Could not open this link.");
+    return;
+  }
+  if (/^https?:/i.test(url) || url.startsWith("mailto:")) {
+    void getHost()
+      .shell.openExternal(url)
+      .catch(() => alertLink("Could not open this link."));
+    return;
+  }
+  if (url.startsWith("#")) {
+    alertLink("Could not open this link.");
+    return;
+  }
+  void openRelativeDocument(url);
+}
+
+async function openRelativeDocument(href: string): Promise<void> {
+  const state = useApp.getState();
+  if (!state.workspace) {
+    alertLink("Open a folder to follow this link.");
+    return;
+  }
+  const resolved = resolveExternalImagePath(href, state.path, state.workspace.root);
+  const label = href.trim();
+  if (!resolved) {
+    alertLink(`Could not find “${label}”.`);
+    return;
+  }
+  const hasExtension = /\.[a-z0-9]+$/i.test(resolved);
+  if (hasExtension && !EDITABLE_FILE.test(resolved)) {
+    alertLink(`Could not open “${label}” in the editor.`);
+    return;
+  }
+  try {
+    const exists = await getHost().files.exists(resolved);
+    if (!exists) {
+      alertLink(`Could not find “${label}”.`);
+      return;
+    }
+    await useApp.getState().openWorkspaceFile(resolved, { preview: true });
+  } catch {
+    alertLink(`Could not find “${label}”.`);
+  }
 }
 
 type EditorView = Editor["view"];
@@ -55,36 +110,45 @@ function fromDom(event: MouseEvent): { wiki: string | null; href: string | null 
   };
 }
 
-/** Wikilinks open on click; external links use Ctrl/Cmd+click. */
+function selectWiki(view: EditorView, pos: number): void {
+  let at = pos;
+  if (view.state.doc.nodeAt(pos)?.type.name !== "wikiLink") {
+    const $pos = view.state.doc.resolve(Math.max(0, Math.min(pos, view.state.doc.content.size)));
+    if ($pos.nodeBefore?.type.name !== "wikiLink") return;
+    at = pos - $pos.nodeBefore.nodeSize;
+  }
+  if (view.state.selection instanceof NodeSelection && view.state.selection.from === at) return;
+  const selection = NodeSelection.create(view.state.doc, at);
+  view.dispatch(view.state.tr.setSelection(selection));
+}
+
+/** Ctrl/Cmd+click opens wikilinks and links. A plain click selects a wikilink so its bubble shows. */
 export function handleEditorLinkClick(view: EditorView, pos: number, event: MouseEvent): boolean {
   const dom = fromDom(event);
   const wikiTarget = dom.wiki || wikiAtPos(view, pos);
-  if (wikiTarget && openWiki(wikiTarget)) {
+  if (wikiTarget) {
+    if (!isModifiedClick(event)) {
+      selectWiki(view, pos);
+      return true;
+    }
     event.preventDefault();
+    openWikiTarget(wikiTarget);
     return true;
   }
   if (!isModifiedClick(event)) return false;
-  if (dom.href && openHref(dom.href)) {
-    event.preventDefault();
-    return true;
-  }
-  const href = hrefAtPos(view, pos);
-  if (href && openHref(href)) {
-    event.preventDefault();
-    return true;
-  }
-  return false;
+  const href = dom.href || hrefAtPos(view, pos);
+  if (!href) return false;
+  event.preventDefault();
+  openEditorHref(href);
+  return true;
 }
 
 export function preventBrowserLinkOpen(event: MouseEvent): boolean {
-  const target = event.target as HTMLElement | null;
-  if (target?.closest?.("[data-wiki-link], .md-wikilink")) {
-    event.preventDefault();
-    return false;
-  }
   if (!isModifiedClick(event)) return false;
-  if (target?.closest?.("a[href]")) {
+  const target = event.target as HTMLElement | null;
+  if (target?.closest?.("[data-wiki-link], .md-wikilink, a[href]")) {
     event.preventDefault();
+    return true;
   }
   return false;
 }

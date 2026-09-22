@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { Dialog, DialogButton, DialogField, dialogInputClass } from "./Dialog";
-import { insertWikilink } from "@/lib/editorCommands";
+import { insertWikilink, updateWikilink } from "@/lib/editorCommands";
 import { useApp } from "@/lib/store";
 
 export function WikilinkDialog({
@@ -19,12 +19,21 @@ export function WikilinkDialog({
   const documents = useApp((s) => s.workspace?.index.documents);
   const [target, setTarget] = useState("");
   const [label, setLabel] = useState("");
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    if (editor?.isActive("wikiLink")) {
+      const attrs = editor.getAttributes("wikiLink");
+      setTarget(String(attrs.target ?? ""));
+      setLabel(String(attrs.label ?? ""));
+      setEditing(true);
+      return;
+    }
     setTarget("");
     setLabel("");
-  }, [open]);
+    setEditing(false);
+  }, [open, editor]);
 
   const options = useMemo(() => {
     const q = target.trim().toLowerCase();
@@ -56,20 +65,21 @@ export function WikilinkDialog({
 
   const insert = (value = target) => {
     if (!editor || !value.trim()) return;
-    if (insertWikilink(editor, value, label)) onClose();
+    const saved = editing ? updateWikilink(editor, value, label) : insertWikilink(editor, value, label);
+    if (saved) onClose();
   };
 
   return (
     <Dialog
       open={open}
-      title="Insert wikilink"
+      title={editing ? "Edit wikilink" : "Insert wikilink"}
       onClose={onClose}
       testId="wikilink-dialog"
       footer={
         <>
           <DialogButton onClick={onClose}>Cancel</DialogButton>
           <DialogButton variant="primary" testId="wikilink-insert" disabled={!canInsert} onClick={() => insert()}>
-            Insert
+            {editing ? "Save" : "Insert"}
           </DialogButton>
         </>
       }

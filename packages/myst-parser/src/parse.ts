@@ -7,6 +7,8 @@ import {
   getTableMeta,
   MYST_TABLE_DIRECTIVES,
   restoreEmbeddedImagesInTree,
+  decodeFileImageUrls,
+  quoteSpacedImageDestinations,
   resolveImageReferences,
   rewriteEmbeddedImageFences,
   rewriteWikiLinksToMarkdown,
@@ -121,7 +123,9 @@ export function parseMarkdown(source: string): ParseResult {
     });
   }
 
-  const rewritten = recoverGfmTableSource(rewriteWikiLinksToMarkdown(rewriteEmbeddedImageFences(fm.body)));
+  const rewritten = recoverGfmTableSource(
+    rewriteWikiLinksToMarkdown(rewriteEmbeddedImageFences(quoteSpacedImageDestinations(fm.body)))
+  );
   const stubbed = stubEmbeddedImages(rewritten);
   const vfile = new VFile();
   let ast: GenericNode = { type: "root", children: [] };
@@ -157,6 +161,7 @@ export function parseMarkdown(source: string): ParseResult {
     };
   }
   restoreEmbeddedImagesInTree(ast, stubbed.restore);
+  decodeFileImageUrls(ast);
   ast = promotePipeParagraphs(resolveImageReferences(ast));
   stampTableDirectiveMeta(ast);
 

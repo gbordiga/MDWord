@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalizeEmbeddedImages,
   collectExternalImageUrls,
+  decodeFileImageUrls,
   imageNodeUrl,
   imageRefId,
   imageReference,
   isImageLike,
+  quoteSpacedImageDestinations,
   resolveImageReferences,
   rewriteEmbeddedImagesToReferences,
   rewriteExternalImageUrls,
@@ -140,5 +142,17 @@ ${ref.definition}
     const next = rewriteExternalImageUrls(ast, new Map([["./foto.png", PNG]]));
     expect(imageNodeUrl(next.children?.[0])).toBe(PNG);
     expect(imageNodeUrl(next.children?.[1])).toBe(PNG);
+  });
+
+  it("quotes image destinations that contain spaces and leaves code fences alone", () => {
+    const src = "![](../../image/ID016/Gestione prodotto non conforme.gif)\n";
+    expect(quoteSpacedImageDestinations(src)).toBe(
+      "![](<../../image/ID016/Gestione prodotto non conforme.gif>)\n"
+    );
+    const fenced = "```\n![](a b.gif)\n```\n";
+    expect(quoteSpacedImageDestinations(fenced)).toBe(fenced);
+    const node = { type: "image", url: "Gestione%20prodotto.gif" };
+    decodeFileImageUrls(node);
+    expect(node.url).toBe("Gestione prodotto.gif");
   });
 });

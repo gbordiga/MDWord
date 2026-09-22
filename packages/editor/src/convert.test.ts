@@ -646,4 +646,19 @@ ${ref.definition}
     expect(block?.type).toBe("mermaid");
     expect(String(block?.attrs?.source ?? "")).toContain("Alice->>Bob");
   });
+
+  it("renders a relative gif path with spaces as an image and keeps the path", () => {
+    const src = "../../image/ID016/Gestione prodotto non conforme.gif";
+    const md = `![](${src})\n`;
+    const parsed = parseMarkdown(md);
+    const json = astToTiptap(parsed.ast);
+    expect(json.content?.[0]?.type).toBe("figure");
+    expect(json.content?.[0]?.attrs?.src).toBe(src);
+    const roundTrip = serializeMarkdown({ ast: tiptapToAst(json) });
+    expect(roundTrip).toContain(src);
+    expect(roundTrip).not.toContain("data:image/");
+    const again = astToTiptap(parseMarkdown(roundTrip).ast);
+    expect(again.content?.[0]?.type).toBe("figure");
+    expect(again.content?.[0]?.attrs?.src).toBe(src);
+  });
 });

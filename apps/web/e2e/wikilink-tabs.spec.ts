@@ -70,7 +70,7 @@ async function seedWikiWorkspace(page: Page) {
 
 test("wikilink click opens the target document, not the parent", async ({ page }) => {
   await seedWikiWorkspace(page);
-  await page.getByTestId("wikilink").click();
+  await page.getByTestId("wikilink").click({ modifiers: ["Control"] });
   await expect(page.locator(".ProseMirror")).toContainText("Unique child body");
   await expect(page.locator(".ProseMirror")).not.toContainText("See");
   await expect(page.locator('[data-testid="document-tab"][data-active="true"]:visible')).toContainText("Target note");
@@ -79,7 +79,7 @@ test("wikilink click opens the target document, not the parent", async ({ page }
 
 test("switching parent and target tabs keeps their contents apart", async ({ page }) => {
   await seedWikiWorkspace(page);
-  await page.getByTestId("wikilink").click();
+  await page.getByTestId("wikilink").click({ modifiers: ["Control"] });
   await expect(page.locator(".ProseMirror")).toContainText("Unique child body");
 
   await page.locator('[data-testid="document-tab"]:visible').filter({ hasText: "Parent note" }).click();
@@ -93,7 +93,7 @@ test("switching parent and target tabs keeps their contents apart", async ({ pag
 
 test("wikilink target stays correct in source and split views", async ({ page }) => {
   await seedWikiWorkspace(page);
-  await page.getByTestId("wikilink").click();
+  await page.getByTestId("wikilink").click({ modifiers: ["Control"] });
   await expect(page.locator(".ProseMirror")).toContainText("Unique child body");
 
   await page.evaluate(() => window.__MDWORD_APP__!.getState().setView("source"));
