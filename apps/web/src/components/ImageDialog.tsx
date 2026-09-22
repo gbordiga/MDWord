@@ -19,11 +19,17 @@ export function ImageDialog({
   const [alt, setAlt] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewEpoch, setPreviewEpoch] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  const previewFile = useRef<File | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const revokePreview = (url: string) => {
-    if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+  const clearPreview = () => {
+    previewFile.current = null;
+    setShowPreview(false);
+    const canvas = canvasRef.current;
+    canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
   };
 
   useEffect(() => {
@@ -32,14 +38,35 @@ export function ImageDialog({
     setAlt("");
     setError("");
     setBusy(false);
-    setPreviewUrl((prev) => {
-      revokePreview(prev);
-      return "";
-    });
+    clearPreview();
     if (fileRef.current) fileRef.current.value = "";
   }, [open]);
 
-  useEffect(() => () => revokePreview(previewUrl), [previewUrl]);
+  useEffect(() => {
+    const file = previewFile.current;
+    const canvas = canvasRef.current;
+    if (!showPreview || !file || !canvas) return;
+    let cancelled = false;
+    void createImageBitmap(file)
+      .then((bitmap) => {
+        if (cancelled) {
+          bitmap.close();
+          return;
+        }
+        const maxH = 128;
+        const scale = bitmap.height > maxH ? maxH / bitmap.height : 1;
+        canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+        canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+        canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        bitmap.close();
+      })
+      .catch(() => {
+        /* invalid or unsupported image — keep the empty canvas */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showPreview, previewEpoch]);
 
   const canInsert = Boolean(src.trim()) && !busy;
 
@@ -61,21 +88,16 @@ export function ImageDialog({
     }
     setError("");
     setBusy(true);
-    const objectUrl = URL.createObjectURL(file);
-    setPreviewUrl((prev) => {
-      revokePreview(prev);
-      return objectUrl;
-    });
+    previewFile.current = file;
+    setShowPreview(true);
+    setPreviewEpoch((n) => n + 1);
     void embedImageFile(file)
       .then((embedded) => {
         setSrc(embedded);
       })
       .catch(() => {
         setError("Could not read that image.");
-        setPreviewUrl((prev) => {
-          revokePreview(prev);
-          return "";
-        });
+        clearPreview();
       })
       .finally(() => setBusy(false));
   };
@@ -105,8 +127,12 @@ export function ImageDialog({
           onChange={(e) => onPickFile(e.target.files?.[0])}
         />
       </DialogField>
-      {previewUrl ? (
-        <img src={previewUrl} alt="" className="mb-3 max-h-32 rounded-md border border-[#e4e7ec]" />
+      {showPreview ? (
+        <canvas
+          ref={canvasRef}
+          className="mb-3 max-h-32 rounded-md border border-[#e4e7ec]"
+          aria-hidden
+        />
       ) : null}
       <DialogField label="Image path or URL">
         <input
@@ -116,10 +142,7 @@ export function ImageDialog({
           value={src.startsWith("data:") ? "" : src}
           onChange={(e) => {
             setSrc(e.target.value);
-            setPreviewUrl((prev) => {
-              revokePreview(prev);
-              return "";
-            });
+            clearPreview();
             setError("");
           }}
           onKeyDown={(e) => {
