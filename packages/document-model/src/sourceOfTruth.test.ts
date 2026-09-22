@@ -45,7 +45,7 @@ describe("markdown source of truth", () => {
 
   it.each(readdirSync(fixturesDir).filter((file) => file.endsWith(".md")))(
     "preserves fixture bytes for %s",
-    (file) => {
+    (file: string) => {
       const source = readFileSync(path.join(fixturesDir, file), "utf8");
       expect(saveDocument(openDocument(source))).toBe(source);
     }

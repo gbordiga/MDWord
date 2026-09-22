@@ -12,7 +12,7 @@ const fixturesDir = path.resolve(
 describe("round-trip fixtures", () => {
   const files = readdirSync(fixturesDir).filter((f) => f.endsWith(".md"));
 
-  it.each(files)("preserves %s semantically", (file) => {
+  it.each(files)("preserves %s semantically", (file: string) => {
     const source = readFileSync(path.join(fixturesDir, file), "utf8");
     const { first, serialized, second, equal } = roundTrip(source);
     expect(second.ast.type).toBe("root");
