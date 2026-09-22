@@ -1,6 +1,6 @@
 {
   "name": "@mdword/mobile",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "MDWord Capacitor shells for the App Store and Google Play",
   "scripts": {
