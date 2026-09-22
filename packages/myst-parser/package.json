@@ -12,9 +12,9 @@
   "dependencies": {
     "@mdword/shared": "workspace:*",
     "@mdword/layout-engine": "workspace:*",
-    "myst-parser": "^1.7.3",
+    "myst-parser": "^1.7.4",
     "vfile": "^5.3.7",
-    "yaml": "^2.7.0",
+    "yaml": "^2.9.1",
     "zod": "^3.24.2"
   }
 }

@@ -30,7 +30,7 @@
   "devDependencies": {
     "fast-check": "^3.23.2",
     "typescript": "^5.8.2",
-    "vitest": "^3.0.9"
+    "vitest": "^5.0.1"
   },
   "pnpm": {
     "onlyBuiltDependencies": ["esbuild", "electron", "electron-winstaller", "sharp"],
@@ -40,7 +40,8 @@
       "linkify-it": "5.0.2",
       "markdown-it@14": "14.3.2",
       "lodash": "4.18.1",
-      "lodash-es": "4.18.1"
+      "lodash-es": "4.18.1",
+      "csv-parse": "7.0.2"
     }
   }
 }
