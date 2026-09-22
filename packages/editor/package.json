@@ -9,7 +9,7 @@
   "dependencies": {
     "@mdword/shared": "workspace:*",
     "@mdword/renderer": "workspace:*",
-    "@tiptap/core": "^2.11.5",
+    "@tiptap/core": "^3.30.5",
     "@tiptap/extension-code": "^2.11.5",
     "@tiptap/extension-code-block": "^2.11.5",
     "@tiptap/extension-image": "^2.11.5",
