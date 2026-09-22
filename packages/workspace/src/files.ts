@@ -1,4 +1,4 @@
-import { isMarkdownFileName } from "@mdword/shared";
+import { isMarkdownFileName, toPosixPath } from "@mdword/shared";
 import { indexMarkdown, type WorkspaceIndex } from "@mdword/indexer";
 import type { Mdoc } from "@mdword/layout-engine";
 
@@ -16,7 +16,7 @@ export interface WorkspaceSnapshot {
 }
 
 function normalize(path: string): string {
-  return path.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  return toPosixPath(path).toLowerCase();
 }
 
 function basename(path: string): string {

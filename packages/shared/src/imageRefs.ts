@@ -3,6 +3,7 @@ import { collapseDuplicateTables, wrapLeadingTableImages } from "./gfmTables";
 import { formatImageAttrList, isImageAttrTitle, parseImageAttrList } from "./imageAttrs";
 import type { GenericNode } from "./constants";
 import { isHttpUrl } from "./paths";
+import { stripTrailingWhitespace } from "./strings";
 
 const ID_PREFIX = "img-";
 
@@ -218,15 +219,90 @@ class ImageRefTable {
   }
 }
 
+type InlineImage = {
+  from: number;
+  to: number;
+  alt: string;
+  dest?: string;
+  title?: string;
+  ref?: string;
+  curly: string;
+};
+
+function parseInlineImageAt(md: string, i: number): InlineImage | null {
+  if (md[i] !== "!" || md[i + 1] !== "[") return null;
+  const altEnd = md.indexOf("]", i + 2);
+  if (altEnd < 0) return null;
+  const alt = md.slice(i + 2, altEnd);
+  let p = altEnd + 1;
+  let dest: string | undefined;
+  let title: string | undefined;
+  let ref: string | undefined;
+  if (md[p] === "(") {
+    p += 1;
+    if (md[p] === "<") {
+      const gt = md.indexOf(">", p + 1);
+      if (gt < 0) return null;
+      dest = md.slice(p, gt + 1);
+      p = gt + 1;
+    } else {
+      const start = p;
+      while (p < md.length && md[p] !== ")" && md[p] !== " " && md[p] !== "\t" && md[p] !== "\n") p += 1;
+      dest = md.slice(start, p);
+    }
+    if (md[p] === " " || md[p] === "\t") {
+      while (p < md.length && (md[p] === " " || md[p] === "\t")) p += 1;
+      const q = md[p];
+      if (q === '"' || q === "'") {
+        const endQ = md.indexOf(q, p + 1);
+        if (endQ < 0) return null;
+        title = md.slice(p + 1, endQ);
+        p = endQ + 1;
+      }
+    }
+    if (md[p] !== ")") return null;
+    p += 1;
+  } else if (md[p] === "[") {
+    const refEnd = md.indexOf("]", p + 1);
+    if (refEnd < 0) return null;
+    ref = md.slice(p + 1, refEnd);
+    p = refEnd + 1;
+  } else {
+    return null;
+  }
+  let curly = "";
+  let q = p;
+  while (q < md.length && (md[q] === " " || md[q] === "\t")) q += 1;
+  if (md[q] === "{") {
+    const close = md.indexOf("}", q + 1);
+    if (close >= 0) {
+      curly = md.slice(p, close + 1);
+      p = close + 1;
+    }
+  }
+  return { from: i, to: p, alt, dest, title, ref, curly };
+}
+
 function rewriteShortcutRefs(body: string, assets: Record<string, string>, table: ImageRefTable): string {
   if (!Object.keys(assets).length) return body;
-  return body.replace(/!\[([^\]]*)\]\[([^\]]+)\]/g, (all, alt: string, label: string) => {
-    const url = assets[label] ?? assets[label.toLowerCase()];
-    if (!url) return all;
-    const id = table.idFor(url);
-    table.mark(id);
-    return `![${alt}][${id}]`;
-  });
+  let out = "";
+  let i = 0;
+  while (i < body.length) {
+    const parsed = body[i] === "!" ? parseInlineImageAt(body, i) : null;
+    if (parsed?.ref) {
+      const url = assets[parsed.ref] ?? assets[parsed.ref.toLowerCase()];
+      if (url) {
+        const id = table.idFor(url);
+        table.mark(id);
+        out += `![${parsed.alt}][${id}]`;
+        i = parsed.to - parsed.curly.length;
+        continue;
+      }
+    }
+    out += body[i];
+    i += 1;
+  }
+  return out;
 }
 
 function rewriteInlineDataImages(body: string, table: ImageRefTable): string {
@@ -247,7 +323,7 @@ function rewriteInlineDataImages(body: string, table: ImageRefTable): string {
 }
 
 function appendDefinitions(body: string, definitions: string[]): string {
-  const trimmed = body.replace(/\s+$/, "");
+  const trimmed = stripTrailingWhitespace(body);
   if (!definitions.length) return trimmed ? `${trimmed}\n` : "";
   return `${trimmed}\n\n${definitions.join("\n")}\n`;
 }
@@ -258,16 +334,26 @@ function appendDefinitions(body: string, definitions: string[]): string {
  */
 /** `![alt](url "width=40%")` → `![alt](url){width=40%}` so MyST keeps the size as sibling text we can parse. */
 export function rewriteImageTitlesToAttrLists(md: string): string {
-  return md.replace(
-    /!\[([^\]]*)\]\((<[^>]+>|[^)\s]+)(?:\s+(["'])([^"']*)\3)?\)(\s*\{[^}]*\})?/g,
-    (all, alt: string, dest: string, _quote: string, title: string, curly: string) => {
-      if (curly && parseImageAttrList(curly)) return `![${alt}](${dest})${String(curly).trim()}`;
-      if (title && isImageAttrTitle(title)) {
-        return `![${alt}](${dest})${formatImageAttrList(parseImageAttrList(title) ?? {})}`;
+  let out = "";
+  let i = 0;
+  while (i < md.length) {
+    const parsed = md[i] === "!" ? parseInlineImageAt(md, i) : null;
+    if (parsed?.dest) {
+      if (parsed.curly && parseImageAttrList(parsed.curly)) {
+        out += `![${parsed.alt}](${parsed.dest})${parsed.curly.trim()}`;
+        i = parsed.to;
+        continue;
       }
-      return all;
+      if (parsed.title && isImageAttrTitle(parsed.title)) {
+        out += `![${parsed.alt}](${parsed.dest})${formatImageAttrList(parseImageAttrList(parsed.title) ?? {})}`;
+        i = parsed.to;
+        continue;
+      }
     }
-  );
+    out += md[i];
+    i += 1;
+  }
+  return out;
 }
 
 export function rewriteEmbeddedImagesToReferences(md: string): string {

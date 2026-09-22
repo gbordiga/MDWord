@@ -41,9 +41,19 @@ function looseImageFromText(text: string): { url: string; alt: string } | null {
     const alt = raw.match(/:alt:\s*(.+)/i)?.[1]?.trim() ?? "";
     return { url: directive[1], alt };
   }
-  const md = raw.match(/!\[([^\]]*)\]\((data:image\/[^)]+|[^)\s]+)\)/);
-  if (md?.[2]) return { url: md[2], alt: md[1] ?? "" };
-  return null;
+  const bang = raw.indexOf("![");
+  if (bang < 0) return null;
+  const altEnd = raw.indexOf("]", bang + 2);
+  if (altEnd < 0 || raw[altEnd + 1] !== "(") return null;
+  const destStart = altEnd + 2;
+  let destEnd = destStart;
+  while (destEnd < raw.length && raw[destEnd] !== ")" && raw[destEnd] !== " " && raw[destEnd] !== "\t") {
+    destEnd += 1;
+  }
+  const url = raw.slice(destStart, destEnd);
+  if (!url) return null;
+  if (!url.startsWith("data:image/") && url.includes(")")) return null;
+  return { url, alt: raw.slice(bang + 2, altEnd) };
 }
 
 type TableImage = {

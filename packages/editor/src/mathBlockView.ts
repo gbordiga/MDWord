@@ -1,7 +1,7 @@
 import type { Editor } from "@tiptap/core";
 import type { Node as ProseNode } from "@tiptap/pm/model";
 import { NodeSelection } from "@tiptap/pm/state";
-import { renderKatex } from "@mdword/renderer";
+import { renderKatexInto } from "@mdword/renderer";
 
 function selectNodeAt(editor: Editor, getPos: (() => number | undefined) | boolean): void {
   if (typeof getPos !== "function") return;
@@ -9,10 +9,6 @@ function selectNodeAt(editor: Editor, getPos: (() => number | undefined) | boole
   if (typeof pos !== "number") return;
   const { state, view } = editor;
   view.dispatch(state.tr.setSelection(NodeSelection.create(state.doc, pos)));
-}
-
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 }
 
 export function createMathBlockView({
@@ -110,19 +106,24 @@ export function createMathBlockView({
   const render = (latex: string) => {
     const text = latex.trim();
     preview.classList.remove("is-error");
+    preview.replaceChildren();
     if (!text) {
-      preview.innerHTML = `<p class="md-math-empty">Empty equation — click Edit source to write LaTeX.</p>`;
+      const empty = document.createElement("p");
+      empty.className = "md-math-empty";
+      empty.textContent = "Empty equation — click Edit source to write LaTeX.";
+      preview.append(empty);
       return;
     }
-    const html = renderKatex(text, true);
-    if (html.includes("katex-error")) {
-      preview.classList.add("is-error");
-      preview.innerHTML = `<p class="md-math-error">Invalid LaTeX equation.</p><pre class="md-math-fallback">${escapeHtml(
-        text
-      )}</pre>`;
-      return;
-    }
-    preview.innerHTML = html;
+    if (renderKatexInto(preview, text, true)) return;
+    preview.classList.add("is-error");
+    preview.replaceChildren();
+    const err = document.createElement("p");
+    err.className = "md-math-error";
+    err.textContent = "Invalid LaTeX equation.";
+    const fallback = document.createElement("pre");
+    fallback.className = "md-math-fallback";
+    fallback.textContent = text;
+    preview.append(err, fallback);
   };
 
   editBtn.addEventListener("click", (event) => {

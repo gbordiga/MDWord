@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
-import { displayImageSrc, embedImageFile, isAllowedImageFile } from "@mdword/editor";
+import { embedImageFile, isAllowedImageFile } from "@mdword/editor";
 import { Dialog, DialogButton, DialogField, dialogInputClass } from "./Dialog";
 import { insertImage } from "@/lib/editorCommands";
 
@@ -19,7 +19,18 @@ export function ImageDialog({
   const [alt, setAlt] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewEpoch, setPreviewEpoch] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  const previewFile = useRef<File | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const clearPreview = () => {
+    previewFile.current = null;
+    setShowPreview(false);
+    const canvas = canvasRef.current;
+    canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -27,8 +38,35 @@ export function ImageDialog({
     setAlt("");
     setError("");
     setBusy(false);
+    clearPreview();
     if (fileRef.current) fileRef.current.value = "";
   }, [open]);
+
+  useEffect(() => {
+    const file = previewFile.current;
+    const canvas = canvasRef.current;
+    if (!showPreview || !file || !canvas) return;
+    let cancelled = false;
+    void createImageBitmap(file)
+      .then((bitmap) => {
+        if (cancelled) {
+          bitmap.close();
+          return;
+        }
+        const maxH = 128;
+        const scale = bitmap.height > maxH ? maxH / bitmap.height : 1;
+        canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+        canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+        canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        bitmap.close();
+      })
+      .catch(() => {
+        /* invalid or unsupported image — keep the empty canvas */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showPreview, previewEpoch]);
 
   const canInsert = Boolean(src.trim()) && !busy;
 
@@ -50,11 +88,17 @@ export function ImageDialog({
     }
     setError("");
     setBusy(true);
+    previewFile.current = file;
+    setShowPreview(true);
+    setPreviewEpoch((n) => n + 1);
     void embedImageFile(file)
       .then((embedded) => {
         setSrc(embedded);
       })
-      .catch(() => setError("Could not read that image."))
+      .catch(() => {
+        setError("Could not read that image.");
+        clearPreview();
+      })
       .finally(() => setBusy(false));
   };
 
@@ -83,8 +127,12 @@ export function ImageDialog({
           onChange={(e) => onPickFile(e.target.files?.[0])}
         />
       </DialogField>
-      {src.startsWith("data:image/") ? (
-        <img src={displayImageSrc(src)} alt="" className="mb-3 max-h-32 rounded-md border border-[#e4e7ec]" />
+      {showPreview ? (
+        <canvas
+          ref={canvasRef}
+          className="mb-3 max-h-32 rounded-md border border-[#e4e7ec]"
+          aria-hidden
+        />
       ) : null}
       <DialogField label="Image path or URL">
         <input
@@ -94,6 +142,7 @@ export function ImageDialog({
           value={src.startsWith("data:") ? "" : src}
           onChange={(e) => {
             setSrc(e.target.value);
+            clearPreview();
             setError("");
           }}
           onKeyDown={(e) => {

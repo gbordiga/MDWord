@@ -22,7 +22,7 @@ import { mermaidFigureHtml } from "./mermaid";
 import { renderKatex } from "./katex";
 
 export { hydrateMermaidHtml, renderMermaidSvg } from "./mermaid";
-export { renderKatex } from "./katex";
+export { renderKatex, renderKatexInto } from "./katex";
 import { pageMetrics, type Mdoc } from "@mdword/layout-engine";
 import { collectTocItems, renderTocHtml } from "./toc";
 import { pageMarginCss, resolvedRunningComments, runningBarsHtml } from "./running";
@@ -35,6 +35,23 @@ function escape(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function stripHtmlTags(html: string): string {
+  let out = "";
+  let i = 0;
+  while (i < html.length) {
+    const open = html.indexOf("<", i);
+    if (open === -1) {
+      out += html.slice(i);
+      break;
+    }
+    out += html.slice(i, open);
+    const close = html.indexOf(">", open + 1);
+    if (close === -1) break;
+    i = close + 1;
+  }
+  return out;
 }
 
 function layoutClass(node: GenericNode | { align?: unknown; class?: unknown }): string {
@@ -239,7 +256,7 @@ function renderNode(node: GenericNode): string {
         const table = node.children?.find((c) => c.type === "table");
         if (table) {
           const caption = node.children?.find((c) => c.type === "caption");
-          const captionText = caption ? renderNodes(caption.children).replace(/<[^>]+>/g, "").trim() : null;
+          const captionText = caption ? stripHtmlTags(renderNodes(caption.children)).trim() : null;
           const meta = {
             ...getTableMeta(table),
             caption: captionText,
@@ -386,11 +403,28 @@ export function renderPrintDocument(options: {
   pagedScriptUrl?: string;
 }): string {
   const metrics = pageMetrics(options.mdoc);
-  const bodyFont =
+  const bodyFont = escape(
     options.mdoc.typography?.body?.["font-family"] ??
-    "Aptos, Calibri, Carlito, Segoe UI, system-ui, sans-serif";
-  const bodySize = options.mdoc.typography?.body?.["font-size"] ?? "11pt";
-  const lineHeight = String(options.mdoc.typography?.body?.["line-height"] ?? 1.15);
+      "Aptos, Calibri, Carlito, Segoe UI, system-ui, sans-serif"
+  );
+  const bodySize = escape(options.mdoc.typography?.body?.["font-size"] ?? "11pt");
+  const lineHeight = escape(String(options.mdoc.typography?.body?.["line-height"] ?? 1.15));
+  const pageWidth = escape(String(metrics.widthMm));
+  const pageHeight = escape(String(metrics.heightMm));
+  const marginTop = escape(options.mdoc.margins?.top ?? "20mm");
+  const marginRight = escape(options.mdoc.margins?.right ?? "20mm");
+  const marginBottom = escape(options.mdoc.margins?.bottom ?? "20mm");
+  const marginLeft = escape(options.mdoc.margins?.left ?? "25mm");
+  const h1Size = escape(options.mdoc.typography?.["heading-1"]?.["font-size"] ?? "20pt");
+  const h1Weight = escape(String(options.mdoc.typography?.["heading-1"]?.weight ?? 700));
+  const h2Size = escape(options.mdoc.typography?.["heading-2"]?.["font-size"] ?? "16pt");
+  const h2Weight = escape(String(options.mdoc.typography?.["heading-2"]?.weight ?? 650));
+  const h3Size = escape(options.mdoc.typography?.["heading-3"]?.["font-size"] ?? "14pt");
+  const h3Weight = escape(String(options.mdoc.typography?.["heading-3"]?.weight ?? 650));
+  const h4Size = escape(options.mdoc.typography?.["heading-4"]?.["font-size"] ?? "12pt");
+  const h4Weight = escape(String(options.mdoc.typography?.["heading-4"]?.weight ?? 650));
+  const titleSize = escape(options.mdoc.typography?.title?.["font-size"] ?? "28pt");
+  const subtitleSize = escape(options.mdoc.typography?.subtitle?.["font-size"] ?? "14pt");
   const vars = {
     title: options.title ?? "",
     subtitle: options.subtitle ?? "",
@@ -429,9 +463,9 @@ export function renderPrintDocument(options: {
   <title>${escape(options.title ?? "Document")}</title>
   <style>
     @page {
-      size: ${metrics.widthMm}mm ${metrics.heightMm}mm;
-      margin: ${options.mdoc.margins?.top ?? "20mm"} ${options.mdoc.margins?.right ?? "20mm"} ${options.mdoc.margins?.bottom ?? "20mm"} ${options.mdoc.margins?.left ?? "25mm"};
-      ${pageBoxes}
+      size: ${pageWidth}mm ${pageHeight}mm;
+      margin: ${marginTop} ${marginRight} ${marginBottom} ${marginLeft};
+      ${escape(pageBoxes)}
     }
     html, body {
       font-family: ${bodyFont};
@@ -468,10 +502,10 @@ export function renderPrintDocument(options: {
     table caption { caption-side: top; font-size: 10pt; color: #475467; margin-bottom: 6px; }
     ul.task-list { list-style: none; padding-left: 0; }
     li.task-list-item { display: flex; gap: 0.5em; align-items: flex-start; }
-    h1 { font-size: ${options.mdoc.typography?.["heading-1"]?.["font-size"] ?? "20pt"}; font-weight: ${options.mdoc.typography?.["heading-1"]?.weight ?? 700}; }
-    h2 { font-size: ${options.mdoc.typography?.["heading-2"]?.["font-size"] ?? "16pt"}; font-weight: ${options.mdoc.typography?.["heading-2"]?.weight ?? 650}; }
-    h3 { font-size: ${options.mdoc.typography?.["heading-3"]?.["font-size"] ?? "14pt"}; font-weight: ${options.mdoc.typography?.["heading-3"]?.weight ?? 650}; }
-    h4 { font-size: ${options.mdoc.typography?.["heading-4"]?.["font-size"] ?? "12pt"}; font-weight: ${options.mdoc.typography?.["heading-4"]?.weight ?? 650}; }
+    h1 { font-size: ${h1Size}; font-weight: ${h1Weight}; }
+    h2 { font-size: ${h2Size}; font-weight: ${h2Weight}; }
+    h3 { font-size: ${h3Size}; font-weight: ${h3Weight}; }
+    h4 { font-size: ${h4Size}; font-weight: ${h4Weight}; }
     ul { list-style: disc outside; padding-left: 1.5em; }
     ol { list-style: decimal outside; padding-left: 1.5em; }
     li { display: list-item; }
@@ -489,8 +523,8 @@ export function renderPrintDocument(options: {
     .toc-d4 { margin-left: 3.6em; }
     .toc-empty { color: #667085; }
     .doc-masthead { margin: 0 0 1.1em; }
-    .doc-title { font-size: ${options.mdoc.typography?.title?.["font-size"] ?? "28pt"}; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 0.2em; }
-    .doc-subtitle { font-size: ${options.mdoc.typography?.subtitle?.["font-size"] ?? "14pt"}; color: #4b5563; margin: 0 0 0.35em; }
+    .doc-title { font-size: ${titleSize}; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 0.2em; }
+    .doc-subtitle { font-size: ${subtitleSize}; color: #4b5563; margin: 0 0 0.35em; }
     .doc-date { font-size: 10pt; color: #667085; margin: 0; }
     ${
       useBodyBars
