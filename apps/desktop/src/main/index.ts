@@ -533,7 +533,7 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("app.writeRecovery", async (_e, payload: unknown) => {
-    const parsed = z.object({ id: z.string(), content: z.string(), meta: z.record(z.unknown()) }).parse(payload);
+    const parsed = z.object({ id: z.string(), content: z.string(), meta: z.record(z.string(), z.unknown()) }).parse(payload);
     const safeId = parsed.id.replace(/[^a-zA-Z0-9_-]/g, "_");
     await atomicWrite(userData("recovery", `${safeId}.md`), parsed.content);
     await atomicWrite(userData("recovery", `${safeId}.json`), JSON.stringify(parsed.meta));

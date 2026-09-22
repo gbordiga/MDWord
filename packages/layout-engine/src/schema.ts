@@ -53,7 +53,7 @@ export const mdocSchema = z
       .strict()
       .optional(),
     fontScale: z.enum(["extra-small", "small", "medium", "large", "extra-large"]).optional(),
-    typography: z.record(textStyleSchema).optional(),
+    typography: z.record(z.string(), textStyleSchema).optional(),
     header: runningSchema.optional(),
     footer: runningSchema.optional(),
     numbering: z
