@@ -144,7 +144,7 @@ export function DocumentTabBar({ compact = false }: { compact?: boolean }) {
               }}
               className={`group flex max-w-[220px] shrink-0 items-stretch rounded-md border ${
                 active
-                  ? "border-[#c7d7fe] bg-[#eef4ff] shadow-sm"
+                  ? "border-[#c7d7fe] bg-[#eef4ff] shadow-xs"
                   : "border-transparent bg-[#f2f4f7] hover:bg-[#e8eefc]"
               }`}
               data-testid="document-tab"

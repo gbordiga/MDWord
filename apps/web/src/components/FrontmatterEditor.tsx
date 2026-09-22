@@ -23,9 +23,9 @@ import { documentDate } from "@mdword/shared";
 import { useApp } from "@/lib/store";
 
 const fieldClass =
-  "w-full rounded-md border border-[#e4e7ec] bg-white px-2 py-1.5 text-[13px] outline-none focus:border-[#2f6fed]";
+  "w-full rounded-md border border-[#e4e7ec] bg-white px-2 py-1.5 text-[13px] outline-hidden focus:border-[#2f6fed]";
 const keyClass =
-  "w-full rounded-md border border-transparent bg-transparent px-1 py-1 font-mono text-[12px] text-[#344054] outline-none hover:border-[#e4e7ec] focus:border-[#2f6fed]";
+  "w-full rounded-md border border-transparent bg-transparent px-1 py-1 font-mono text-[12px] text-[#344054] outline-hidden hover:border-[#e4e7ec] focus:border-[#2f6fed]";
 
 function commitModel(
   next: ReturnType<typeof setFrontmatterValues>
