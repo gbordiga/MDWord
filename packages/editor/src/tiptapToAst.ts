@@ -59,9 +59,20 @@ function unwrapMarks(node: TiptapNode): GenericNode[] {
     ? { type: "inlineCode", value: node.text ?? "" }
     : { type: "text", value: node.text ?? "" };
   const link = marks.find((mark) => mark.type === "link");
-  if (link) inner = { type: "link", url: link.attrs?.href, children: [inner] };
+  const wiki = marks.find((mark) => mark.type === "wikiLink");
+  if (wiki) {
+    const target = String(wiki.attrs?.target ?? node.text ?? "");
+    const section = wiki.attrs?.section ? String(wiki.attrs.section) : undefined;
+    inner = {
+      type: "link",
+      url: encodeWikiHref({ target, section, raw: "" }),
+      children: [inner]
+    };
+  } else if (link) {
+    inner = { type: "link", url: link.attrs?.href, children: [inner] };
+  }
   for (const mark of marks) {
-    if (mark.type === "code" || mark.type === "link") continue;
+    if (mark.type === "code" || mark.type === "link" || mark.type === "wikiLink") continue;
     inner = wrapMark(inner, mark);
   }
   return [inner];
@@ -126,30 +137,6 @@ function astInline(node: TiptapNode): GenericNode[] {
   if (node.type === "image") {
 
     return [{ type: "image", url: node.attrs?.src, alt: node.attrs?.alt }];
-
-  }
-
-  if (node.type === "wikiLink") {
-
-    const target = String(node.attrs?.target ?? "");
-
-    const section = node.attrs?.section ? String(node.attrs.section) : undefined;
-
-    const label = String(node.attrs?.label ?? target);
-
-    return [
-
-      {
-
-        type: "link",
-
-        url: encodeWikiHref({ target, section, raw: "" }),
-
-        children: [{ type: "text", value: label }]
-
-      }
-
-    ];
 
   }
 

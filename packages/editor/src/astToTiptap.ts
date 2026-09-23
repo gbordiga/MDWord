@@ -96,15 +96,20 @@ function inline(nodes: GenericNode[] | undefined): TiptapNode[] {
             .map((n) => n.text)
             .filter(Boolean)
             .join("");
-          if (!target && !label) break;
-          out.push({
-            type: "wikiLink",
-            attrs: {
-              target: target || label,
-              section: wiki?.section ?? null,
-              label: label || target
-            }
-          });
+          const text = label || target;
+          if (!text) break;
+          out.push(
+            textNode(text, [
+              {
+                type: "wikiLink",
+                attrs: {
+                  target: target || label,
+                  section: wiki?.section ?? null,
+                  broken: false
+                }
+              }
+            ])
+          );
         } else {
           out.push(...withMarks(inline(node.children), { type: "link", attrs: { href: url } }));
         }

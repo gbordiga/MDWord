@@ -1,21 +1,31 @@
-import { Node, mergeAttributes } from "@tiptap/core";
+import { Mark, Node, mergeAttributes } from "@tiptap/core";
 import { MystRawView } from "./mystRawView";
 
-export const WikiLink = Node.create({
+export const WikiLink = Mark.create({
   name: "wikiLink",
-  group: "inline",
-  inline: true,
-  atom: true,
+  inclusive: false,
+  excludes: "link",
   addAttributes() {
     return {
       target: { default: "" },
       section: { default: null },
-      label: { default: "" },
       broken: { default: false }
     };
   },
   parseHTML() {
-    return [{ tag: "span[data-wiki-link]" }];
+    return [
+      {
+        tag: "span[data-wiki-link]",
+        getAttrs: (element) => {
+          if (!(element instanceof HTMLElement)) return false;
+          return {
+            target: element.getAttribute("data-target") ?? "",
+            section: element.getAttribute("data-section"),
+            broken: element.classList.contains("broken")
+          };
+        }
+      }
+    ];
   },
   renderHTML({ HTMLAttributes }) {
     const broken = Boolean(HTMLAttributes.broken);
@@ -24,11 +34,12 @@ export const WikiLink = Node.create({
       mergeAttributes(HTMLAttributes, {
         "data-wiki-link": "",
         "data-target": HTMLAttributes.target ?? "",
+        "data-section": HTMLAttributes.section ?? undefined,
         "data-testid": "wikilink",
         class: broken ? "wikilink md-wikilink broken" : "wikilink md-wikilink",
-        title: "Click to open"
+        title: "Ctrl+click to open"
       }),
-      HTMLAttributes.label || HTMLAttributes.target
+      0
     ];
   }
 });

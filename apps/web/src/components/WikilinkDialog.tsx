@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { Dialog, DialogButton, DialogField, dialogInputClass } from "./Dialog";
-import { insertWikilink, updateWikilink } from "@/lib/editorCommands";
+import { insertWikilink, updateWikilink, wikilinkLabel } from "@/lib/editorCommands";
 import { useApp } from "@/lib/store";
 
 export function WikilinkDialog({
@@ -26,7 +26,7 @@ export function WikilinkDialog({
     if (editor?.isActive("wikiLink")) {
       const attrs = editor.getAttributes("wikiLink");
       setTarget(String(attrs.target ?? ""));
-      setLabel(String(attrs.label ?? ""));
+      setLabel(wikilinkLabel(editor));
       setEditing(true);
       return;
     }

@@ -1,5 +1,4 @@
 import type { Editor } from "@tiptap/react";
-import { NodeSelection } from "@tiptap/pm/state";
 import { normalizeHref } from "@mdword/editor";
 import { resolveExternalImagePath } from "@mdword/shared";
 import { getHost } from "@/lib/host";
@@ -82,15 +81,11 @@ async function openRelativeDocument(href: string): Promise<void> {
 type EditorView = Editor["view"];
 
 function wikiAtPos(view: EditorView, pos: number): string | null {
-  const node = view.state.doc.nodeAt(pos);
-  if (node?.type.name === "wikiLink") {
-    return String(node.attrs.target || node.attrs.label || "").trim() || null;
-  }
-  const $pos = view.state.doc.resolve(pos);
-  if ($pos.parent.type.name === "wikiLink") {
-    return String($pos.parent.attrs.target || $pos.parent.attrs.label || "").trim() || null;
-  }
-  return null;
+  const $pos = view.state.doc.resolve(Math.max(0, Math.min(pos, view.state.doc.content.size)));
+  const before = pos > 0 ? view.state.doc.resolve(pos - 1).marks() : [];
+  const wiki = [...$pos.marks(), ...before].find((mark) => mark.type.name === "wikiLink");
+  if (!wiki) return null;
+  return String(wiki.attrs.target || "").trim() || null;
 }
 
 function hrefAtPos(view: EditorView, pos: number): string | null {
@@ -110,27 +105,12 @@ function fromDom(event: MouseEvent): { wiki: string | null; href: string | null 
   };
 }
 
-function selectWiki(view: EditorView, pos: number): void {
-  let at = pos;
-  if (view.state.doc.nodeAt(pos)?.type.name !== "wikiLink") {
-    const $pos = view.state.doc.resolve(Math.max(0, Math.min(pos, view.state.doc.content.size)));
-    if ($pos.nodeBefore?.type.name !== "wikiLink") return;
-    at = pos - $pos.nodeBefore.nodeSize;
-  }
-  if (view.state.selection instanceof NodeSelection && view.state.selection.from === at) return;
-  const selection = NodeSelection.create(view.state.doc, at);
-  view.dispatch(view.state.tr.setSelection(selection));
-}
-
-/** Ctrl/Cmd+click opens wikilinks and links. A plain click selects a wikilink so its bubble shows. */
+/** Ctrl/Cmd+click opens wikilinks and links. A plain click leaves the caret in the text so the bubble can show. */
 export function handleEditorLinkClick(view: EditorView, pos: number, event: MouseEvent): boolean {
   const dom = fromDom(event);
   const wikiTarget = dom.wiki || wikiAtPos(view, pos);
   if (wikiTarget) {
-    if (!isModifiedClick(event)) {
-      selectWiki(view, pos);
-      return true;
-    }
+    if (!isModifiedClick(event)) return false;
     event.preventDefault();
     openWikiTarget(wikiTarget);
     return true;

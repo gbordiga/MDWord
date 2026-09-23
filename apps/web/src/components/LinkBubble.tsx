@@ -25,7 +25,9 @@ export function LinkBubble() {
     const { from } = editor.state.selection;
     const $pos = editor.view.domAtPos(from);
     const node = $pos.node instanceof Element ? $pos.node : $pos.node.parentElement;
-    const anchor = wiki ? node?.closest?.("[data-wiki-link]") : node?.closest?.("a");
+    const anchor = wiki
+      ? node?.closest?.("[data-wiki-link]")
+      : node?.closest?.("a");
     if (!anchor) {
       setCoords(null);
       return;

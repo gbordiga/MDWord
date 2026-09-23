@@ -88,6 +88,21 @@ describe("tiptap conversion", () => {
     });
   });
 
+  it("round-trips a wikilink as editable text with a mark", () => {
+    const parsed = parseMarkdown("See [[Note|the note]] and [[Other]].\n");
+    const json = astToTiptap(parsed.ast);
+    const paragraph = json.content?.[0];
+    const marked = paragraph?.content?.filter((node) => node.marks?.some((mark) => mark.type === "wikiLink"));
+    expect(marked?.map((node) => node.text)).toEqual(["the note", "Other"]);
+    expect(marked?.[0]?.marks?.[0]?.attrs).toMatchObject({ target: "Note" });
+    expect(marked?.[1]?.marks?.[0]?.attrs).toMatchObject({ target: "Other" });
+    expect(paragraph?.content?.some((node) => node.type === "wikiLink")).toBe(false);
+    expect(tiptapDocFromJson(json).textContent).toContain("the note");
+    const md = serializeMarkdown({ ast: tiptapToAst(json) });
+    expect(md).toContain("[[Note|the note]]");
+    expect(md).toContain("[[Other]]");
+  });
+
   it("does not emit empty text nodes for empty table cells", () => {
     const ast = {
       type: "root",

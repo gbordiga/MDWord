@@ -1,4 +1,4 @@
-import { NodeSelection } from "@tiptap/pm/state";
+import { getMarkRange } from "@tiptap/core";
 import type { Editor } from "@tiptap/react";
 import {
   collectSearchMatches,
@@ -73,33 +73,51 @@ export async function insertImage(editor: Editor, src: string, alt?: string): Pr
 export function insertWikilink(editor: Editor, target: string, label?: string): boolean {
   const dest = target.trim();
   if (!dest) return false;
+  const text = (label ?? "").trim() || dest;
   editor
     .chain()
     .focus()
     .insertContent({
-      type: "wikiLink",
-      attrs: { target: dest, label: (label ?? dest).trim() || dest }
+      type: "text",
+      text,
+      marks: [{ type: "wikiLink", attrs: { target: dest, section: null } }]
     })
     .run();
   return true;
 }
 
+export function wikilinkLabel(editor: Editor): string {
+  const type = editor.schema.marks.wikiLink;
+  if (!type) return "";
+  const range = getMarkRange(editor.state.selection.$from, type);
+  if (!range) return selectionText(editor);
+  return editor.state.doc.textBetween(range.from, range.to);
+}
+
 export function updateWikilink(editor: Editor, target: string, label?: string): boolean {
   const dest = target.trim();
-  if (!dest || !editor.isActive("wikiLink")) return false;
+  const type = editor.schema.marks.wikiLink;
+  if (!dest || !type || !editor.isActive("wikiLink")) return false;
+  const range = getMarkRange(editor.state.selection.$from, type);
+  if (!range) return false;
+  const section = editor.getAttributes("wikiLink").section ?? null;
   const text = (label ?? "").trim() || dest;
-  return editor.chain().focus().updateAttributes("wikiLink", { target: dest, label: text }).run();
+  const current = editor.state.doc.textBetween(range.from, range.to);
+  const mark = type.create({ target: dest, section });
+  let tr = editor.state.tr;
+  if (text !== current) {
+    tr = tr.insertText(text, range.from, range.to);
+    tr = tr.addMark(range.from, range.from + text.length, mark);
+  } else {
+    tr = tr.addMark(range.from, range.to, mark);
+  }
+  editor.view.dispatch(tr);
+  return true;
 }
 
 export function removeWikilink(editor: Editor): boolean {
-  const { selection, schema } = editor.state;
-  if (!(selection instanceof NodeSelection) || selection.node.type.name !== "wikiLink") return false;
-  const label = String(selection.node.attrs.label || selection.node.attrs.target || "");
-  const tr = editor.state.tr;
-  if (label) tr.replaceWith(selection.from, selection.to, schema.text(label));
-  else tr.delete(selection.from, selection.to);
-  editor.view.dispatch(tr);
-  return true;
+  if (!editor.isActive("wikiLink")) return false;
+  return editor.chain().focus().extendMarkRange("wikiLink").unsetMark("wikiLink").run();
 }
 
 export function insertTable(editor: Editor): void {

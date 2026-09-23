@@ -506,9 +506,8 @@ html.keyboard-open .mdword-app {
 
 .wikilink {
   color: #1d4ed8;
-  background: #e8eefc;
-  border-radius: 4px;
-  padding: 0 4px;
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
   cursor: text;
 }
 

@@ -42,11 +42,21 @@ function sanitizeNode(node: TiptapNode): TiptapNode | null {
 
   if (node.type === "wikiLink") {
     const target = String(node.attrs?.target ?? "").replace(/\\$/, "").trim();
-    const label = String(node.attrs?.label ?? "").trim() || target;
+    const label = String(node.attrs?.label ?? node.text ?? "").trim() || target;
     if (!target && !label) return null;
     return {
-      ...node,
-      attrs: { ...node.attrs, target: target || label, label: label || target }
+      type: "text",
+      text: label || target,
+      marks: [
+        {
+          type: "wikiLink",
+          attrs: {
+            target: target || label,
+            section: node.attrs?.section ?? null,
+            broken: Boolean(node.attrs?.broken)
+          }
+        }
+      ]
     };
   }
 
