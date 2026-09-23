@@ -14,24 +14,87 @@ export function isImageLike(node: { type?: unknown } | undefined | null): boolea
 
 /** Wrap image destinations that contain spaces so CommonMark keeps the whole path. */
 export function quoteSpacedImageDestinations(source: string): string {
-  const parts = source.split(/(```[\s\S]*?```|~~~[\s\S]*?~~~)/g);
-  return parts
-    .map((part, index) => (index % 2 === 1 ? part : quoteSpacedImageDestinationsPlain(part)))
-    .join("");
+  const lines = source.split("\n");
+  const out: string[] = [];
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index] ?? "";
+    const marker = line.startsWith("```") ? "```" : line.startsWith("~~~") ? "~~~" : "";
+    if (!marker) {
+      out.push(quoteSpacedImageDestinationsLine(line));
+      index += 1;
+      continue;
+    }
+    const start = index;
+    index += 1;
+    while (index < lines.length && !(lines[index] ?? "").startsWith(marker)) index += 1;
+    if (index < lines.length) index += 1;
+    out.push(...lines.slice(start, index));
+  }
+  return out.join("\n");
 }
 
-function quoteSpacedImageDestinationsPlain(source: string): string {
-  return source.replace(/!\[([^\]]*)\]\(([^)\n]+)\)/g, (full, alt: string, dest: string) => {
-    const body = dest.trim();
-    if (!body || body.startsWith("<") || body.startsWith("data:") || !/\s/.test(body)) return full;
-    const titled = body.match(/^(.*?)\s+("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')$/);
-    if (titled) {
-      const url = titled[1]?.trim() ?? "";
-      if (!url || url.startsWith("<") || !/\s/.test(url)) return full;
-      return `![${alt}](<${url}>) ${titled[2]}`;
+function quoteSpacedImageDestinationsLine(line: string): string {
+  let out = "";
+  let i = 0;
+  while (i < line.length) {
+    const image = spacedImageAt(line, i);
+    if (!image) {
+      out += line[i];
+      i += 1;
+      continue;
     }
-    return `![${alt}](<${body}>)`;
-  });
+    out += image.replacement;
+    i = image.end;
+  }
+  return out;
+}
+
+function spacedImageAt(line: string, from: number): { replacement: string; end: number } | null {
+  if (line[from] !== "!" || line[from + 1] !== "[") return null;
+  let i = from + 2;
+  const altStart = i;
+  while (i < line.length && line[i] !== "]" && line[i] !== "\n") i += 1;
+  if (line[i] !== "]" || line[i + 1] !== "(") return null;
+  const alt = line.slice(altStart, i);
+  i += 2;
+  const destStart = i;
+  while (i < line.length && line[i] !== ")" && line[i] !== "\n") i += 1;
+  if (line[i] !== ")") return null;
+  const body = line.slice(destStart, i).trim();
+  const end = i + 1;
+  if (!body || body.startsWith("<") || body.startsWith("data:") || !/\s/.test(body)) return null;
+  const titled = splitDestTitle(body);
+  if (titled) {
+    if (!titled.url || titled.url.startsWith("<") || !/\s/.test(titled.url)) return null;
+    return { replacement: `![${alt}](<${titled.url}>) ${titled.title}`, end };
+  }
+  return { replacement: `![${alt}](<${body}>)`, end };
+}
+
+function splitDestTitle(body: string): { url: string; title: string } | null {
+  const quote = body.at(-1);
+  if (quote !== '"' && quote !== "'") return null;
+  let i = body.length - 2;
+  while (i >= 0) {
+    if (body[i] === quote) {
+      let slashes = 0;
+      let k = i - 1;
+      while (k >= 0 && body[k] === "\\") {
+        slashes += 1;
+        k -= 1;
+      }
+      if (slashes % 2 === 0 && i > 0 && (body[i - 1] === " " || body[i - 1] === "\t")) {
+        let urlEnd = i;
+        while (urlEnd > 0 && (body[urlEnd - 1] === " " || body[urlEnd - 1] === "\t")) urlEnd -= 1;
+        const url = body.slice(0, urlEnd).trim();
+        if (!url) return null;
+        return { url, title: body.slice(i) };
+      }
+    }
+    i -= 1;
+  }
+  return null;
 }
 
 function decodeImageNodeUrl(node: GenericNode): void {

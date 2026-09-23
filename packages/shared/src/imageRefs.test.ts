@@ -151,6 +151,12 @@ ${ref.definition}
     );
     const fenced = "```\n![](a b.gif)\n```\n";
     expect(quoteSpacedImageDestinations(fenced)).toBe(fenced);
+    expect(quoteSpacedImageDestinations('![alt](cartella/nome file.gif "didascalia")\n')).toBe(
+      '![alt](<cartella/nome file.gif>) "didascalia"\n'
+    );
+    expect(quoteSpacedImageDestinations('![alt](./foto.png "didascalia")')).toBe(
+      '![alt](./foto.png "didascalia")'
+    );
     const node = { type: "image", url: "Gestione%20prodotto.gif" };
     decodeFileImageUrls(node);
     expect(node.url).toBe("Gestione prodotto.gif");
