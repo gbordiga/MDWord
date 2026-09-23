@@ -1,6 +1,6 @@
 {
   "name": "@mdword/web",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "scripts": {
     "copy-paged": "node ./scripts/copy-paged.mjs",
