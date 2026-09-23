@@ -18,7 +18,6 @@ import {
   Search,
   Files,
   ListTree,
-  History,
   FilePlus,
   FolderOpen,
   Save,
@@ -487,9 +486,6 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             </Btn>
             <Btn title="Search files" onClick={() => actions.setLeft("search")}>
               <Search size={16} />
-            </Btn>
-            <Btn title="History" onClick={() => actions.setLeft("history")}>
-              <History size={16} />
             </Btn>
             <Divider />
             <Btn title="Find in document" testId="open-find" onClick={() => actions.setFind(true)}>

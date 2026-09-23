@@ -80,7 +80,7 @@ test("already embedded images are left alone", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
   await page.evaluate(async (source) => {
-    await window.__MDWORD_APP__!.getState().restoreHistory(`![dot](${source})\n`);
+    await window.__MDWORD_APP__!.getState().replaceDocument(`![dot](${source})\n`);
   }, PNG);
   await expect(page.locator('[data-testid="doc-figure"]')).toBeVisible();
   await expect(page.getByTestId("ribbon-tab-image")).toBeEnabled();

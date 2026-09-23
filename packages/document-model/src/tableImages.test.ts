@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { imageReference } from "@mdword/shared";
+import { imageReference, type GenericNode } from "@mdword/shared";
 import { parseMarkdown } from "@mdword/myst-parser";
 import { serializeMarkdown, serializeMarkdownFragment } from "@mdword/markdown-serializer";
 import { astToTiptap, visualProjection } from "../../editor/src/astToTiptap";
@@ -136,6 +136,51 @@ ${ref.definition}
     expect(next.source).toContain(`| ![][${ref.id}]`);
     expect((next.source.match(/data:image\//g) ?? []).length).toBe(1);
     expect(next.source.split("\n")[0]).not.toContain("|");
+  });
+
+  it("keeps a pasted image inside a MyST table directive", () => {
+    const src =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const parsed = parseMarkdown(`:::{table} KPI
+
+| A | B |
+| --- | --- |
+| x | y |
+:::
+`);
+    const doc = astToTiptap(parsed.ast);
+    const table = doc.content?.find((node) => node.type === "table");
+    expect(table?.attrs?.sourceKind).toBe("table");
+    const cell = table?.content?.[1]?.content?.[1];
+    expect(cell?.type).toBe("tableCell");
+    cell!.content = [
+      {
+        type: "figure",
+        attrs: { src, alt: "pic", caption: "", width: 40, layout: "block-center", label: null }
+      }
+    ];
+    const md = serializeMarkdown({ ast: tiptapToAst(doc) });
+    const directive = md.slice(md.indexOf(":::{table}"), md.indexOf("\n:::", md.indexOf(":::{table}")));
+    expect(directive).toContain(":::{table} KPI");
+    expect(directive).toContain(imageReference("pic", src).image);
+    expect(directive).toContain("{width=40%}");
+    expect(md).toContain(imageReference("pic", src).definition);
+    const again = parseMarkdown(md);
+    const saved = again.ast.children?.find((node) => node.type === "mystDirective" || node.type === "table");
+    const inner =
+      saved?.type === "table"
+        ? saved
+        : saved?.children?.find((node) => node.type === "container")?.children?.find((node) => node.type === "table") ??
+          saved?.children?.find((node) => node.type === "table");
+    const imageCell = inner?.children?.[1]?.children?.[1];
+    const urls: string[] = [];
+    const walk = (node: GenericNode | undefined) => {
+      if (!node) return;
+      if (node.type === "image" || node.type === "imageReference") urls.push(String(node.url ?? node.identifier ?? "ref"));
+      node.children?.forEach(walk);
+    };
+    walk(imageCell);
+    expect(urls.length).toBeGreaterThan(0);
   });
 
   it("writes a data:image definition when serializing an inserted photo", () => {

@@ -17,7 +17,6 @@ function tab(id: string, path: string | null, title: string, dirty = false): Doc
     preview: false,
     lastSavedAt: null,
     lastSavedContent: "",
-    historyKey: "k",
     syncGeneration: 0,
     sourceGeneration: 0,
     editGeneration: 0,

@@ -9,7 +9,6 @@ import { Spinner } from "./Spinner";
 import type { GenericNode } from "@mdword/shared";
 import { focusHeading } from "@/lib/editorCommands";
 import { useEditorUi } from "@/lib/editorUi";
-import { HistoryPane } from "./HistoryPane";
 import { FileTree } from "./FileTree";
 
 function relativeWorkspacePath(path: string, root?: string | null): string {
@@ -60,7 +59,7 @@ export function LeftSidebar({ className }: { className?: string }) {
   return (
     <aside className={cn("flex h-full w-full min-w-0 flex-col border-r border-[#e4e7ec] bg-white", className)}>
       <div className="flex border-b border-[#e4e7ec] text-[12px]">
-        {(["files", "outline", "search", "history"] as const).map((id) => (
+        {(["files", "outline", "search"] as const).map((id) => (
           <button
             key={id}
             type="button"
@@ -168,7 +167,6 @@ export function LeftSidebar({ className }: { className?: string }) {
             {!workspace && <p className="p-2 text-[#667085]">Open a folder to search across files.</p>}
           </div>
         )}
-        {left === "history" && <HistoryPane />}
       </div>
     </aside>
   );

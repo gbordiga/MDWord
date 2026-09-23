@@ -55,6 +55,37 @@ describe("mystTables", () => {
     expect(md).toContain("| c\\\\d\\|e |");
   });
 
+  it("keeps an image inside a MyST table cell", () => {
+    const png =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const table: GenericNode = {
+      type: "table",
+      children: [
+        {
+          type: "tableRow",
+          children: [
+            { type: "tableCell", header: true, children: [{ type: "text", value: "A" }] },
+            { type: "tableCell", header: true, children: [{ type: "text", value: "B" }] }
+          ]
+        },
+        {
+          type: "tableRow",
+          children: [
+            { type: "tableCell", children: [{ type: "paragraph", children: [{ type: "text", value: "x" }] }] },
+            {
+              type: "tableCell",
+              children: [{ type: "image", url: png, alt: "pic", title: "width=40%" }]
+            }
+          ]
+        }
+      ]
+    };
+    const md = serializeTableMarkdown(table, { caption: "KPI", sourceKind: "table" });
+    expect(md).toContain(":::{table} KPI");
+    expect(md).toContain(`![pic](${png}){width=40%}`);
+    expect(md).toMatch(/\| x \| !\[pic\]/);
+  });
+
   it("writes MyST :align: for table placement", () => {
     const meta = tableMetaFromDirective("table", { align: "center" }, "KPI");
     const md = serializeTableMarkdown(withTableMeta(simpleTable, meta), meta);

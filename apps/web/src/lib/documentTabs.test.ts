@@ -30,7 +30,6 @@ function tab(
     preview: extras.preview ?? false,
     lastSavedAt: null,
     lastSavedContent: "",
-    historyKey: "k",
     syncGeneration: 0,
     sourceGeneration: 0,
     editGeneration: 0,

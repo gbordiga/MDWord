@@ -1,4 +1,5 @@
 import type { GenericNode } from "./constants";
+import { formatImageAttrList, parseImageAttrList } from "./imageAttrs";
 
 export type TableSourceKind = "gfm" | "table" | "list-table" | "csv-table";
 export type TableAlign = "left" | "center" | "right";
@@ -97,8 +98,38 @@ function hasNonDefaultCellAlign(table: GenericNode): boolean {
   return false;
 }
 
+function imageMarkdown(node: GenericNode): string {
+  const alt = String(node.alt ?? "").replace(/\r?\n/g, " ");
+  const url = String(node.url ?? node.urlSource ?? "").replace(/\r?\n/g, "");
+  const id = String(node.identifier ?? node.label ?? "").trim();
+  const attrs = formatImageAttrList(parseImageAttrList(String(node.title ?? "")) ?? {});
+  if (!url && id) return `![${alt}][${id}]${attrs}`;
+  if (!url) return alt;
+  const dest = /\s/.test(url) ? `<${url}>` : url;
+  return `![${alt}](${dest})${attrs}`;
+}
+
+function cellPieces(node: GenericNode, pieces: string[]): void {
+  if (node.type === "text") {
+    const value = String(node.value ?? "");
+    if (value) pieces.push(value);
+    return;
+  }
+  if (node.type === "image" || node.type === "imageReference") {
+    const image = imageMarkdown(node);
+    if (!image) return;
+    const prev = pieces.at(-1);
+    if (prev && !/\s$/.test(prev)) pieces.push(" ");
+    pieces.push(image);
+    return;
+  }
+  for (const child of node.children ?? []) cellPieces(child, pieces);
+}
+
 function cellText(cell: GenericNode): string {
-  return (cell.children ?? []).flatMap(collectText).join("").trim();
+  const pieces: string[] = [];
+  cellPieces(cell, pieces);
+  return pieces.join("").replace(/\s*\n\s*/g, " ").trim();
 }
 
 function gfmDelimiter(cells: GenericNode[]): string {

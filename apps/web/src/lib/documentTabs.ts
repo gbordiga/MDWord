@@ -1,6 +1,5 @@
 import type { DocumentModel } from "@mdword/document-model";
 import { displayDocumentTitle } from "@mdword/shared";
-import { historyKeyFromPath, newUntitledHistoryKey } from "./documentHistory";
 import { emptyDocumentUndo, type DocumentUndoState } from "./documentUndo";
 import { untitledDocument } from "./untitled";
 
@@ -12,7 +11,6 @@ export interface DocumentTab {
   preview: boolean;
   lastSavedAt: number | null;
   lastSavedContent: string;
-  historyKey: string;
   syncGeneration: number;
   sourceGeneration: number;
   editGeneration: number;
@@ -48,7 +46,6 @@ export function activeDocumentFields(tab: DocumentTab): {
   dirty: boolean;
   lastSavedAt: number | null;
   lastSavedContent: string;
-  historyKey: string;
   syncGeneration: number;
   sourceGeneration: number;
   editGeneration: number;
@@ -60,7 +57,6 @@ export function activeDocumentFields(tab: DocumentTab): {
     dirty: tab.dirty,
     lastSavedAt: tab.lastSavedAt,
     lastSavedContent: tab.lastSavedContent,
-    historyKey: tab.historyKey,
     syncGeneration: tab.syncGeneration,
     sourceGeneration: tab.sourceGeneration,
     editGeneration: tab.editGeneration,
@@ -76,7 +72,6 @@ export function snapshotActiveTab(state: {
   dirty: boolean;
   lastSavedAt: number | null;
   lastSavedContent: string;
-  historyKey: string;
   syncGeneration: number;
   sourceGeneration: number;
   editGeneration: number;
@@ -91,7 +86,6 @@ export function snapshotActiveTab(state: {
           dirty: state.dirty,
           lastSavedAt: state.lastSavedAt,
           lastSavedContent: state.lastSavedContent,
-          historyKey: state.historyKey,
           syncGeneration: state.syncGeneration,
           sourceGeneration: state.sourceGeneration,
           editGeneration: state.editGeneration,
@@ -110,7 +104,6 @@ export function createUntitledTab(model: DocumentModel, source = untitledDocumen
     preview: false,
     lastSavedAt: null,
     lastSavedContent: source,
-    historyKey: newUntitledHistoryKey(),
     syncGeneration: 0,
     sourceGeneration: 0,
     editGeneration: 0,
@@ -127,7 +120,6 @@ export function createTabFromOpen(
   path: string,
   content: string,
   model: DocumentModel,
-  historyKeySeed: string,
   preview = false
 ): DocumentTab {
   return {
@@ -138,7 +130,6 @@ export function createTabFromOpen(
     preview,
     lastSavedAt: Date.now(),
     lastSavedContent: content,
-    historyKey: historyKeyFromPath(path, historyKeySeed),
     syncGeneration: 0,
     sourceGeneration: 0,
     editGeneration: 0,
@@ -150,8 +141,7 @@ export function createTabFromRestore(
   model: DocumentModel,
   path: string | null,
   lastSavedContent: string,
-  dirty: boolean,
-  historyKeySeed: string
+  dirty: boolean
 ): DocumentTab {
   return {
     id: newTabId(),
@@ -161,7 +151,6 @@ export function createTabFromRestore(
     preview: false,
     lastSavedAt: null,
     lastSavedContent,
-    historyKey: historyKeyFromPath(path, historyKeySeed),
     syncGeneration: 0,
     sourceGeneration: 0,
     editGeneration: 0,

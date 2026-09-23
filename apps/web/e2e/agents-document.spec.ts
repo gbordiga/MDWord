@@ -18,7 +18,7 @@ test("renders AGENTS-style notes with bold code links in Document view", async (
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
   await page.evaluate(async (source) => {
-    await window.__MDWORD_APP__!.getState().restoreHistory(source);
+    await window.__MDWORD_APP__!.getState().replaceDocument(source);
   }, AGENTS_MD);
 
   const prose = page.locator(".ProseMirror");

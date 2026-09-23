@@ -30,7 +30,6 @@ import {
   undoDocumentChange,
   type DocumentUndoState
 } from "./documentUndo";
-import { addHistorySnapshot, historyKeyFromPath, newUntitledHistoryKey } from "./documentHistory";
 import { clearCrashDraft, writeCrashDraft } from "./recovery";
 import {
   activeDocumentFields,
@@ -197,7 +196,6 @@ export interface AppState {
   lastSavedAt: number | null;
   lastDraftAt: number | null;
   lastSavedContent: string;
-  historyKey: string;
   documentUndo: DocumentUndoState;
   busy: BusyState | null;
   applySource: (source: string) => void;
@@ -240,7 +238,7 @@ export interface AppState {
   finishBusy: (kinds?: BusyKind[]) => void;
   flushPendingEdits: () => void;
   saveDraft: () => Promise<void>;
-  restoreHistory: (content: string) => Promise<void>;
+  replaceDocument: (content: string) => Promise<void>;
   applyRecoveredDraft: (content: string, path: string | null) => Promise<void>;
   undoDocument: () => boolean;
   redoDocument: () => boolean;
@@ -289,7 +287,6 @@ export const useApp = create<AppState>((set, get) => {
       ...(partial.dirty !== undefined ? { dirty: partial.dirty } : {}),
       ...(partial.lastSavedAt !== undefined ? { lastSavedAt: partial.lastSavedAt } : {}),
       ...(partial.lastSavedContent !== undefined ? { lastSavedContent: partial.lastSavedContent } : {}),
-      ...(partial.historyKey !== undefined ? { historyKey: partial.historyKey } : {}),
       ...(partial.syncGeneration !== undefined ? { syncGeneration: partial.syncGeneration } : {}),
       ...(partial.sourceGeneration !== undefined ? { sourceGeneration: partial.sourceGeneration } : {}),
       ...(partial.editGeneration !== undefined ? { editGeneration: partial.editGeneration } : {}),
@@ -399,23 +396,14 @@ export const useApp = create<AppState>((set, get) => {
   };
 
   const markSaved = (path: string, content: string, model: DocumentModel) => {
-    const historyKey = historyKeyFromPath(path, get().historyKey);
     patchActiveTab({
       path,
       dirty: false,
       model: { ...model, source: content },
       lastSavedAt: Date.now(),
-      lastSavedContent: content,
-      historyKey
+      lastSavedContent: content
     });
     rememberSavedFile(path, content);
-    void addHistorySnapshot({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      docKey: historyKey,
-      savedAt: Date.now(),
-      title: displayDocumentTitle(model.frontmatter, path),
-      content
-    });
     void clearCrashDraft();
   };
 
@@ -446,7 +434,6 @@ export const useApp = create<AppState>((set, get) => {
   lastSavedAt: initialTab.lastSavedAt,
   lastDraftAt: null,
   lastSavedContent: initialTab.lastSavedContent,
-  historyKey: initialTab.historyKey,
   documentUndo: initialTab.documentUndo,
   busy: null,
   flushPendingEdits: () => {
@@ -561,7 +548,7 @@ export const useApp = create<AppState>((set, get) => {
       const model = modelFrom(result.content, get().workspace?.workspaceMdoc);
       void clearCrashDraft();
       const revealed = {
-        ...createTabFromOpen(result.path, result.content, model, get().historyKey),
+        ...createTabFromOpen(result.path, result.content, model),
         syncGeneration: get().syncGeneration + 1
       };
       set({
@@ -737,7 +724,6 @@ export const useApp = create<AppState>((set, get) => {
         result.path,
         result.content,
         modelFrom(result.content, get().workspace?.workspaceMdoc),
-        get().historyKey,
         pending.preview
       );
       const revealed = { ...nextTab, syncGeneration: get().syncGeneration + 1 };
@@ -832,14 +818,12 @@ export const useApp = create<AppState>((set, get) => {
       if (!tab.path) return tab;
       const nextPath = rewriteWorkspacePath(tab.path, fromPath, dest);
       if (nextPath === tab.path) return tab;
-      return { ...tab, path: nextPath, historyKey: historyKeyFromPath(nextPath, tab.historyKey) };
+      return { ...tab, path: nextPath };
     });
     const active = tabs.find((tab) => tab.id === get().activeTabId);
     set({
       tabs,
-      ...(active
-        ? { path: active.path, historyKey: active.historyKey }
-        : {})
+      ...(active ? { path: active.path } : {})
     });
     await reloadWorkspace();
     return dest;
@@ -1034,10 +1018,10 @@ export const useApp = create<AppState>((set, get) => {
     applyRestoredSource(next.source, next.state);
     return true;
   },
-  restoreHistory: async (content) => {
+  replaceDocument: async (content) => {
     discardPendingVisual();
     discardPendingSource();
-    beginBusy({ kind: "open", label: "Restoring…", blocking: true });
+    beginBusy({ kind: "open", label: "Opening document…", blocking: true });
     await yieldPaint();
     try {
       const model = modelFrom(content, get().workspace?.workspaceMdoc);
@@ -1068,13 +1052,7 @@ export const useApp = create<AppState>((set, get) => {
     try {
       const model = modelFrom(content, get().workspace?.workspaceMdoc);
       appendTab(
-        createTabFromRestore(
-          model,
-          path,
-          lastSavedContent,
-          content !== lastSavedContent,
-          get().historyKey
-        )
+        createTabFromRestore(model, path, lastSavedContent, content !== lastSavedContent)
       );
       set({ lastDraftAt: Date.now() });
     } finally {
