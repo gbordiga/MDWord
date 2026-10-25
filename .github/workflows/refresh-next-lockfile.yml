@@ -1,0 +1,39 @@
+name: Refresh next lockfile
+
+on:
+  push:
+    branches: [cursor/next-16.4.1-ae2c]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+      - name: Install and refresh lockfile
+        run: pnpm install
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - name: Commit lockfile and remove this workflow
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pnpm-lock.yaml
+          git rm -f .github/workflows/refresh-next-lockfile.yml
+          if git diff --cached --quiet; then
+            echo "No lockfile or workflow changes"
+            exit 0
+          fi
+          git commit -m "chore(deps): lock next 16.4.x for apps/web ^16.4.1"
+          git push
