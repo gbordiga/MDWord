@@ -18,12 +18,12 @@
     "@mdword/renderer": "workspace:*",
     "@mdword/shared": "workspace:*",
     "electron-updater": "^6.6.2",
-    "zod": "^4.6.5"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
-    "electron": "^44.4.4",
+    "electron": "^44.9.1",
     "electron-builder": "^26.0.12",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2"
   }
