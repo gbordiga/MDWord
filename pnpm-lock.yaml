@@ -23,7 +23,7 @@ overrides:
   undici@7: 7.30.1
   vite: 7.3.7
   zod: 4.6.6
-  markdown-it: 14.3.2
+  markdown-it: 14.3.3
 
 patchedDependencies:
   markdown-it-dollarmath@0.5.0:
@@ -3146,7 +3146,7 @@ packages:
     resolution: {integrity: sha512-wWGX5bpHu9iq4cqi/U58srCH0js5ws7X3BrQZcN2/anQ9S4P8MpvTxHLCZC2rmGHA6mSZf4PKWF6caBc+nxH2g==}
     engines: {node: '>=16', npm: '>=6'}
     peerDependencies:
-      markdown-it: 14.3.2
+      markdown-it: 14.3.3
 
   markdown-it-deflist@2.1.0:
     resolution: {integrity: sha512-3OuqoRUlSxJiuQYu0cWTLHNhhq2xtoSFqsZK8plANg91+RJQU1ziQ6lA2LzmFAEes18uPBsHZpcX6We5l76Nzg==}
@@ -3155,7 +3155,7 @@ packages:
     resolution: {integrity: sha512-W+8se6cx6vowjzRAfDbHDPBQ+Y9G/8M/JZSFiaYvT0HqfwyFK1hIA1Xj360Nc3ymknKgdDVoL5fI8XjAqZF3tg==}
     engines: {node: '>=16', npm: '>=6'}
     peerDependencies:
-      markdown-it: 14.3.2
+      markdown-it: 14.3.3
 
   markdown-it-footnote@4.0.0:
     resolution: {integrity: sha512-WYJ7urf+khJYl3DqofQpYfEYkZKbmXmwxQV8c8mO/hGIhgZ1wOe7R4HLFNwqx7TjILbnC98fuyeSsin19JdFcQ==}
@@ -3167,13 +3167,13 @@ packages:
     resolution: {integrity: sha512-M7eDhH9RpEueA5eXBw8Ft8Kx3MqT8y8FuHDg+SqG5FavnZqgy9/F7+08U2jdpL3Pj7r+AEjjjKm6CnNbrPheVw==}
     peerDependencies:
       '@types/markdown-it': ^13.0.1
-      markdown-it: 14.3.2
+      markdown-it: 14.3.3
 
   markdown-it-task-lists@2.1.1:
     resolution: {integrity: sha512-TxFAc76Jnhb2OUu+n3yz9RMu4CwGfaT788br6HhEDlvWfdeJcLUsxk1Hgw2yJio0OXsxv7pyIPmvECY7bMbluA==}
 
-  markdown-it@14.3.2:
-    resolution: {integrity: sha512-sHHjZ5fJKlgrG4qns2YwVcdNep35h5fERrfkD2YNsb9UFk0UIHarbiTaHKVMlPuWAoiilyK8Fv/jAm11slsY7Q==}
+  markdown-it@14.3.3:
+    resolution: {integrity: sha512-L//tDAkjTjJCU6pBUSBTgs3Kg4InVaZuUZog/b6V12UKhcDQ7S78877ibbCanRExwPuYP1CZD7Gd2dxSy1GXRg==}
     hasBin: true
 
   markdown-table@3.0.4:
@@ -7001,31 +7001,31 @@ snapshots:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  markdown-it-amsmath@0.4.0(markdown-it@14.3.2):
+  markdown-it-amsmath@0.4.0(markdown-it@14.3.3):
     dependencies:
-      markdown-it: 14.3.2
+      markdown-it: 14.3.3
 
   markdown-it-deflist@2.1.0: {}
 
-  markdown-it-dollarmath@0.5.0(patch_hash=6621ee23b3961f08561df487908e73a86f87591e00f8391074014a22b6a323f0)(markdown-it@14.3.2):
+  markdown-it-dollarmath@0.5.0(patch_hash=6621ee23b3961f08561df487908e73a86f87591e00f8391074014a22b6a323f0)(markdown-it@14.3.3):
     dependencies:
-      markdown-it: 14.3.2
+      markdown-it: 14.3.3
 
   markdown-it-footnote@4.0.0: {}
 
   markdown-it-front-matter@0.2.4: {}
 
-  markdown-it-myst@1.0.18(@types/markdown-it@13.0.9)(markdown-it@14.3.2):
+  markdown-it-myst@1.0.18(@types/markdown-it@13.0.9)(markdown-it@14.3.3):
     dependencies:
       '@types/markdown-it': 13.0.9
       js-yaml: 4.3.2
-      markdown-it: 14.3.2
+      markdown-it: 14.3.3
       vfile: 5.3.7
       vfile-message: 3.1.4
 
   markdown-it-task-lists@2.1.1: {}
 
-  markdown-it@14.3.2:
+  markdown-it@14.3.3:
     dependencies:
       argparse: 2.0.1
       entities: 4.5.0
@@ -7345,13 +7345,13 @@ snapshots:
     dependencies:
       '@types/markdown-it': 13.0.9
       he: 1.2.0
-      markdown-it: 14.3.2
-      markdown-it-amsmath: 0.4.0(markdown-it@14.3.2)
+      markdown-it: 14.3.3
+      markdown-it-amsmath: 0.4.0(markdown-it@14.3.3)
       markdown-it-deflist: 2.1.0
-      markdown-it-dollarmath: 0.5.0(patch_hash=6621ee23b3961f08561df487908e73a86f87591e00f8391074014a22b6a323f0)(markdown-it@14.3.2)
+      markdown-it-dollarmath: 0.5.0(patch_hash=6621ee23b3961f08561df487908e73a86f87591e00f8391074014a22b6a323f0)(markdown-it@14.3.3)
       markdown-it-footnote: 4.0.0
       markdown-it-front-matter: 0.2.4
-      markdown-it-myst: 1.0.18(@types/markdown-it@13.0.9)(markdown-it@14.3.2)
+      markdown-it-myst: 1.0.18(@types/markdown-it@13.0.9)(markdown-it@14.3.3)
       markdown-it-task-lists: 2.1.1
       myst-common: 1.10.1
       myst-directives: 1.7.4
