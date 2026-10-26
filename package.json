@@ -2,7 +2,7 @@
   "name": "mdword",
   "version": "0.1.7",
   "private": true,
-  "description": "MDWord \u2014 a semantic-first structured document editor with MyST Markdown as the source of truth.",
+  "description": "MDWord — a semantic-first structured document editor with MyST Markdown as the source of truth.",
   "license": "MIT",
   "author": "Giacomo Bordiga",
   "packageManager": "pnpm@10.33.3",
@@ -58,7 +58,15 @@
       "undici@7": "7.30.1",
       "vite": "7.3.7",
       "zod": "4.6.6",
-      "markdown-it@14": "14.3.2"
+      "markdown-it": "14.3.2"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "markdown-it": "14"
+      }
+    },
+    "patchedDependencies": {
+      "markdown-it-dollarmath@0.5.0": "patches/markdown-it-dollarmath@0.5.0.patch"
     }
   }
 }
