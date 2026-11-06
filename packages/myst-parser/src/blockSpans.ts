@@ -18,33 +18,80 @@ function lineStartOffsets(text: string): number[] {
   return starts;
 }
 
-function lcsPairs(a: string[], b: string[]): [number, number][] {
-  const n = a.length;
-  const m = b.length;
-  const dp: number[][] = Array.from({ length: n + 1 }, () => Array.from({ length: m + 1 }, () => 0));
-  for (let i = 1; i <= n; i++) {
-    const prev = dp[i - 1]!;
-    const row = dp[i]!;
-    for (let j = 1; j <= m; j++) {
-      row[j] = a[i - 1] === b[j - 1] ? prev[j - 1]! + 1 : Math.max(prev[j]!, row[j - 1]!);
+/** Longest increasing subsequence of the second coordinate, pairs sorted by the first. */
+function longestIncreasingPairs(pairs: [number, number][]): [number, number][] {
+  if (!pairs.length) return [];
+  // tails[k] = index in `pairs` of the smallest tail of an increasing run of length k+1.
+  const tails: number[] = [];
+  const previous = new Array<number>(pairs.length).fill(-1);
+  for (let index = 0; index < pairs.length; index++) {
+    const value = pairs[index]![1];
+    let low = 0;
+    let high = tails.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (pairs[tails[mid]!]![1] < value) low = mid + 1;
+      else high = mid;
     }
+    if (low > 0) previous[index] = tails[low - 1]!;
+    tails[low] = index;
   }
+  const out: [number, number][] = [];
+  let cursor = tails[tails.length - 1] ?? -1;
+  while (cursor >= 0) {
+    out.push(pairs[cursor]!);
+    cursor = previous[cursor]!;
+  }
+  return out.reverse();
+}
+
+/**
+ * Align body lines with display lines. The display text is a rewrite of the body
+ * (wiki links, embedded images, GFM tables), so most lines are identical and the
+ * rest are whole-line insertions or deletions. Anchoring on lines that occur once
+ * on each side and taking their longest increasing run keeps the mapping accurate
+ * while staying O(n log n); the previous full LCS was O(n·m) and made opening a
+ * document with many tables take hundreds of milliseconds.
+ */
+function alignedLinePairs(a: string[], b: string[]): [number, number][] {
   const pairs: [number, number][] = [];
-  let i = n;
-  let j = m;
-  while (i > 0 && j > 0) {
-    if (a[i - 1] === b[j - 1]) {
-      pairs.push([i - 1, j - 1]);
-      i -= 1;
-      j -= 1;
-    } else if (dp[i - 1]![j]! >= dp[i]![j - 1]!) {
-      i -= 1;
-    } else {
-      j -= 1;
-    }
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) {
+    pairs.push([start, start]);
+    start += 1;
   }
-  pairs.reverse();
-  return pairs;
+  const suffix: [number, number][] = [];
+  let endA = a.length - 1;
+  let endB = b.length - 1;
+  while (endA >= start && endB >= start && a[endA] === b[endB]) {
+    suffix.push([endA, endB]);
+    endA -= 1;
+    endB -= 1;
+  }
+
+  const countA = new Map<string, number>();
+  for (let i = start; i <= endA; i++) {
+    const line = a[i]!;
+    countA.set(line, (countA.get(line) ?? 0) + 1);
+  }
+  const countB = new Map<string, number>();
+  const positionB = new Map<string, number>();
+  for (let j = start; j <= endB; j++) {
+    const line = b[j]!;
+    const seen = (countB.get(line) ?? 0) + 1;
+    countB.set(line, seen);
+    if (seen === 1) positionB.set(line, j);
+    else positionB.delete(line);
+  }
+  const anchors: [number, number][] = [];
+  for (let i = start; i <= endA; i++) {
+    const line = a[i]!;
+    if (countA.get(line) !== 1) continue;
+    const j = positionB.get(line);
+    if (j != null) anchors.push([i, j]);
+  }
+
+  return [...pairs, ...longestIncreasingPairs(anchors), ...suffix.reverse()];
 }
 
 /** 1-based display line → 1-based body line. */
@@ -56,7 +103,7 @@ export function mapDisplayLineToBody(body: string, display: string): (displayLin
     return (line) => Math.min(Math.max(1, line), bodyMax);
   }
   const map = new Array<number>(displayLines.length).fill(-1);
-  for (const [bodyIndex, displayIndex] of lcsPairs(bodyLines, displayLines)) {
+  for (const [bodyIndex, displayIndex] of alignedLinePairs(bodyLines, displayLines)) {
     map[displayIndex] = bodyIndex;
   }
   let last = 0;
@@ -85,8 +132,7 @@ function nodeLineRange(node: GenericNode): { start: number; end: number } | null
   return { start: first.start, end: last.end };
 }
 
-function spanFromLines(body: string, startLine: number, endLine: number): SourceSpan {
-  const starts = lineStartOffsets(body);
+function spanFromLines(body: string, starts: number[], startLine: number, endLine: number): SourceSpan {
   const start = starts[Math.max(0, startLine - 1)] ?? 0;
   const end = starts[endLine] ?? body.length;
   return { start, end: Math.max(start, end) };
@@ -96,13 +142,14 @@ export function blockSpansFromAst(ast: GenericNode, body: string, display: strin
   const children = ast.children ?? [];
   if (!children.length) return [];
   const mapLine = mapDisplayLineToBody(body, display);
+  const starts = lineStartOffsets(body);
   const spans: SourceSpan[] = [];
   for (const child of children) {
     const range = nodeLineRange(child);
     if (!range) return [];
     const startLine = mapLine(range.start);
     const endLine = mapLine(range.end);
-    spans.push(spanFromLines(body, Math.min(startLine, endLine), Math.max(startLine, endLine)));
+    spans.push(spanFromLines(body, starts, Math.min(startLine, endLine), Math.max(startLine, endLine)));
   }
   for (let i = 1; i < spans.length; i++) {
     const prev = spans[i - 1]!;

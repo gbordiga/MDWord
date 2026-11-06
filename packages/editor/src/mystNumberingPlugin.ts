@@ -16,6 +16,10 @@ function docToAst(doc: { toJSON(): TiptapNode }): GenericNode {
   return tiptapToAst(doc.toJSON() as TiptapNode);
 }
 
+/** ProseMirror documents are immutable, so a document's decorations never change. */
+let cachedDoc: unknown = null;
+let cachedDecorations: DecorationSet | null = null;
+
 export const MystNumbering = Extension.create({
   name: "mystNumbering",
   addProseMirrorPlugins() {
@@ -24,6 +28,9 @@ export const MystNumbering = Extension.create({
         key: mystNumberingKey,
         props: {
           decorations(state) {
+            // This runs on every transaction, including cursor moves; the whole
+            // document walk below only needs to happen when the text changed.
+            if (state.doc === cachedDoc) return cachedDecorations;
             const index = buildNumberingIndex(docToAst(state.doc));
             const decos: Decoration[] = [];
             state.doc.descendants((node, pos) => {
@@ -57,7 +64,9 @@ export const MystNumbering = Extension.create({
                 }
               }
             });
-            return decos.length ? DecorationSet.create(state.doc, decos) : null;
+            cachedDoc = state.doc;
+            cachedDecorations = decos.length ? DecorationSet.create(state.doc, decos) : null;
+            return cachedDecorations;
           }
         }
       })

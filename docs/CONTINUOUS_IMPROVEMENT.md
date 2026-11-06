@@ -16,11 +16,11 @@ pnpm --filter @mdword/web exec playwright test   # chromium + mobile
 Record the result of each command you actually run. Do not claim a check that did
 not run.
 
-## Baseline (2026-11-06, version 0.1.8)
+## Baseline (2026-11-06, version 0.1.9)
 
 | Check | Result |
 | --- | --- |
-| `pnpm test` | 73 files, 417 tests passing |
+| `pnpm test` | 74 files, 419 tests passing |
 | `pnpm typecheck` | passing (all workspace projects) |
 | `pnpm build:web` | passing |
 | Playwright (chromium + mobile) | 80 tests passing |
@@ -298,6 +298,44 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
   directives match the ones exercised in Chromium, but they were not executed in a
   packaged Electron window.
 
+### 2026-11-06 — Performance audit for 0.1.9
+
+- **Method:** a throwaway benchmark on a generated 27 KB / 720-block report measured
+  the document pipeline; each number below is the best of three runs on this
+  machine.
+- **Findings and fixes:**
+  1. **`applyVisualDocument` took 3.6 s per visual edit.** `lcsMatches` built an
+     `n×m` table of `semanticAstEqual` calls (each a `JSON.stringify` of a whole
+     block) on every debounced keystroke. It now matches the unchanged prefix and
+     suffix directly and runs LCS only on the differing middle, capped at 20k
+     cells. Membership checks that were `Array.some` over the match list are sets,
+     and the "previous match" lookups are a single forward scan.
+     **3.6 s → ~100 ms** (and the new guard test on a smaller document: old
+     1.8 s, new ~50 ms).
+  2. **Opening a document took 134 ms.** `mapDisplayLineToBody` fell back to a
+     full line LCS whenever the rewritten display text had a different line count
+     (any document with GFM tables). Replaced with unique-line anchoring plus a
+     longest-increasing-subsequence pass (O(n log n)); the per-block
+     `lineStartOffsets` scan is now computed once.
+     **134 ms → 43 ms** (`mystParse` itself is 35 ms of that).
+  3. **The numbering plugin walked the whole document on every transaction**,
+     including cursor moves (`toJSON` + AST conversion + index build). The
+     decoration set is now cached on the immutable ProseMirror document identity.
+  4. `rebuildBody`'s `[...matches].reverse()` copies inside loops are linear scans.
+- **Unchanged and fine:** `saveDocument` is O(1), `renderPrintDocument` ~15 ms,
+  `buildNumberingIndex` ~1 ms, `visualProjection` ~7 ms, KaTeX ~0.3 ms after
+  warm-up, workspace indexing is concurrency-limited with a cache.
+- **Measured baseline for the bundle (backlog, not changed here):** initial JS is
+  ~3.17 MB uncompressed across 11 chunks, dominated by the MyST parser stack
+  (~1.6 MB, needed at startup) and KaTeX (~258 KB, only needed when a document
+  contains math). Mermaid/d3/cytoscape (~2 MB) are correctly lazy-loaded.
+- **Files:** `packages/document-model/src/applyVisual.ts`,
+  `packages/myst-parser/src/blockSpans.ts`,
+  `packages/editor/src/mystNumberingPlugin.ts`
+- **Tests:** `packages/document-model/src/applyVisual.perf.test.ts` (long document
+  under an 800 ms budget — the old code needs 1.8 s — plus a byte-preservation
+  check around an insertion). All 419 unit tests and 80 e2e tests pass.
+
 ## Backlog (highest first)
 
 | Task | Why | Effort |
@@ -332,10 +370,11 @@ web IDB adapter, and the multi-tab restore flow cannot be exercised without an
 Electron runtime. Landing it needs a desktop build to verify, otherwise recovery
 could silently stop working.
 
-Version 0.1.8 is the state of this tree: the save path honours the “never silently
+Version 0.1.9 is the state of this tree: the save path honours the “never silently
 overwrite an external edit” promise, desktop builds update themselves from GitHub
 Releases, recent files reopen from the File tab, image cleanup and file/export
-failures report honestly, and the outline reads the live document.
+failures report honestly, the outline reads the live document, and visual edits on
+long documents are ~35× cheaper.
 
 Remaining work, in order:
 1. **Publish one tag and verify the updater end-to-end.** With the release
@@ -345,7 +384,7 @@ Remaining work, in order:
 2. Crash recovery for every dirty tab (blocked on `listRecovery()` across runtimes).
 3. `store.ts` split once a feature touches the workspace actions.
 
-## Releasing 0.1.8
+## Releasing 0.1.9
 
 The version is bumped in `package.json`, `apps/{web,desktop,mobile}/package.json`,
 `packages/shared/src/constants.ts`, the `next.config.ts` fallback and

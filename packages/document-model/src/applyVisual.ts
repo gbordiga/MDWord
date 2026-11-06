@@ -16,35 +16,70 @@ export interface ApplyVisualOptions {
   workspaceMdoc?: Mdoc;
 }
 
+/** Comparing two blocks means a full semantic walk, so keep the DP small. */
+const MAX_LCS_CELLS = 20_000;
+
+/**
+ * Match unchanged top-level blocks between two versions of the document.
+ *
+ * A visual edit touches one region, so the unchanged prefix and suffix are
+ * matched directly and only the differing middle goes through LCS. The previous
+ * full-matrix LCS cost O(n²) semantic comparisons on every keystroke: 3.6 s for a
+ * 720-block document. When the middle is too large to diff cheaply it is treated
+ * as changed, which rewrites more blocks but stays correct.
+ */
 function lcsMatches(oldNodes: GenericNode[], newNodes: GenericNode[]): { oldIndex: number; newIndex: number }[] {
-  const n = oldNodes.length;
-  const m = newNodes.length;
-  const dp: number[][] = Array.from({ length: n + 1 }, () => Array.from({ length: m + 1 }, () => 0));
-  for (let i = 1; i <= n; i++) {
-    const prev = dp[i - 1]!;
-    const row = dp[i]!;
-    for (let j = 1; j <= m; j++) {
-      row[j] = semanticAstEqual(oldNodes[i - 1]!, newNodes[j - 1]!)
-        ? prev[j - 1]! + 1
-        : Math.max(prev[j]!, row[j - 1]!);
-    }
+  let start = 0;
+  const shortest = Math.min(oldNodes.length, newNodes.length);
+  const prefix: { oldIndex: number; newIndex: number }[] = [];
+  while (start < shortest && semanticAstEqual(oldNodes[start]!, newNodes[start]!)) {
+    prefix.push({ oldIndex: start, newIndex: start });
+    start += 1;
   }
-  const matches: { oldIndex: number; newIndex: number }[] = [];
-  let i = n;
-  let j = m;
-  while (i > 0 && j > 0) {
-    if (semanticAstEqual(oldNodes[i - 1]!, newNodes[j - 1]!)) {
-      matches.push({ oldIndex: i - 1, newIndex: j - 1 });
-      i -= 1;
-      j -= 1;
-    } else if (dp[i - 1]![j]! >= dp[i]![j - 1]!) {
-      i -= 1;
-    } else {
-      j -= 1;
-    }
+  const suffix: { oldIndex: number; newIndex: number }[] = [];
+  let oldEnd = oldNodes.length - 1;
+  let newEnd = newNodes.length - 1;
+  while (
+    oldEnd >= start &&
+    newEnd >= start &&
+    semanticAstEqual(oldNodes[oldEnd]!, newNodes[newEnd]!)
+  ) {
+    suffix.push({ oldIndex: oldEnd, newIndex: newEnd });
+    oldEnd -= 1;
+    newEnd -= 1;
   }
-  matches.reverse();
-  return matches;
+
+  const n = oldEnd - start + 1;
+  const m = newEnd - start + 1;
+  const middle: { oldIndex: number; newIndex: number }[] = [];
+  if (n > 0 && m > 0 && n * m <= MAX_LCS_CELLS) {
+    const dp: number[][] = Array.from({ length: n + 1 }, () => Array.from({ length: m + 1 }, () => 0));
+    for (let i = 1; i <= n; i++) {
+      const prev = dp[i - 1]!;
+      const row = dp[i]!;
+      for (let j = 1; j <= m; j++) {
+        row[j] = semanticAstEqual(oldNodes[start + i - 1]!, newNodes[start + j - 1]!)
+          ? prev[j - 1]! + 1
+          : Math.max(prev[j]!, row[j - 1]!);
+      }
+    }
+    let i = n;
+    let j = m;
+    while (i > 0 && j > 0) {
+      if (semanticAstEqual(oldNodes[start + i - 1]!, newNodes[start + j - 1]!)) {
+        middle.push({ oldIndex: start + i - 1, newIndex: start + j - 1 });
+        i -= 1;
+        j -= 1;
+      } else if (dp[i - 1]![j]! >= dp[i]![j - 1]!) {
+        i -= 1;
+      } else {
+        j -= 1;
+      }
+    }
+    middle.reverse();
+  }
+
+  return [...prefix, ...middle, ...suffix.reverse()];
 }
 
 function dirtyRuns(dirty: Set<number>): [number, number][] {
@@ -102,13 +137,23 @@ function replacementRange(
       const origin = origins[match.oldIndex];
       return origin != null && origin.from >= parseEnd;
     });
-    const before = [...matches].reverse().find((match) => {
-      const origin = origins[match.oldIndex];
-      return origin != null && origin.to <= parseStart;
-    });
+    let before: { oldIndex: number; newIndex: number } | undefined;
+    for (let i = matches.length - 1; i >= 0; i--) {
+      const origin = origins[matches[i]!.oldIndex];
+      if (origin != null && origin.to <= parseStart) {
+        before = matches[i];
+        break;
+      }
+    }
     return [(before?.newIndex ?? -1) + 1, after?.newIndex ?? visualCount];
   }
-  const jLeft = [...matches].reverse().find((match) => match.oldIndex < firstOld);
+  let jLeft: { oldIndex: number; newIndex: number } | undefined;
+  for (let i = matches.length - 1; i >= 0; i--) {
+    if (matches[i]!.oldIndex < firstOld) {
+      jLeft = matches[i];
+      break;
+    }
+  }
   const jRight = matches.find((match) => match.oldIndex > lastOld);
   return [(jLeft?.newIndex ?? -1) + 1, jRight?.newIndex ?? visualCount];
 }
@@ -144,13 +189,19 @@ function rebuildBody(
   }
 
   const insertsAfter = new Map<number, { node: GenericNode; index: number }[]>();
+  const matchedNew = new Set(matches.map((match) => match.newIndex));
   const unmatchedNew = newVisual
     .map((node, index) => ({ node, index }))
-    .filter((item) => !matches.some((match) => match.newIndex === item.index));
+    .filter((item) => !matchedNew.has(item.index));
 
+  let anchor = 0;
+  let previous: { oldIndex: number; newIndex: number } | undefined;
   for (const item of unmatchedNew) {
-    const prev = [...matches].reverse().find((match) => match.newIndex < item.index);
-    const key = prev == null ? -1 : (origins[prev.oldIndex]?.to ?? 1) - 1;
+    while (anchor < matches.length && matches[anchor]!.newIndex < item.index) {
+      previous = matches[anchor]!;
+      anchor += 1;
+    }
+    const key = previous == null ? -1 : (origins[previous.oldIndex]?.to ?? 1) - 1;
     const list = insertsAfter.get(key) ?? [];
     list.push(item);
     insertsAfter.set(key, list);
