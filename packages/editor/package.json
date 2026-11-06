@@ -5,22 +5,24 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "dependencies": {
-    "@mdword/shared": "workspace:*",
     "@mdword/renderer": "workspace:*",
-    "@tiptap/core": "^3.31.3",
-    "@tiptap/extension-code": "^3.31.3",
-    "@tiptap/extension-code-block": "^3.31.3",
-    "@tiptap/extension-image": "^3.31.3",
-    "@tiptap/extension-link": "^3.31.3",
-    "@tiptap/extension-list": "^3.31.3",
-    "@tiptap/extension-table": "^3.31.3",
-    "@tiptap/extensions": "^3.31.3",
-    "@tiptap/extension-underline": "^3.31.3",
-    "@tiptap/pm": "^3.31.3",
-    "@tiptap/react": "^3.31.3",
-    "@tiptap/starter-kit": "^3.31.3",
-    "react": "^19.3.0"
+    "@mdword/shared": "workspace:*",
+    "@tiptap/core": "^3.33.0",
+    "@tiptap/extension-code": "^3.33.0",
+    "@tiptap/extension-code-block": "^3.33.0",
+    "@tiptap/extension-image": "^3.33.0",
+    "@tiptap/extension-link": "^3.33.0",
+    "@tiptap/extension-list": "^3.33.0",
+    "@tiptap/extension-table": "^3.33.0",
+    "@tiptap/extension-underline": "^3.33.0",
+    "@tiptap/extensions": "^3.33.0",
+    "@tiptap/pm": "^3.33.0",
+    "@tiptap/react": "^3.33.0",
+    "@tiptap/starter-kit": "^3.33.0",
+    "react": "^19.3.1"
   }
 }

@@ -12,11 +12,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@mdword/shared": "workspace:*",
     "@mdword/layout-engine": "workspace:*",
-    "myst-parser": "^1.7.4",
+    "@mdword/shared": "workspace:*",
+    "myst-parser": "^1.7.5",
     "vfile": "^5.3.7",
     "yaml": "^2.9.1",
-    "zod": "^4.6.6"
+    "zod": "4.6.7"
   }
 }
