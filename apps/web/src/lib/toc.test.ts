@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Editor } from "@tiptap/react";
-import { collectEditorHeadings, jumpToHeading } from "./toc";
+import { collectEditorHeadings, collectEditorOutline, jumpToHeading, jumpToHeadingPos } from "./toc";
 
 type HeadingSpec = { level: number; text: string; empty?: boolean };
 
@@ -78,6 +78,21 @@ describe("collectEditorHeadings", () => {
   });
 });
 
+describe("collectEditorOutline", () => {
+  it("lists every heading including empty ones and all depths", () => {
+    const { editor, positions } = fakeEditor([
+      { level: 1, text: "" },
+      { level: 2, text: "Alpha" },
+      { level: 6, text: "Deep" }
+    ]);
+    expect(collectEditorOutline(editor)).toEqual([
+      { pos: positions[0], depth: 1, text: "" },
+      { pos: positions[1], depth: 2, text: "Alpha" },
+      { pos: positions[2], depth: 6, text: "Deep" }
+    ]);
+  });
+});
+
 describe("jumpToHeading", () => {
   it("selects the same heading the outline listed", () => {
     const { editor, positions, selected } = fakeEditor([
@@ -93,5 +108,16 @@ describe("jumpToHeading", () => {
     const { editor, selected } = fakeEditor([{ level: 1, text: "Only" }]);
     jumpToHeading(editor, 5);
     expect(selected).toEqual([]);
+  });
+
+  it("jumps to an explicit position", () => {
+    const { editor, positions, selected } = fakeEditor([
+      { level: 1, text: "" },
+      { level: 2, text: "Alpha" }
+    ]);
+    const heading = collectEditorOutline(editor)[1];
+    expect(heading).toBeDefined();
+    jumpToHeadingPos(editor, heading?.pos ?? 0);
+    expect(selected).toEqual([(positions[1] ?? 0) + 1]);
   });
 });

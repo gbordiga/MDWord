@@ -7,8 +7,9 @@ import { cn } from "@mdword/ui";
 import { useApp } from "@/lib/store";
 import { Spinner } from "./Spinner";
 import type { GenericNode } from "@mdword/shared";
-import { focusHeading } from "@/lib/editorCommands";
+import { useEditorDocVersion } from "@/hooks/useEditorDocVersion";
 import { useEditorUi } from "@/lib/editorUi";
+import { collectEditorOutline, jumpToHeadingPos } from "@/lib/toc";
 import { FileTree } from "./FileTree";
 
 function relativeWorkspacePath(path: string, root?: string | null): string {
@@ -25,15 +26,18 @@ function searchFieldLabel(field: SearchHitField): string {
   return "Matched in text";
 }
 
-function headingsOf(ast: GenericNode): { text: string; depth: number }[] {
-  const out: { text: string; depth: number }[] = [];
+type SidebarHeading = { text: string; depth: number; pos: number | null };
+
+/** Used before the editor mounts (source view, loading) so the outline stays visible. */
+function headingsOf(ast: GenericNode): SidebarHeading[] {
+  const out: SidebarHeading[] = [];
   const textOf = (n: GenericNode): string => {
     if (typeof n.value === "string") return n.value;
     return (n.children ?? []).map(textOf).join("");
   };
   const walk = (n: GenericNode) => {
     if (n.type === "heading") {
-      out.push({ text: textOf(n).trim(), depth: Number(n.depth ?? 1) });
+      out.push({ text: textOf(n).trim(), depth: Number(n.depth ?? 1), pos: null });
     }
     n.children?.forEach(walk);
   };
@@ -49,7 +53,13 @@ export function LeftSidebar({ className }: { className?: string }) {
   const busy = useApp((s) => s.busy);
   const { editor } = useEditorUi();
   const [q, setQ] = useState("");
-  const headings = useMemo(() => headingsOf(model.ast), [model.ast]);
+  // The editor document is the live source; the AST only feeds the outline
+  // while the visual editor is not mounted.
+  const docVersion = useEditorDocVersion(editor);
+  const headings = useMemo<SidebarHeading[]>(
+    () => (editor ? collectEditorOutline(editor) : headingsOf(model.ast)),
+    [editor, docVersion, model.ast]
+  );
   const results = workspace ? searchHits(workspace.index, q) : [];
 
   const openFile = (filePath: string, options?: { preview?: boolean }) => {
@@ -110,7 +120,9 @@ export function LeftSidebar({ className }: { className?: string }) {
                   type="button"
                   data-testid="outline-item"
                   className="w-full truncate rounded px-2 py-2 text-left hover:bg-[#f2f4f7]"
-                  onClick={() => editor && focusHeading(editor, i)}
+                  onClick={() => {
+                    if (editor && h.pos != null) jumpToHeadingPos(editor, h.pos);
+                  }}
                 >
                   {h.text || "Untitled"}
                 </button>

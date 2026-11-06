@@ -246,21 +246,3 @@ export function findInDocument(
   }
   return { count: matches.length, index };
 }
-
-export function focusHeading(editor: Editor, index: number): void {
-  let i = 0;
-  let found: number | null = null;
-  editor.state.doc.descendants((node, pos) => {
-    if (node.type.name === "heading") {
-      if (i === index) {
-        found = pos;
-        return false;
-      }
-      i += 1;
-    }
-  });
-  if (found == null) return;
-  editor.chain().focus().setTextSelection(found + 1).scrollIntoView().run();
-  const el = editor.view.nodeDOM(found);
-  if (el instanceof HTMLElement) el.scrollIntoView({ block: "start", behavior: "smooth" });
-}
