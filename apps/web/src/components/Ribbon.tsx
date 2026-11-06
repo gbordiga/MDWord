@@ -188,7 +188,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
       <div className="flex flex-wrap items-center gap-1 bg-[#f8fafc] px-2 py-1.5">
         {ribbon === "file" && (
           <>
-            <Btn title="New" onClick={() => actions.newDocument()} disabled={fileBusy}>
+            <Btn title="New" onClick={() => confirmIfDirty(() => actions.newDocument())} disabled={fileBusy}>
               <FilePlus size={16} /> New
             </Btn>
             <Btn title="Open" onClick={() => void actions.openFile()} disabled={fileBusy}>

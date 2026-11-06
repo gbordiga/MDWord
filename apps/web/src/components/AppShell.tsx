@@ -127,7 +127,7 @@ function AppShellInner({
       }
       if (meta && e.key.toLowerCase() === "n") {
         e.preventDefault();
-        useApp.getState().newDocument();
+        confirmIfDirty(() => useApp.getState().newDocument());
       }
       if (meta && e.key.toLowerCase() === "o") {
         e.preventDefault();

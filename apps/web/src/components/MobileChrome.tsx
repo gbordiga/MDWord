@@ -402,7 +402,10 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
       </Sheet>
       <Sheet open={sheet === "more"} onClose={close} side="bottom" title="More" testId="sheet-more">
         <div className="py-1">
-          <MoreItem label="New document" onClick={() => run(() => actions.newDocument())}>
+          <MoreItem
+            label="New document"
+            onClick={() => run(() => confirmIfDirty(() => actions.newDocument()))}
+          >
             <FilePlus size={18} />
           </MoreItem>
           <MoreItem label="Open" onClick={() => run(() => void actions.openFile())}>

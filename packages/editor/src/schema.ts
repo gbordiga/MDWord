@@ -34,7 +34,11 @@ export function editorExtensions() {
       link: false,
       underline: false,
       codeBlock: { HTMLAttributes: { class: "md-code" } },
-      horizontalRule: { HTMLAttributes: { class: "md-hr" } }
+      horizontalRule: { HTMLAttributes: { class: "md-hr" } },
+      // StarterKit's trailing node added a stray empty paragraph to every
+      // document, so clicks and typing landed below the document title
+      // heading instead of inside it (and left an empty `# ` behind).
+      trailingNode: false
     }),
     Underline,
     Code.extend({ excludes: "" }),

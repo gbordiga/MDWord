@@ -920,6 +920,11 @@ export const useApp = create<AppState>((set, get) => {
     }
   },
   patchMdoc: (mdoc) => {
+    // A debounced visual edit may still be pending: without flushing it the
+    // patch is applied to the stale model and the editor is reset from it,
+    // silently dropping the last few edits.
+    flushVisualEdits();
+    flushSourceEdits();
     const current = get().model;
     let yaml = current.yamlCst;
     if (yaml) yaml.set("mdoc", mdoc);
@@ -945,6 +950,8 @@ export const useApp = create<AppState>((set, get) => {
     });
   },
   patchFrontmatter: (patch) => {
+    flushVisualEdits();
+    flushSourceEdits();
     const current = get().model;
     const next = setFrontmatterValues(current, patch, get().workspace?.workspaceMdoc);
     if (next.source === current.source) return;
@@ -961,6 +968,8 @@ export const useApp = create<AppState>((set, get) => {
     });
   },
   replaceFrontmatterModel: (model) => {
+    flushVisualEdits();
+    flushSourceEdits();
     const current = get().model;
     if (model.source === current.source) return;
     patchActiveTab({

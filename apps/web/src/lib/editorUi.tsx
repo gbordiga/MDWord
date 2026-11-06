@@ -58,6 +58,9 @@ export function EditorUiProvider({
   }, []);
 
   const confirmIfDirty = useCallback((action: () => void, options?: { when?: boolean; save?: () => Promise<boolean> }) => {
+    // Flush debounced edits first: otherwise a document that was just typed in
+    // still looks clean and the action silently throws the edits away.
+    useApp.getState().flushPendingEdits();
     const dirty = options?.when ?? useApp.getState().dirty;
     if (!dirty) {
       action();

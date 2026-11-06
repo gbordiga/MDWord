@@ -103,7 +103,7 @@ test("resizes a selected image and can add a caption", async ({ page }) => {
   const prose = page.locator(".ProseMirror");
   await expect(prose).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: "Insert" }).click();
-  await page.getByRole("button", { name: "Image" }).click();
+  await page.getByRole("button", { name: "Image", exact: true }).click();
   await expect(page.getByTestId("image-dialog")).toBeVisible();
   const tinyPng = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",

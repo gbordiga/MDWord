@@ -68,7 +68,7 @@ test("References import embeds file-backed images and can undo", async ({ page }
 
   await page.locator(".ProseMirror").click();
   await page.keyboard.press("ControlOrMeta+Z");
-  await expect(page.locator('[data-testid="doc-image"]').first()).toHaveAttribute("src", /cat\.png/);
+  await expect(page.locator('[data-testid="doc-image"]').first()).toHaveAttribute("data-src", /cat\.png/);
   const undone = await page.evaluate(() => {
     window.__MDWORD_APP__!.getState().flushPendingEdits();
     return window.__MDWORD_APP__!.getState().model.source;

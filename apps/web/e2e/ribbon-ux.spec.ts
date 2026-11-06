@@ -29,7 +29,7 @@ test("choosing a local image embeds it in the document", async ({ page }) => {
     mimeType: "image/png",
     buffer: TINY_PNG
   });
-  await expect(page.getByTestId("image-dialog").locator("img")).toBeVisible();
+  await expect(page.getByTestId("image-dialog").locator("canvas")).toBeVisible();
   await expect(page.getByTestId("image-alt")).toHaveValue("");
   await page.getByTestId("image-insert").click();
   await expect(prose.locator("img")).toBeVisible();

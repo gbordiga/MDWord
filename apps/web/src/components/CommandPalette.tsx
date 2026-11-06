@@ -3,6 +3,7 @@
 import { Command } from "cmdk";
 import { useApp } from "@/lib/store";
 import { useMarkdownAssociation } from "./MarkdownAssociationControl";
+import { useEditorUi } from "@/lib/editorUi";
 export function CommandPalette({
   onInsert
 }: {
@@ -11,6 +12,7 @@ export function CommandPalette({
   const open = useApp((s) => s.paletteOpen);
   const setPalette = useApp((s) => s.setPalette);
   const actions = useApp();
+  const { confirmIfDirty } = useEditorUi();
   const markdownAssociation = useMarkdownAssociation();
   if (!open) return null;
 
@@ -34,7 +36,7 @@ export function CommandPalette({
           <Command.Item
             onSelect={() => {
               close();
-              actions.newDocument();
+              confirmIfDirty(() => actions.newDocument());
             }}
             className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]"
           >
