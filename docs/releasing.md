@@ -1,6 +1,6 @@
 # Releasing
 
-Product version is **0.1.10** (`package.json`, `apps/desktop`, `apps/web`, `apps/mobile`).
+Product version is **0.1.11** (`package.json`, `apps/desktop`, `apps/web`, `apps/mobile`).
 
 Store listings, code signing, and Apple/Google accounts stay on your machine — they are not in this repository.
 
@@ -64,6 +64,12 @@ embeds `resources/app-update.yml` and the release directory gets `latest.yml` /
   `pnpm --filter @mdword/desktop dist:publish -- --linux|--win` and uploads the
   installers **and** the update metadata to the GitHub Release using
   `secrets.GITHUB_TOKEN`.
+- The **`windows` job publishes the NSIS installer from `windows-latest`**:
+  `MDWord-Setup-X.Y.Z.exe`, its `.blockmap` and `latest.yml`.
+- The final `verify-release` job runs `node scripts/verify-release.mjs <tag>` and
+  fails the release when any of these is missing, or when `latest.yml` /
+  `latest-linux.yml` do not point at the tag's version. Run the same script
+  locally after a release to check it yourself.
 - Installed apps check silently about 8 seconds after launch, download in the
   background and show a banner with **Restart to update**. The update also
   installs on the next normal quit (`autoInstallOnAppQuit`). **File → Updates**

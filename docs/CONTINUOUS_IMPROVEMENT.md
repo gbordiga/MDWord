@@ -16,7 +16,7 @@ pnpm --filter @mdword/web exec playwright test   # chromium + mobile
 Record the result of each command you actually run. Do not claim a check that did
 not run.
 
-## Baseline (2026-11-06, version 0.1.10)
+## Baseline (2026-11-06, version 0.1.11)
 
 | Check | Result |
 | --- | --- |
@@ -375,6 +375,24 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
   Copy diagnostics contains the error and not the document text; `AbortError` is
   ignored). All 426 unit tests and 82 e2e tests pass.
 
+### 2026-11-06 — CI guarantees the Windows release (0.1.11)
+
+- **Problem:** the `windows` job already built and published the NSIS installer, but
+  nothing verified it: a release could be green (or half-published) with the Windows
+  installer, its `.blockmap` or `latest.yml` missing, which silently breaks updates
+  for installed apps.
+- **Solution:** the Windows job now runs `pnpm test`, retries the publish three
+  times like Linux, and a new `verify-release` job (needs `linux` + `windows`) runs
+  `scripts/verify-release.mjs <tag>`. The script checks the GitHub Release for
+  `MDWord-Setup-X.Y.Z.exe`, its `.blockmap`, `MDWord-X.Y.Z.AppImage`,
+  `MDWord-X.Y.Z.deb`, `latest.yml` and `latest-linux.yml`, and downloads both
+  metadata files to confirm `version:` matches the tag.
+- **Files:** `.github/workflows/release.yml`, `scripts/verify-release.mjs`,
+  `docs/releasing.md`
+- **Verified:** the script passes on the published `v0.1.10` release (all six
+  artifacts, both metadata files at `0.1.10`) and exits non-zero on `v0.1.0`, which
+  only has the `.exe`. The workflow YAML parses with the four expected jobs.
+
 ## Backlog (highest first)
 
 | Task | Why | Effort |
@@ -409,7 +427,7 @@ web IDB adapter, and the multi-tab restore flow cannot be exercised without an
 Electron runtime. Landing it needs a desktop build to verify, otherwise recovery
 could silently stop working.
 
-Version 0.1.10 is the state of this tree: the save path honours the “never silently
+Version 0.1.11 is the state of this tree: the save path honours the “never silently
 overwrite an external edit” promise, desktop builds update themselves from GitHub
 Releases, recent files reopen from the File tab, failures are reported and can be
 copied as a diagnostics report, the outline reads the live document, and visual
@@ -423,7 +441,7 @@ Remaining work, in order:
 2. Crash recovery for every dirty tab (blocked on `listRecovery()` across runtimes).
 3. `store.ts` split once a feature touches the workspace actions.
 
-## Releasing 0.1.10
+## Releasing 0.1.11
 
 The version is bumped in `package.json`, `apps/{web,desktop,mobile}/package.json`,
 `packages/shared/src/constants.ts`, the `next.config.ts` fallback and

@@ -97,6 +97,7 @@ jobs:
           key: electron-builder-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             electron-builder-${{ runner.os }}-
+      - run: pnpm test
       - run: pnpm build:web
       - name: Stage the web build for the installer
         run: |
@@ -104,5 +105,29 @@ jobs:
           cp -R apps/web/out/. apps/desktop/resources/web/
         shell: bash
       - name: Build and publish Windows installer
-        run: pnpm --filter @mdword/desktop dist:publish -- --win
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm --filter @mdword/desktop dist:publish -- --win; then
+              exit 0
+            fi
+            echo "desktop publish failed (attempt ${attempt}), retrying..."
+            rm -rf apps/desktop/release
+            sleep 20
+          done
+          exit 1
         shell: bash
+
+  # A release is only done when both platforms are on it with current metadata;
+  # installed apps read latest*.yml to find the next version.
+  verify-release:
+    needs: [linux, windows]
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Check every desktop artifact is published
+        run: node scripts/verify-release.mjs "$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
