@@ -54,13 +54,43 @@ Not required to build. For production distribution:
 
 ## Auto-update
 
-`electron-updater` is wired but **disabled** (`publish: null`). Enable later with GitHub Releases.
+Desktop builds update from **GitHub Releases** (`gbordiga/MDWord`). The publish
+provider lives in `apps/desktop/electron-builder.yml`, so every desktop build
+embeds `resources/app-update.yml` and the release directory gets `latest.yml` /
+`latest-linux.yml` plus `.blockmap` files.
+
+- Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`. It first fails if
+  the tag does not match `package.json`, then builds with
+  `pnpm --filter @mdword/desktop dist:publish -- --linux|--win` and uploads the
+  installers **and** the update metadata to the GitHub Release using
+  `secrets.GITHUB_TOKEN`.
+- Installed apps check silently about 8 seconds after launch, download in the
+  background and show a banner with **Restart to update**. The update also
+  installs on the next normal quit (`autoInstallOnAppQuit`). **File → Updates**
+  checks on demand; a failed manual check offers *Try again*.
+- Linux: only the **AppImage** can replace itself. A `.deb` install must be
+  upgraded with the package manager; the updater reports nothing it cannot do.
+- Windows: unsigned NSIS builds can update, but SmartScreen warns on first
+  install. Add Authenticode (`CSC_LINK`, `CSC_KEY_PASSWORD`) for a clean prompt.
+- macOS: Squirrel.Mac refuses unsigned updates. Build from a Mac with a
+  Developer ID certificate and notarization, then
+  `pnpm --filter @mdword/desktop dist:publish -- --mac` so `latest-mac.yml` lands
+  on the same release.
+
+`pnpm dist` (`--publish never`) stays local: it writes the installer and the
+update metadata but never uploads anything.
 
 ## Checklist
 
 1. `pnpm test` and `pnpm typecheck` pass
 2. Round-trip fixtures pass
 3. Manual Definition of Done (`docs/product.md`)
-4. Tag `vX.Y.Z` and push the tag
-5. Deploy web; attach desktop installers to the Release
-6. Submit signed AAB / IPA from your machines
+4. Bump the version everywhere (`package.json`, `apps/*/package.json`,
+   `packages/shared/src/constants.ts`, `next.config.ts` fallback)
+5. Tag `vX.Y.Z` and push the tag — CI publishes the desktop installers and the
+   update metadata to the GitHub Release
+6. Check the release: `latest.yml`, `latest-linux.yml` and the `.blockmap` files
+   must be attached, otherwise installed apps cannot update
+7. Deploy web; attach the signed macOS build and (optionally) re-run the Windows
+   build with a certificate
+8. Submit signed AAB / IPA from your machines

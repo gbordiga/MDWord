@@ -56,6 +56,9 @@ Print, PDF, and HTML use the same page model as the canvas.
 **Safety**
 Saving never silently overwrites an edit made outside MDWord: if the file changed on disk, it asks first — overwrite, reload from disk, or cancel. Unsaved work is drafted locally and offered for recovery after a crash.
 
+**Updates**
+Desktop builds update themselves from GitHub Releases: MDWord checks after launch, downloads in the background, and offers to restart. Nothing is uploaded; the web build updates when the site is deployed.
+
 **Offline**
 Desktop (Windows / macOS / Linux), local-first web, mobile shells. Files stay on the device unless you export or save them yourself.
 

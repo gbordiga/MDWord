@@ -20,10 +20,10 @@ not run.
 
 | Check | Result |
 | --- | --- |
-| `pnpm test` | 71 files, 400 tests passing |
+| `pnpm test` | 73 files, 412 tests passing |
 | `pnpm typecheck` | passing (all workspace projects) |
 | `pnpm build:web` | passing |
-| Playwright (chromium + mobile) | 77 tests passing |
+| Playwright (chromium + mobile) | 80 tests passing |
 
 Environment note: the repo declares Node 26 (`engines`), the current machine runs
 Node 24, so pnpm prints an engine warning. Everything above still passes.
@@ -200,6 +200,44 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
   typechecked and the pure list logic is tested, but a desktop build must confirm
   `files.openRecent` before release.
 
+### 2026-11-06 — Automatic updates through GitHub Releases
+
+- **Problem:** `electron-updater` was a dependency but nothing used it and
+  `electron-builder.yml` had `publish: null`, so desktop users had to notice and
+  install every new build by hand.
+- **Solution:** the publish provider is now GitHub (`gbordiga/MDWord`), which
+  embeds `app-update.yml` and emits `latest*.yml` + `.blockmap` on build.
+  `apps/desktop/src/main/updater.ts` checks once after launch (silent), downloads
+  in the background, auto-installs on quit and exposes status to the renderer
+  through `app.updates` IPC. The renderer shows a dismissible banner (progress,
+  then *Restart to update*), keeps a *File → Updates* button for a manual check
+  with *Try again* on failure, and saves every dirty tab before restarting so the
+  close guard cannot discard work. The web and mobile hosts have no bridge, so the
+  banner and the button never appear there.
+  `.github/workflows/release.yml` validates the tag against `package.json`, then
+  publishes Linux (AppImage/deb) and Windows (NSIS) artifacts with `GH_TOKEN`.
+- **Files:** `packages/shared/src/updates.ts`, `packages/shared/src/host.ts`,
+  `apps/desktop/src/main/updater.ts`, `apps/desktop/src/main/index.ts`,
+  `apps/desktop/src/preload/index.ts`, `apps/desktop/electron-builder.yml`,
+  `apps/desktop/package.json`, `apps/web/src/lib/store.ts`,
+  `apps/web/src/components/UpdateBanner.tsx`,
+  `apps/web/src/components/Ribbon.tsx`, `apps/web/src/components/AppShell.tsx`,
+  `.github/workflows/release.yml`
+- **Tests:** `apps/web/src/lib/updateNotice.test.ts` (silent states, progress,
+  restart, up-to-date, retry), `apps/web/src/lib/store.updates.test.ts`
+  (subscription, unsupported host, failed check, saves before install, refuses to
+  restart when a save is cancelled), `apps/web/e2e/update-banner.spec.ts`
+  (downloaded banner, progress banner, no controls on web)
+- **Verified:** a real Windows packaging run (`electron-builder`, unsigned)
+  produced `latest.yml` with sha512, `MDWord-Setup-0.1.8.exe.blockmap` and a
+  packaged `app-update.yml` pointing at `gbordiga/MDWord`. The workflow YAML parses
+  and the desktop main/preload build.
+- **Partially verified:** no tagged release was published from here, so the
+  end-to-end download/install and macOS signing were not executed. First release
+  after this change must confirm `latest*.yml` is attached to the GitHub Release.
+- **Limits:** Linux updates only work for the AppImage (deb is upgraded by the
+  package manager); macOS requires a signed + notarized build.
+
 ## Backlog (highest first)
 
 | Task | Why | Effort |
@@ -235,14 +273,15 @@ Electron runtime. Landing it needs a desktop build to verify, otherwise recovery
 could silently stop working.
 
 Version 0.1.8 is the state of this tree: the save path honours the “never silently
-overwrite an external edit” promise, recent files reopen from the File tab on
-desktop, image cleanup and file/export failures report honestly, and the outline
-reads the live document.
+overwrite an external edit” promise, desktop builds update themselves from GitHub
+Releases, recent files reopen from the File tab, image cleanup and file/export
+failures report honestly, and the outline reads the live document.
 
 Remaining work, in order:
-1. **Verify recent files on a desktop build** (`pnpm dev:desktop`): open a file,
-   restart, reopen it from File → Recent. The IPC is typechecked but not executed
-   in CI.
+1. **Publish one tag and verify the updater end-to-end.** With the release
+   workflow in place: tag `v0.1.8`, install that build, bump to `0.1.9`, tag
+   again, and confirm the installed app downloads and restarts into it. This also
+   verifies recent files (`File → Recent` after a restart) on a packaged build.
 2. Crash recovery for every dirty tab (blocked on `listRecovery()` across runtimes).
 3. `store.ts` split once a feature touches the workspace actions.
 
@@ -253,5 +292,7 @@ The version is bumped in `package.json`, `apps/{web,desktop,mobile}/package.json
 `docs/releasing.md`. Tagging, installers and store uploads stay with the release
 checklist (`docs/COSA-DEVI-FARE.md`); nothing was deployed from here.
 
-Recent files is desktop-only and its IPC has not been exercised outside
-typechecking: check it on `pnpm dev:desktop` before tagging.
+Recent files and auto-update are desktop-only and their IPC has not been exercised
+outside a local Windows packaging run: check both on the first tagged build.
+Publishing a tag uploads installers to GitHub Releases, so the first release must
+be reviewed for `latest.yml`, `latest-linux.yml` and the `.blockmap` files.
