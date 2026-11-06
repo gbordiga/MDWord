@@ -128,6 +128,24 @@ protocol.registerSchemesAsPrivileged([
   { scheme: "mdword", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }
 ]);
 
+/**
+ * The print window shows document-derived HTML. It has no preload, but it can
+ * still run the Paged.js bundle and inline styles, so give it the same policy as
+ * the app: same-origin scripts, inline styles, data/blob/http images, and no way
+ * to exfiltrate anything.
+ */
+const PRINT_CSP =
+  "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' blob:; " +
+  "img-src 'self' data: blob: https: http: mdword:; font-src 'self' data: blob: https: http:; " +
+  "connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'";
+
+function withPrintCsp(html: string): string {
+  if (html.includes("Content-Security-Policy")) return html;
+  const meta = `<meta http-equiv="Content-Security-Policy" content="${PRINT_CSP}" />`;
+  if (html.includes("<head>")) return html.replace("<head>", `<head>${meta}`);
+  return `${meta}${html}`;
+}
+
 function userData(...parts: string[]): string {
   return path.join(app.getPath("userData"), ...parts);
 }
@@ -304,8 +322,11 @@ function createWindow(): void {
   });
 
   mainWindow.webContents.on("will-navigate", (event, url) => {
-    const allowed = url.startsWith("mdword:") || url.startsWith("http://localhost") || url.startsWith("http://127.0.0.1");
-    if (!allowed) event.preventDefault();
+    // The preload bridge is attached to every navigation in this window, so a
+    // production build must only ever show its own `mdword:` pages. The dev
+    // server origin is allowed while developing.
+    const devServer = isDev && /^http:\/\/(localhost|127\.0\.0\.1)([:/]|$)/i.test(url);
+    if (!url.startsWith("mdword:") && !devServer) event.preventDefault();
   });
 
   if (isDev) {
@@ -348,7 +369,7 @@ app.whenReady().then(() => {
     if (rel === "" || rel === ".") rel = "index.html";
     if (rel === "__print.html") {
       if (!pendingPrintHtml) return new Response("No print document", { status: 404 });
-      return new Response(pendingPrintHtml, {
+      return new Response(withPrintCsp(pendingPrintHtml), {
         headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }
       });
     }

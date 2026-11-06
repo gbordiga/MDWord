@@ -263,6 +263,41 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
   actually reach a long dash run because `[^a-z0-9]+` collapses separators first.
   The replacement is still exact and removes the pattern CodeQL objects to.
 
+### 2026-11-06 — Security audit for 0.1.8
+
+- **Scope:** dependencies (`pnpm audit`), Electron window/IPC configuration,
+  navigation allowlist, protocol handler, HTML sanitizing and CSP, external links,
+  recent-files and auto-update additions, GitHub Actions permissions.
+- **Findings fixed:**
+  1. `will-navigate` accepted `http://localhost` in packaged builds. The preload
+     bridge is attached to every navigation in that window, so any page served on
+     localhost would have received `window.mdword`. The dev-server origin is now
+     allowed only when `isDev`.
+  2. No Content Security Policy. The static app now ships one in production
+     (same-origin scripts because Next.js needs inline bootstrap, inline styles for
+     Tiptap/Paged.js, `data:`/`blob:`/`http(s)` images, `connect-src 'self'`,
+     `object-src 'none'`, `base-uri 'self'`, `form-action 'none'`), and the
+     Electron print window gets the same policy injected by the `mdword://`
+     handler with `connect-src 'none'`.
+- **Checked, no change needed:** `contextIsolation`/`sandbox`/no `nodeIntegration`,
+  window-open handler, `openExternal` validation, `mdword://` path traversal check,
+  permission handlers (only `fileSystem`), zod schemas on IPC payloads, images in
+  `sanitize-html` restricted to `http/https/data`, Mermaid `securityLevel: strict`,
+  recent-files list owned by the main process, updater checksums via `latest*.yml`,
+  no secrets or document content in logs, workflow permissions minimal.
+- **Accepted risk, documented:** `assertImageRead` lets a workspace document read
+  an image up to four folders above an allowed root (needed for imported
+  documents); exfiltration is blocked by `connect-src`.
+- **Files:** `apps/desktop/src/main/index.ts`, `apps/web/src/app/layout.tsx`,
+  `docs/security.md`, `docs/security-tests.md`
+- **Verified:** `pnpm audit --audit-level=high` clean; the **production** build was
+  served from `apps/web/out` and driven with Chromium: editor loads, typing works,
+  KaTeX renders, an `srcdoc` frame with an inline script, inline style and data
+  image runs (the print-document shape), and the console reports **no CSP
+  violations**. The Electron navigation/print changes are typechecked and their
+  directives match the ones exercised in Chromium, but they were not executed in a
+  packaged Electron window.
+
 ## Backlog (highest first)
 
 | Task | Why | Effort |

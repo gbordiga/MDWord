@@ -24,6 +24,24 @@ export const metadata: Metadata = {
   }
 };
 
+/**
+ * Content Security Policy for the static app. Inline scripts are required by the
+ * Next.js bootstrap, so this blocks the channels that matter for a Markdown
+ * editor: remote script origins, network exfiltration (`connect-src`), plugin
+ * objects, form posts and base-tag hijacking. Development is exempt because the
+ * dev server needs eval and a websocket.
+ */
+const CSP = [
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' blob:",
+  "img-src 'self' data: blob: https: http: mdword:",
+  "font-src 'self' data: blob: https: http:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'none'"
+].join("; ");
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
@@ -35,6 +53,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="it">
+      <head>{process.env.NODE_ENV === "production" ? <meta httpEquiv="Content-Security-Policy" content={CSP} /> : null}</head>
       <body>
         <div id="mdword-boot" className="md-boot" data-testid="app-boot" role="status" aria-live="polite">
           <div className="md-boot-card">
