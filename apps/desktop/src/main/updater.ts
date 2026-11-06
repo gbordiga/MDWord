@@ -1,6 +1,8 @@
 import { app, BrowserWindow } from "electron";
+import { existsSync, mkdirSync, appendFileSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { autoUpdater } from "electron-updater";
-import type { UpdateStatus } from "@mdword/shared";
+import { updateErrorReason, type UpdateStatus } from "@mdword/shared";
 
 export const UPDATE_CHANNEL = "app.updateStatus";
 
@@ -25,6 +27,49 @@ function supported(): boolean {
   return app.isPackaged;
 }
 
+const LOG_MAX_BYTES = 64 * 1024;
+
+function updateLogPath(): string {
+  return path.join(app.getPath("userData"), "logs", "updater.log");
+}
+
+/** Packaged apps have no console, so update problems are written next to the data. */
+export function logUpdate(line: string): void {
+  try {
+    const file = updateLogPath();
+    mkdirSync(path.dirname(file), { recursive: true });
+    const entry = `${new Date().toISOString()} ${line}\n`;
+    if (existsSync(file) && statSync(file).size > LOG_MAX_BYTES) writeFileSync(file, entry);
+    else appendFileSync(file, entry);
+  } catch {
+    /* logging must never break the updater */
+  }
+}
+
+/** Last lines of the update log, used by Copy diagnostics. */
+export function readUpdateLog(lines = 40): string[] {
+  try {
+    const file = updateLogPath();
+    if (!existsSync(file)) return [];
+    return readFileSync(file, "utf8").trimEnd().split("\n").slice(-lines);
+  } catch {
+    return [];
+  }
+}
+
+function fail(message: string, error: unknown): UpdateStatus {
+  const reason = updateErrorReason(error);
+  const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  logUpdate(`error ${reason || "unknown"} | ${detail}`);
+  const next: UpdateStatus = {
+    state: "error",
+    message: reason ? `${message} (${reason}).` : message
+  };
+  if (manualCheck) broadcast(next);
+  else status = next;
+  return next;
+}
+
 /**
  * Check for a newer version on GitHub Releases. Called once after launch (silent)
  * and on demand from the File tab. Downloads happen in the background; the update
@@ -37,11 +82,22 @@ export async function checkForUpdates(manual = false): Promise<UpdateStatus> {
     return status;
   }
   if (status.state === "downloading" || status.state === "downloaded") return status;
-  try {
-    await autoUpdater.checkForUpdates();
-  } catch (error) {
-    console.error("Could not check for updates", error);
-    if (manual) broadcast({ state: "error", message: "Could not check for updates." });
+
+  // A flaky network or a transient GitHub error should not need a second click.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    logUpdate(`check start (attempt ${attempt}, ${manual ? "manual" : "startup"})`);
+    try {
+      await autoUpdater.checkForUpdates();
+      logUpdate(`check finished: ${status.state}`);
+      return status;
+    } catch (error) {
+      logUpdate(`check failed (attempt ${attempt})`);
+      if (attempt === 2) {
+        console.error("Could not check for updates", error);
+        return fail("Could not check for updates", error);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+    }
   }
   return status;
 }
@@ -49,6 +105,7 @@ export async function checkForUpdates(manual = false): Promise<UpdateStatus> {
 /** Quit, install the downloaded update and relaunch. */
 export function installUpdate(): void {
   if (status.state !== "downloaded") return;
+  logUpdate(`installing ${availableVersion}`);
   autoUpdater.quitAndInstall(false, true);
 }
 
@@ -62,15 +119,23 @@ export function registerAutoUpdater(): void {
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.logger = null;
+  autoUpdater.logger = {
+    info: (message) => logUpdate(`info ${String(message)}`),
+    warn: (message) => logUpdate(`warn ${String(message)}`),
+    error: (message) => logUpdate(`error ${String(message)}`),
+    debug: (message) => logUpdate(`debug ${String(message)}`)
+  };
+  logUpdate(`updater ready: version ${app.getVersion()} on ${process.platform}`);
 
   autoUpdater.on("checking-for-update", () => broadcast({ state: "checking" }));
   autoUpdater.on("update-available", (info) => {
     availableVersion = info.version;
+    logUpdate(`update available: ${info.version}`);
     broadcast({ state: "available", version: info.version });
   });
   autoUpdater.on("update-not-available", () => {
     availableVersion = "";
+    logUpdate("no update available");
     broadcast(manualCheck ? { state: "none" } : { state: "idle" });
   });
   autoUpdater.on("download-progress", (progress) => {
@@ -82,14 +147,15 @@ export function registerAutoUpdater(): void {
   });
   autoUpdater.on("update-downloaded", (info) => {
     availableVersion = info.version;
+    logUpdate(`update downloaded: ${info.version}`);
     broadcast({ state: "downloaded", version: info.version });
   });
   autoUpdater.on("error", (error) => {
+    // A background failure (offline, no release yet) must not interrupt writing,
+    // so the banner only appears for a check the user asked for.
     console.error("Update error", error);
-    // A background failure (offline, no release yet) must not interrupt writing.
-    broadcast(
-      manualCheck ? { state: "error", message: "Could not check for updates." } : { state: "idle" }
-    );
+    if (manualCheck) fail("Could not check for updates", error);
+    else logUpdate("background error not shown in the UI");
   });
 
   // Give the window time to paint before touching the network.

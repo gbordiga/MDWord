@@ -16,11 +16,11 @@ pnpm --filter @mdword/web exec playwright test   # chromium + mobile
 Record the result of each command you actually run. Do not claim a check that did
 not run.
 
-## Baseline (2026-11-06, version 0.1.11)
+## Baseline (2026-11-06, version 0.1.12)
 
 | Check | Result |
 | --- | --- |
-| `pnpm test` | 75 files, 426 tests passing |
+| `pnpm test` | 76 files, 431 tests passing |
 | `pnpm typecheck` | passing (all workspace projects) |
 | `pnpm build:web` | passing |
 | Playwright (chromium + mobile) | 82 tests passing |
@@ -393,6 +393,37 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
   artifacts, both metadata files at `0.1.10`) and exits non-zero on `v0.1.0`, which
   only has the `.exe`. The workflow YAML parses with the four expected jobs.
 
+### 2026-11-06 — "Could not check for updates": chain verified, failure now explains itself
+
+- **Report:** an installed desktop build showed *Could not check for updates* with
+  no detail.
+- **Verified the release side is correct** (live calls): `releases/latest` returns
+  `v0.1.11` with `latest.yml`; `latest.yml` and `MDWord-Setup-0.1.11.exe` download
+  from `releases/download/v0.1.11/` (302 to release-assets, 200); the atom feed
+  lists 0.1.11; the packaged `resources/app-update.yml` is `owner: gbordiga,
+  repo: MDWord, provider: github, releaseType: release`; and a real
+  `electron-updater` run from a scratch Electron app printed
+  `Found version 0.1.11 (url: MDWord-Setup-0.1.11.exe)` with the sha512 from the
+  release. CI publishes the Windows release and the client reaches it.
+- **Why it was opaque:** the reason only reached the main-process console, which a
+  packaged Windows app does not show, and the banner always said the same sentence.
+- **Fixed:**
+  1. `updateErrorReason` (`@mdword/shared`) maps electron-updater codes and
+     messages to `HTTP 404`, `DNS lookup failed`, `network unavailable`,
+     `certificate rejected`, `release metadata missing`, ... including the real
+     `HTTP_ERROR_404` shape captured from a failing run.
+  2. The banner shows `Could not check for updates (HTTP 404).`; manual failures
+     stay visible, background ones stay silent but logged.
+  3. The main process writes `logs/updater.log` (capped at 64 KB) with
+     electron-updater's own lines, and Copy diagnostics includes its tail.
+  4. A failed check retries once after 2.5 s before reporting.
+- **Files:** `packages/shared/src/updates.ts`, `apps/desktop/src/main/updater.ts`,
+  `apps/desktop/src/main/index.ts`, `docs/releasing.md`
+- **Tests:** `packages/shared/src/updates.test.ts`.
+- **Partially verified:** the packaged main-process path (log file, banner reason)
+  is typechecked and built, not executed in a packaged window here; the network and
+  release chain it relies on was verified directly.
+
 ## Backlog (highest first)
 
 | Task | Why | Effort |
@@ -427,7 +458,7 @@ web IDB adapter, and the multi-tab restore flow cannot be exercised without an
 Electron runtime. Landing it needs a desktop build to verify, otherwise recovery
 could silently stop working.
 
-Version 0.1.11 is the state of this tree: the save path honours the “never silently
+Version 0.1.12 is the state of this tree: the save path honours the “never silently
 overwrite an external edit” promise, desktop builds update themselves from GitHub
 Releases, recent files reopen from the File tab, failures are reported and can be
 copied as a diagnostics report, the outline reads the live document, and visual
@@ -441,7 +472,7 @@ Remaining work, in order:
 2. Crash recovery for every dirty tab (blocked on `listRecovery()` across runtimes).
 3. `store.ts` split once a feature touches the workspace actions.
 
-## Releasing 0.1.11
+## Releasing 0.1.12
 
 The version is bumped in `package.json`, `apps/{web,desktop,mobile}/package.json`,
 `packages/shared/src/constants.ts`, the `next.config.ts` fallback and

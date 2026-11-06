@@ -24,6 +24,7 @@ import {
   checkForUpdates,
   currentUpdateStatus,
   installUpdate,
+  readUpdateLog,
   registerAutoUpdater
 } from "./updater";
 
@@ -708,7 +709,7 @@ function registerIpc(): void {
       appVersion: app.getVersion(),
       electronVersion: process.versions.electron,
       platform: process.platform,
-      logs: [`recoveryDir=${userData("recovery")}`]
+      logs: [`recoveryDir=${userData("recovery")}`, ...readUpdateLog()]
     };
   });
 

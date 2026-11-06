@@ -1,6 +1,6 @@
 # Releasing
 
-Product version is **0.1.11** (`package.json`, `apps/desktop`, `apps/web`, `apps/mobile`).
+Product version is **0.1.12** (`package.json`, `apps/desktop`, `apps/web`, `apps/mobile`).
 
 Store listings, code signing, and Apple/Google accounts stay on your machine — they are not in this repository.
 
@@ -85,6 +85,35 @@ embeds `resources/app-update.yml` and the release directory gets `latest.yml` /
 
 `pnpm dist` (`--publish never`) stays local: it writes the installer and the
 update metadata but never uploads anything.
+
+### Checking a release updates correctly
+
+```sh
+node scripts/verify-release.mjs v0.1.11   # CI runs this after every tag
+```
+
+It fails when an installer, its `.blockmap` or `latest*.yml` is missing, or when
+the metadata points at another version. To test the client side without
+installing, electron-updater can be pointed at the real release from a scratch
+Electron app with `forceDevUpdateConfig = true` and a `dev-app-update.yml`
+(`provider: github`, `owner`, `repo`); a successful run prints the tag, the
+installer name and its sha512.
+
+### When the app says "Could not check for updates"
+
+The banner carries a short reason (`HTTP 403`, `DNS lookup failed`,
+`network unavailable`, `certificate rejected`, `release metadata missing`, ...).
+Details and electron-updater's own log are written to:
+
+- Windows: `%APPDATA%\mdword\logs\updater.log`
+- macOS: `~/Library/Application Support/mdword/logs/updater.log`
+- Linux: `~/.config/mdword/logs/updater.log`
+
+`Command palette -> Copy diagnostics` includes the tail of that file. A failed
+check is retried once after 2.5 s, so a transient network error does not need a
+second click. Common causes, in order: a proxy or firewall blocking `github.com`
+and `release-assets.githubusercontent.com`, TLS interception on a corporate
+network, or being offline.
 
 ## Checklist
 
