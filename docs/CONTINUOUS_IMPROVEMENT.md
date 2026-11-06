@@ -16,14 +16,14 @@ pnpm --filter @mdword/web exec playwright test   # chromium + mobile
 Record the result of each command you actually run. Do not claim a check that did
 not run.
 
-## Baseline (2026-11-06, version 0.1.9)
+## Baseline (2026-11-06, version 0.1.10)
 
 | Check | Result |
 | --- | --- |
-| `pnpm test` | 74 files, 419 tests passing |
+| `pnpm test` | 75 files, 426 tests passing |
 | `pnpm typecheck` | passing (all workspace projects) |
 | `pnpm build:web` | passing |
-| Playwright (chromium + mobile) | 80 tests passing |
+| Playwright (chromium + mobile) | 82 tests passing |
 
 Environment note: the repo declares Node 26 (`engines`), the current machine runs
 Node 24, so pnpm prints an engine warning. Everything above still passes.
@@ -336,6 +336,45 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
   under an 800 ms budget — the old code needs 1.8 s — plus a byte-preservation
   check around an insertion). All 419 unit tests and 80 e2e tests pass.
 
+### 2026-11-06 — Debugging audit for 0.1.10
+
+- **Method:** inventoried logging, swallowed catches, promise handling, error
+  boundaries, dev-only hooks, diagnostics and the crash-draft paths across
+  `packages/**` and `apps/**`.
+- **Clean already:** no `console.log`/`debug`/`trace` in shipped code; every
+  `console.error` names the operation; dev hooks (`__MDWORD_APP__`,
+  `__MDWORD_PRIME_FILE__`) are compiled out of production builds; the visual
+  editor has an error boundary with a "open source" escape; the IPC handlers and
+  the print window are already covered by the security audit.
+- **Findings fixed:**
+  1. **Unexpected failures were silent.** `window.error` and
+     `unhandledrejection` had no listeners, so a broken render path or a rejected
+     `void` promise left a trace only in devtools. `lib/errorReporting.ts` now
+     captures them (ignoring cancelled pickers, aborted captures and
+     ResizeObserver noise), logs them with context, shows a generic banner (details
+     never reach the user) and keeps the newest 20 in memory.
+  2. **No way to hand over a report.** `exportDiagnostics` existed but nothing
+     called it. The command palette has **Copy diagnostics**, which copies version,
+     platform, logs and the recent errors as JSON — never document bodies. A
+     transient **notice** channel was added to the store so confirmations do not
+     reuse the red error banner.
+  3. **Crash-draft cleanup could reject unhandled.** `clearCrashDraft` is called as
+     `void` from saves and tab closes; it now logs instead of rejecting, and the
+     startup `readCrashDraft` has an explicit `catch`.
+  4. **AST conversion fallbacks were invisible.** `astToTiptap` and
+     `visualProjection` returned an empty document on error without a trace; both
+     now log, so a conversion bug cannot masquerade as an empty page.
+- **Files:** `apps/web/src/lib/errorReporting.ts`, `apps/web/src/lib/diagnostics.ts`,
+  `apps/web/src/lib/recovery.ts`, `apps/web/src/lib/store.ts`,
+  `apps/web/src/components/ErrorBanner.tsx`, `apps/web/src/components/AppShell.tsx`,
+  `apps/web/src/components/CommandPalette.tsx`,
+  `packages/editor/src/astToTiptap.ts`, `docs/development.md`
+- **Tests:** `apps/web/src/lib/errorReporting.test.ts` (benign filter, message
+  flattening, ring buffer cap, installer wiring, diagnostics merge without
+  content), `apps/web/e2e/diagnostics.spec.ts` (unexpected rejection → banner →
+  Copy diagnostics contains the error and not the document text; `AbortError` is
+  ignored). All 426 unit tests and 82 e2e tests pass.
+
 ## Backlog (highest first)
 
 | Task | Why | Effort |
@@ -370,11 +409,11 @@ web IDB adapter, and the multi-tab restore flow cannot be exercised without an
 Electron runtime. Landing it needs a desktop build to verify, otherwise recovery
 could silently stop working.
 
-Version 0.1.9 is the state of this tree: the save path honours the “never silently
+Version 0.1.10 is the state of this tree: the save path honours the “never silently
 overwrite an external edit” promise, desktop builds update themselves from GitHub
-Releases, recent files reopen from the File tab, image cleanup and file/export
-failures report honestly, the outline reads the live document, and visual edits on
-long documents are ~35× cheaper.
+Releases, recent files reopen from the File tab, failures are reported and can be
+copied as a diagnostics report, the outline reads the live document, and visual
+edits on long documents are ~35× cheaper.
 
 Remaining work, in order:
 1. **Publish one tag and verify the updater end-to-end.** With the release
@@ -384,7 +423,7 @@ Remaining work, in order:
 2. Crash recovery for every dirty tab (blocked on `listRecovery()` across runtimes).
 3. `store.ts` split once a feature touches the workspace actions.
 
-## Releasing 0.1.9
+## Releasing 0.1.10
 
 The version is bumped in `package.json`, `apps/{web,desktop,mobile}/package.json`,
 `packages/shared/src/constants.ts`, the `next.config.ts` fallback and
