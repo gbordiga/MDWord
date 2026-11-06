@@ -16,14 +16,14 @@ pnpm --filter @mdword/web exec playwright test   # chromium + mobile
 Record the result of each command you actually run. Do not claim a check that did
 not run.
 
-## Baseline (2026-11-06)
+## Baseline (2026-11-06, version 0.1.8)
 
 | Check | Result |
 | --- | --- |
-| `pnpm test` | 68 files, 376 tests passing |
+| `pnpm test` | 69 files, 387 tests passing |
 | `pnpm typecheck` | passing (all workspace projects) |
 | `pnpm build:web` | passing |
-| Playwright (chromium + mobile) | 75 tests passing |
+| Playwright (chromium + mobile) | 77 tests passing |
 
 Environment note: the repo declares Node 26 (`engines`), the current machine runs
 Node 24, so pnpm prints an engine warning. Everything above still passes.
@@ -151,10 +151,34 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
 - **Files:** `apps/web/src/lib/store.workspace.test.ts` (tests only, no behaviour
   change)
 
+### 2026-11-06 — Saving could silently overwrite an external edit
+
+- **Problem:** the product promises “never silently overwrite an external edit”, but
+  nothing checked the file before writing. If another editor (or an agent) changed
+  the file while it was open, the next save replaced that work without a word.
+  `externalDialog` existed in the store but was never set and had no UI.
+- **Solution:** before writing a file that has a path, the store reads the current
+  disk text and compares it with the tab's saved baseline and the pending text.
+  A conflict opens a prompt: **Overwrite** keeps the local text, **Reload from
+  disk** adopts the disk version (and resets that tab's undo), **Cancel** leaves
+  the edit unsaved. When the disk cannot be read (missing handle, web session after
+  reload), saving behaves as before. `saveAllDirty` inherits the check.
+- **Files:** `apps/web/src/lib/externalChange.ts`,
+  `apps/web/src/components/ExternalChangeDialog.tsx`, `apps/web/src/lib/store.ts`,
+  `apps/web/src/components/AppShell.tsx`
+- **Tests:** `apps/web/src/lib/externalChange.test.ts` (decision table),
+  `apps/web/src/lib/store.saveFile.test.ts` (blocked save, overwrite, reload,
+  cancel, unchanged disk, unreadable disk), `apps/web/e2e/external-change.spec.ts`
+  (prompt appears, reload adopts the disk text, cancel keeps the edit unsaved)
+- **Limits:** the web host keeps its own text cache, so detection is exact on
+  desktop and best-effort in the browser; changes made while the app is closed are
+  reported on the next save, not while typing.
+
 ## Backlog (highest first)
 
 | Task | Why | Effort |
 | --- | --- | --- |
+| Recent files (MVP checklist) | `UserPreferences.recentFiles` exists but nothing reads preferences, and on desktop a recent path is outside `allowedRoots` after a restart. Needs a dedicated IPC that only opens paths already listed in preferences, plus the File-tab list. Security-sensitive: design it, do not widen `assertSafePath`. | M |
 | Crash drafts cover only the active tab | background dirty tabs are lost if the app crashes. Needs per-tab recovery ids, `listRecovery()` implemented in the Electron main process and the web IDB adapter (both return `[]` today), plus a restore-all dialog. Blocked until the Electron path can be exercised here. | L |
 
 ## Decisions
@@ -185,8 +209,19 @@ web IDB adapter, and the multi-tab restore flow cannot be exercised without an
 Electron runtime. Landing it needs a desktop build to verify, otherwise recovery
 could silently stop working.
 
-No safe, high-value task is left in the current backlog: the remaining items are
-either blocked (crash recovery for background tabs) or deliberately deferred (the
-`store.ts` split). Next session: split `store.ts` only if a feature lands in the
-workspace actions, otherwise take the crash-recovery item as soon as a desktop
-build can be exercised.
+Version 0.1.8 is the state of this tree: the save path now honours the
+“never silently overwrite an external edit” promise, image cleanup and file/export
+failures report honestly, and the outline reads the live document.
+
+No safe, high-value task is left in the current backlog. Next session, in order:
+1. Recent files, designed around the Electron allowlist (see backlog; needs the
+   desktop build to verify).
+2. Crash recovery for every dirty tab (blocked on `listRecovery()` across runtimes).
+3. `store.ts` split once a feature touches the workspace actions.
+
+## Releasing 0.1.8
+
+The version is bumped in `package.json`, `apps/{web,desktop,mobile}/package.json`,
+`packages/shared/src/constants.ts`, the `next.config.ts` fallback and
+`docs/releasing.md`. Tagging, installers and store uploads stay with the release
+checklist (`docs/COSA-DEVI-FARE.md`); nothing was deployed from here.
