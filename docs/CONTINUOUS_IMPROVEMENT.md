@@ -20,10 +20,10 @@ not run.
 
 | Check | Result |
 | --- | --- |
-| `pnpm test` | 66 files, 360 tests passing |
+| `pnpm test` | 66 files, 363 tests passing |
 | `pnpm typecheck` | passing (all workspace projects) |
 | `pnpm build:web` | passing |
-| Playwright (chromium + mobile) | 73 tests passing |
+| Playwright (chromium + mobile) | 75 tests passing |
 
 Environment note: the repo declares Node 26 (`engines`), the current machine runs
 Node 24, so pnpm prints an engine warning. Everything above still passes.
@@ -90,15 +90,47 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
   on `toc.enabled`; the walk now runs only when content changes and the TOC is on.
 - **Files:** `apps/web/src/components/VisualEditor.tsx`
 
+### 2026-11-06 — Replaced documents were invisible to React panels
+
+- **Problem:** `replaceEditorDocument` called `view.updateState`, which bypasses
+  Tiptap's dispatcher. No transaction was emitted, so panels that read the live
+  document (page TOC, sidebar outline) kept showing the previous document after an
+  open until something else forced a re-render.
+- **Solution:** after recreating the state, a no-op replace of the same content is
+  dispatched with `addToHistory: false`. It emits a normal `docChanged`
+  transaction, so `shouldRerenderOnTransaction`, `useEditorTick` and outline
+  readers update, without touching undo history. The document checks and the undo
+  reset are unchanged.
+- **Files:** `packages/editor/src/replaceEditorDocument.ts`
+- **Tests:** `packages/editor/src/replaceEditorDocument.test.ts` (now tests the
+  function itself, not a copy of its logic),
+  `apps/web/e2e/outline-headings.spec.ts`
+
+### 2026-11-06 — Sidebar outline read a debounced copy
+
+- **Problem:** the sidebar outline came from `model.ast` (up to ~200 ms behind the
+  editor) while the jump used the live document, so the two could disagree; the
+  heading walk also existed twice (`focusHeading`, `jumpToHeading`).
+- **Solution:** the outline now reads the live editor document through
+  `collectEditorOutline`, refreshed by `useEditorDocVersion` (doc changes only, not
+  cursor moves), and jumps by the heading's ProseMirror position
+  (`jumpToHeadingPos`). The AST remains the source only while the visual editor is
+  not mounted. `focusHeading` was removed: one traversal, one jump path.
+- **Files:** `apps/web/src/lib/toc.ts`, `apps/web/src/components/LeftSidebar.tsx`,
+  `apps/web/src/hooks/useEditorDocVersion.ts`,
+  `apps/web/src/lib/editorCommands.ts`
+- **Tests:** `apps/web/src/lib/toc.test.ts`,
+  `apps/web/e2e/outline-headings.spec.ts` (both cases fail without the editor fix
+  above)
+
 ## Backlog (highest first)
 
 | Task | Why | Effort |
 | --- | --- | --- |
-| Crash drafts cover only the active tab | background dirty tabs are lost if the app crashes; needs per-tab recovery ids and a restore-all dialog | M |
-| `LeftSidebar` outline is built from the debounced AST while `focusHeading` walks the live editor doc | a heading added and clicked within the debounce window can jump to the neighbour | S |
+| Crash drafts cover only the active tab | background dirty tabs are lost if the app crashes. Needs per-tab recovery ids, `listRecovery()` implemented in the Electron main process and the web IDB adapter (both return `[]` today), plus a restore-all dialog. Blocked until the Electron path can be exercised here. | L |
 | `store.ts` owns tabs, files, export and undo in one 1100-line module | split workspace mutations into their own module once the next feature lands there | L |
 | Sequential saves in `saveAllDirty` | correct but slow with many dirty tabs on close; measure before parallelising | M |
-| `focusHeading` and `jumpToHeading` duplicate the heading walk | two traversals with slightly different filters; unify only if a third caller appears | S |
+| `useEditorTick` still bumps on selection-only transactions | `useEditorDocVersion` exists now; move panels that do not depend on the caret over to it | S |
 
 ## Known limitations
 
@@ -110,6 +142,12 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
 
 ## Next task
 
-Make crash recovery cover every dirty tab (per-tab recovery ids, one restore
-dialog), then make the outline read from the live editor document instead of the
-debounced AST.
+Crash recovery for every dirty tab is the highest-value remaining item, but it is
+blocked: `listRecovery()` has no implementation in the Electron main process or the
+web IDB adapter, and the multi-tab restore flow cannot be exercised without an
+Electron runtime. Landing it needs a desktop build to verify, otherwise recovery
+could silently stop working.
+
+The next safe task is to move caret-independent panels (`Ribbon`, `MobileChrome`)
+from `useEditorTick` to `useEditorDocVersion` where they only mirror content, and
+to split short labels/messages out of `store.ts` as the first step of its split.
