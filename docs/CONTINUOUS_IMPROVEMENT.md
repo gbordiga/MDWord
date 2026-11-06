@@ -16,7 +16,7 @@ pnpm --filter @mdword/web exec playwright test   # chromium + mobile
 Record the result of each command you actually run. Do not claim a check that did
 not run.
 
-## Baseline (2026-11-06, version 0.1.12)
+## Baseline (2026-11-06, version 0.1.13)
 
 | Check | Result |
 | --- | --- |
@@ -420,9 +420,14 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
 - **Files:** `packages/shared/src/updates.ts`, `apps/desktop/src/main/updater.ts`,
   `apps/desktop/src/main/index.ts`, `docs/releasing.md`
 - **Tests:** `packages/shared/src/updates.test.ts`.
-- **Partially verified:** the packaged main-process path (log file, banner reason)
-  is typechecked and built, not executed in a packaged window here; the network and
-  release chain it relies on was verified directly.
+- **Verified in a packaged window:** the locally built 0.1.11 `win-unpacked` app
+  wrote `updater.log` and logged
+  `Found version 0.1.12 (url: MDWord-Setup-0.1.12.exe)` right after 0.1.12 was
+  published, then started the differential download and fell back to the full one
+  (the cached installer came from a local build, so its blocks did not match the
+  released blockmap — the fallback is the expected behaviour). A 0.1.13 polish
+  sets `disableWebInstaller` and keeps electron-updater's blockmap dumps out of the
+  log.
 
 ## Backlog (highest first)
 
@@ -458,7 +463,7 @@ web IDB adapter, and the multi-tab restore flow cannot be exercised without an
 Electron runtime. Landing it needs a desktop build to verify, otherwise recovery
 could silently stop working.
 
-Version 0.1.12 is the state of this tree: the save path honours the “never silently
+Version 0.1.13 is the state of this tree: the save path honours the “never silently
 overwrite an external edit” promise, desktop builds update themselves from GitHub
 Releases, recent files reopen from the File tab, failures are reported and can be
 copied as a diagnostics report, the outline reads the live document, and visual
@@ -472,7 +477,7 @@ Remaining work, in order:
 2. Crash recovery for every dirty tab (blocked on `listRecovery()` across runtimes).
 3. `store.ts` split once a feature touches the workspace actions.
 
-## Releasing 0.1.12
+## Releasing 0.1.13
 
 The version is bumped in `package.json`, `apps/{web,desktop,mobile}/package.json`,
 `packages/shared/src/constants.ts`, the `next.config.ts` fallback and

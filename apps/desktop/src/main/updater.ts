@@ -119,11 +119,14 @@ export function registerAutoUpdater(): void {
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  // NSIS/dmg/AppImage only: there is no web installer to fall back to.
+  autoUpdater.disableWebInstaller = true;
   autoUpdater.logger = {
     info: (message) => logUpdate(`info ${String(message)}`),
     warn: (message) => logUpdate(`warn ${String(message)}`),
     error: (message) => logUpdate(`error ${String(message)}`),
-    debug: (message) => logUpdate(`debug ${String(message)}`)
+    // electron-updater dumps blockmaps here; keep the log readable.
+    debug: () => undefined
   };
   logUpdate(`updater ready: version ${app.getVersion()} on ${process.platform}`);
 
