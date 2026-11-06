@@ -10,6 +10,7 @@ export * from "./wikilink";
 export * from "./title";
 export * from "./lineDiff";
 export * from "./workspaceList";
+export * from "./recentFiles";
 export * from "./gfmTables";
 export * from "./mermaid";
 export * from "./mathBlock";

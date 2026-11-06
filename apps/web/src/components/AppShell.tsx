@@ -157,6 +157,10 @@ function AppShellInner({
   }, [confirmIfDirty, openLink]);
 
   useEffect(() => {
+    void useApp.getState().loadRecentFiles();
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     void readCrashDraft().then((draft) => {
       if (cancelled || !draft || !recoveredDraftDiffers(draft.content)) return;

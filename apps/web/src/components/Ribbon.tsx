@@ -37,7 +37,8 @@ import {
   Scissors,
   Workflow,
   RectangleHorizontal,
-  RectangleVertical
+  RectangleVertical,
+  Clock
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useApp, type RibbonTab } from "@/lib/store";
@@ -113,6 +114,11 @@ function Btn({
   );
 }
 
+function recentFileName(filePath: string): string {
+  const last = filePath.split("/").pop() ?? filePath;
+  return last.split("\\").pop() || filePath;
+}
+
 function Divider() {
   return <span className="mx-1.5 h-5 w-px shrink-0 self-center bg-[#98a2b3]" aria-hidden />;
 }
@@ -125,6 +131,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
   const busy = useApp((s) => s.busy);
   const { openLink, openImage, openWikilink, confirmIfDirty } = useEditorUi();
   const fileBusy = Boolean(busy?.blocking);
+  const recentFiles = useApp((s) => s.recentFiles);
   const tocEnabled = Boolean(actions.model.resolvedMdoc.toc?.enabled);
   const tocDepth = actions.model.resolvedMdoc.toc?.depth ?? 3;
   const landscape = actions.model.resolvedMdoc.page?.orientation === "landscape";
@@ -205,6 +212,24 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             <Btn title="Open folder" onClick={() => void actions.openFolder()} busy={busy?.kind === "folder"} disabled={fileBusy}>
               <Folder size={16} /> Open folder
             </Btn>
+            {recentFiles.length ? (
+              <>
+                <Divider />
+                <span className="px-1 text-[12px] font-medium text-[#667085]">Recent</span>
+                {recentFiles.slice(0, 5).map((recentPath) => (
+                  <Btn
+                    key={recentPath}
+                    title={recentPath}
+                    testId="recent-file"
+                    onClick={() => void actions.openRecentFile(recentPath)}
+                    disabled={fileBusy}
+                  >
+                    <Clock size={14} />
+                    <span className="max-w-[9rem] truncate">{recentFileName(recentPath)}</span>
+                  </Btn>
+                ))}
+              </>
+            ) : null}
             <Divider />
             <Btn
               title="Print (Ctrl+P)"

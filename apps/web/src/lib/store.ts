@@ -14,6 +14,7 @@ import {
   documentDate,
   isMarkdownFileName,
   isNotAllowedError,
+  sanitizeRecentFiles,
   suggestedPdfFileName,
   type ViewMode
 } from "@mdword/shared";
@@ -68,7 +69,11 @@ import { hydrateMermaidHtml, renderPrintDocument } from "@mdword/renderer";
 import { resolveLeftPanel, type LeftPanel } from "./leftPanel";
 import { diskChange } from "./externalChange";
 
-export type OpenWorkspaceFileOptions = { preview?: boolean };
+export type OpenWorkspaceFileOptions = {
+  preview?: boolean;
+  /** Already-read content, so opening a recent file does not read it twice. */
+  preloaded?: { path: string; content: string };
+};
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view" | "image" | "table" | "callout";
 export type { LeftPanel } from "./leftPanel";
 export { LEFT_PANELS, resolveLeftPanel } from "./leftPanel";
@@ -195,6 +200,8 @@ export interface AppState {
   findQuery: string;
   workspace: WorkspaceState | null;
   externalDialog: ExternalChangePrompt | null;
+  /** Paths the host itself listed as recent and is allowed to reopen. */
+  recentFiles: string[];
   /** Answer the "file changed on disk" prompt. Overwrite keeps the local text. */
   resolveExternalConflict: (choice: ExternalConflictChoice) => Promise<void>;
   syncGeneration: number;
@@ -218,6 +225,8 @@ export interface AppState {
   pinTab: (tabId: string) => void;
   closeTab: (tabId: string) => void;
   openFile: () => Promise<void>;
+  loadRecentFiles: () => Promise<void>;
+  openRecentFile: (path: string) => Promise<void>;
   saveFile: () => Promise<void>;
   saveFileAs: () => Promise<void>;
   /** Save one tab. Returns false when the user cancels or the write fails. */
@@ -580,6 +589,35 @@ export const useApp = create<AppState>((set, get) => {
   findQuery: "",
   workspace: null,
   externalDialog: null,
+  recentFiles: [],
+  loadRecentFiles: async () => {
+    const host = getHost();
+    if (!host.files.openRecent) {
+      if (get().recentFiles.length) set({ recentFiles: [] });
+      return;
+    }
+    try {
+      const prefs = await host.app.getPreferences();
+      set({ recentFiles: sanitizeRecentFiles(prefs.recentFiles) });
+    } catch (error) {
+      console.error("Could not read recent files", error);
+    }
+  },
+  openRecentFile: async (filePath) => {
+    const host = getHost();
+    if (!host.files.openRecent) return;
+    beginBusy({ kind: "open", label: "Opening document…", blocking: true });
+    try {
+      const preloaded = await host.files.openRecent(filePath);
+      await get().openWorkspaceFile(preloaded.path, { preview: false, preloaded });
+      await get().loadRecentFiles();
+    } catch (error) {
+      console.error("Could not open a recent file", error);
+      fail(OPEN_FAILED);
+    } finally {
+      set({ busy: null });
+    }
+  },
   resolveExternalConflict: async (choice) => {
     const prompt = get().externalDialog;
     if (!prompt) return;
@@ -725,6 +763,7 @@ export const useApp = create<AppState>((set, get) => {
       });
       await yieldPaint();
       succeed();
+      await get().loadRecentFiles();
     } catch (error) {
       console.error("Could not open document", error);
       fail(OPEN_FAILED);
@@ -756,6 +795,7 @@ export const useApp = create<AppState>((set, get) => {
     } finally {
       set({ busy: null });
     }
+    await get().loadRecentFiles();
   },
   saveTab: async (tabId) => {
     flushVisualEdits();
@@ -832,7 +872,7 @@ export const useApp = create<AppState>((set, get) => {
     beginBusy({ kind: "workspace", label: "Opening document…", blocking: true });
     await yieldPaint();
     try {
-      const result = await host.files.openPath(filePath);
+      const result = options?.preloaded ?? (await host.files.openPath(filePath));
       const pending = pendingWorkspaceOpens.get(normalized);
       if (!pending || pending.seq !== seq) return;
       pendingWorkspaceOpens.delete(normalized);

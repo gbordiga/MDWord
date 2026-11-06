@@ -78,6 +78,8 @@ export interface HostApi {
     openPath(path: string): Promise<OpenDocumentResult>;
     save(input: SaveDocumentInput): Promise<void>;
     saveAs(content: string, suggestedName?: string): Promise<string | null>;
+    /** Reopen a path the app itself listed in the recent files. Desktop only. */
+    openRecent?(path: string): Promise<OpenDocumentResult>;
     openFolder(): Promise<string | null>;
     list(folder: string): Promise<HostFileStat[]>;
     read(path: string): Promise<string>;

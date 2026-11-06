@@ -8,7 +8,10 @@ import {
   MAX_WORKSPACE_LIST_ENTRIES,
   imageMimeFromPath,
   isMarkdownFileName,
+  isRecentFile,
+  rememberRecentFile,
   sanitizeExportFileName,
+  sanitizeRecentFiles,
   shouldSkipWorkspaceDir,
   shouldSkipWorkspaceFile
 } from "@mdword/shared";
@@ -187,10 +190,43 @@ function markdownPathsFromArgv(argv: string[]): string[] {
   });
 }
 
+type StoredPreferences = Record<string, unknown>;
+
+async function readPreferencesFile(): Promise<StoredPreferences | null> {
+  try {
+    const raw = await fs.readFile(userData("preferences.json"), "utf8");
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as StoredPreferences) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Recent files are written only by the main process, when the user actually opens
+ * or saves a file. `files.openRecent` accepts nothing else, so the IPC cannot be
+ * used to read arbitrary paths.
+ */
+async function addRecentFile(filePath: string): Promise<void> {
+  const resolved = path.resolve(filePath);
+  const prefs = (await readPreferencesFile()) ?? {};
+  const recentFiles = rememberRecentFile(sanitizeRecentFiles(prefs.recentFiles), resolved);
+  await atomicWrite(userData("preferences.json"), JSON.stringify({ ...prefs, recentFiles }, null, 2));
+}
+
+async function addRecentFileQuietly(filePath: string): Promise<void> {
+  try {
+    await addRecentFile(filePath);
+  } catch {
+    /* the list is a convenience: a failed write must not block opening a file */
+  }
+}
+
 function queueOpenDocument(filePath: string): void {
   const resolved = path.resolve(filePath);
   if (!isMarkdownPath(resolved)) return;
   allowedRoots.add(path.dirname(resolved));
+  void addRecentFileQuietly(resolved);
   pendingOpen = resolved;
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (mainWindow.webContents.getURL()) {
@@ -369,7 +405,20 @@ function registerIpc(): void {
     const filePath = result.filePaths[0];
     allowedRoots.add(path.dirname(filePath));
     const content = await fs.readFile(filePath, "utf8");
+    await addRecentFileQuietly(filePath);
     return { path: filePath, content };
+  });
+
+  ipcMain.handle("files.openRecent", async (_e, filePath: unknown) => {
+    const resolved = path.resolve(z.string().min(1).parse(filePath));
+    const prefs = await readPreferencesFile();
+    if (!isRecentFile(sanitizeRecentFiles(prefs?.recentFiles), resolved)) {
+      throw new Error("This file is not in the recent list");
+    }
+    const content = await fs.readFile(resolved, "utf8");
+    allowedRoots.add(path.dirname(resolved));
+    await addRecentFileQuietly(resolved);
+    return { path: resolved, content };
   });
 
   ipcMain.handle("files.save", async (_e, payload: unknown) => {
@@ -387,6 +436,7 @@ function registerIpc(): void {
     if (result.canceled || !result.filePath) return null;
     allowedRoots.add(path.dirname(result.filePath));
     await atomicWrite(result.filePath, parsed.content);
+    await addRecentFileQuietly(result.filePath);
     return result.filePath;
   });
 
@@ -542,16 +592,20 @@ function registerIpc(): void {
     return path.relative(root, dest).replace(/\\/g, "/");
   });
 
-  ipcMain.handle("app.getPreferences", async () => {
-    try {
-      return JSON.parse(await fs.readFile(userData("preferences.json"), "utf8"));
-    } catch {
-      return null;
-    }
-  });
+  ipcMain.handle("app.getPreferences", async () => readPreferencesFile());
 
   ipcMain.handle("app.setPreferences", async (_e, prefs: unknown) => {
-    await atomicWrite(userData("preferences.json"), JSON.stringify(prefs, null, 2));
+    const incoming: StoredPreferences =
+      prefs && typeof prefs === "object" ? { ...(prefs as StoredPreferences) } : {};
+    // The recent list is owned by the main process: `files.openRecent` trusts it,
+    // so a renderer must not be able to add paths to it through preferences.
+    delete incoming.recentFiles;
+    const current = (await readPreferencesFile()) ?? {};
+    const recentFiles = sanitizeRecentFiles(current.recentFiles);
+    await atomicWrite(
+      userData("preferences.json"),
+      JSON.stringify({ ...incoming, recentFiles }, null, 2)
+    );
   });
 
   ipcMain.handle("app.writeRecovery", async (_e, payload: unknown) => {

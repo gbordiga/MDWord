@@ -8,6 +8,7 @@ const api = {
     save: (input: { path: string; content: string }) => ipcRenderer.invoke("files.save", input),
     saveAs: (content: string, suggestedName?: string) =>
       ipcRenderer.invoke("files.saveAs", { content, suggestedName }),
+    openRecent: (path: string) => ipcRenderer.invoke("files.openRecent", path),
     openFolder: () => ipcRenderer.invoke("files.openFolder"),
     list: (folder: string) => ipcRenderer.invoke("files.list", folder),
     read: (path: string) => ipcRenderer.invoke("files.read", path),
