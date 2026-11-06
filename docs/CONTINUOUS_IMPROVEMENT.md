@@ -20,7 +20,7 @@ not run.
 
 | Check | Result |
 | --- | --- |
-| `pnpm test` | 73 files, 412 tests passing |
+| `pnpm test` | 73 files, 417 tests passing |
 | `pnpm typecheck` | passing (all workspace projects) |
 | `pnpm build:web` | passing |
 | Playwright (chromium + mobile) | 80 tests passing |
@@ -237,6 +237,31 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
   after this change must confirm `latest*.yml` is attached to the GitHub Release.
 - **Limits:** Linux updates only work for the AppImage (deb is upgraded by the
   package manager); macOS requires a signed + notarized build.
+
+### 2026-11-06 — CodeQL High: polynomial regexes on document input (#52, #53, #54)
+
+- **Problem:** three CodeQL `High` alerts for “polynomial regular expression used on
+  uncontrolled data”: `sanitizeExportFileName` (`/[. ]+$/g`),
+  `headingSlug` (`/^-+|-+$/g`) and the GFM cell text (`/\s*
+\s*/g`). These run
+  on document titles, heading text and table cells, i.e. on file content. Measured
+  in V8 on 200k characters: 38 s, 28 s and 33 s respectively.
+- **Solution:** the trailing/leading runs are now stripped by linear scans in
+  `@mdword/shared/strings` (`stripEdgeChars`, `stripEdgeDashes`, existing
+  `stripTrailingChars`), and the newline collapse in GFM cells is an explicit
+  scan over the same whitespace set as `\s`. Semantics are unchanged: dots and
+  spaces are still kept mid-name, whitespace runs without a newline are still left
+  alone, and CRLF collapses like LF.
+- **Files:** `packages/shared/src/strings.ts`, `packages/shared/src/title.ts`,
+  `packages/shared/src/paths.ts`, `packages/shared/src/mystTables.ts`
+- **Tests:** `title.test.ts` (trailing runs, 100k-char tails under a 500 ms
+  budget), `paths.test.ts` (slug edges, 20k-dash runs), `mystTables.test.ts`
+  (LF/CRLF/multiple newlines, untouched plain whitespace, 100k-space cell under
+  500 ms). The two timing tests **fail on the previous implementation**
+  (6.6 s and 7.9 s against the 500 ms budget) and pass now.
+- **Note:** the `headingSlug` pattern was flagged structurally; its input cannot
+  actually reach a long dash run because `[^a-z0-9]+` collapses separators first.
+  The replacement is still exact and removes the pattern CodeQL objects to.
 
 ## Backlog (highest first)
 

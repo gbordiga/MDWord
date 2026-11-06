@@ -114,3 +114,32 @@ describe("mystTables", () => {
     expect(getTableMeta(withTableMeta(simpleTable, meta)).caption).toBe("x");
   });
 });
+
+describe("GFM cell whitespace", () => {
+  function oneCell(value: string): GenericNode {
+    return {
+      type: "table",
+      children: [
+        { type: "tableRow", children: [{ type: "tableCell", children: [{ type: "text", value }] }] },
+        { type: "tableRow", children: [{ type: "tableCell", children: [{ type: "text", value: "x" }] }] }
+      ]
+    };
+  }
+
+  it("collapses each whitespace run that contains a newline", () => {
+    expect(tableToGfm(oneCell("a \n b"))).toContain("| a b |");
+    expect(tableToGfm(oneCell("a\n\nb"))).toContain("| a b |");
+    expect(tableToGfm(oneCell("a\r\n b"))).toContain("| a b |");
+    expect(tableToGfm(oneCell("a  b"))).toContain("| a  b |");
+    expect(tableToGfm(oneCell("\nstart"))).toContain("| start |");
+  });
+
+  it("keeps a long whitespace run without a newline untouched, quickly", () => {
+    const started = Date.now();
+    // A run with no newline is the shape that makes `\s*\n\s*` quadratic.
+    expect(tableToGfm(oneCell(" ".repeat(100_000) + "x"))).toContain("| x |");
+    const mixed = "start" + " \n".repeat(5_000) + "end";
+    expect(tableToGfm(oneCell(mixed))).toContain("| start end |");
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+});

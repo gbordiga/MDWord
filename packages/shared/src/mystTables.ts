@@ -126,10 +126,38 @@ function cellPieces(node: GenericNode, pieces: string[]): void {
   for (const child of node.children ?? []) cellPieces(child, pieces);
 }
 
+/** Code units matched by JavaScript `\s`, used by the linear scan below. */
+const WHITESPACE_CODES = new Set([
+  9, 10, 11, 12, 13, 32, 0xa0, 0x1680, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff,
+  ...Array.from({ length: 11 }, (_, index) => 0x2000 + index)
+]);
+
+/**
+ * Collapse each whitespace run that contains a newline into one space, exactly
+ * like `\s*\n\s*` but in linear time: the regex is polynomial on long runs.
+ */
+function collapseNewlines(value: string): string {
+  const out: string[] = [];
+  let index = 0;
+  while (index < value.length) {
+    if (value[index] !== "\n") {
+      out.push(value[index] ?? "");
+      index += 1;
+      continue;
+    }
+    // Swallow whitespace already emitted, the newline itself and what follows it.
+    while (out.length && WHITESPACE_CODES.has((out[out.length - 1] ?? "").charCodeAt(0))) out.pop();
+    out.push(" ");
+    index += 1;
+    while (index < value.length && WHITESPACE_CODES.has(value.charCodeAt(index))) index += 1;
+  }
+  return out.join("");
+}
+
 function cellText(cell: GenericNode): string {
   const pieces: string[] = [];
   cellPieces(cell, pieces);
-  return pieces.join("").replace(/\s*\n\s*/g, " ").trim();
+  return collapseNewlines(pieces.join("")).trim();
 }
 
 function gfmDelimiter(cells: GenericNode[]): string {

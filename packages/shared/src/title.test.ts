@@ -31,8 +31,18 @@ describe("document titles", () => {
     expect(sanitizeExportFileName("Audit report")).toBe("Audit report");
     expect(sanitizeExportFileName('Q3 / "draft": v2')).toBe("Q3 draft v2");
     expect(sanitizeExportFileName("...")).toBe("document");
+    expect(sanitizeExportFileName("  report. . . ")).toBe("report");
+    expect(sanitizeExportFileName("report..." + " ".repeat(40))).toBe("report");
     expect(suggestedPdfFileName({ title: "Audit report" }, "x.md")).toBe("Audit report.pdf");
     expect(suggestedPdfFileName({}, "notes/alpha.md")).toBe("alpha.pdf");
+  });
+
+  it("strips a long tail without backtracking", () => {
+    const started = Date.now();
+    // A run that does not reach the end is the shape that makes `[. ]+$` quadratic.
+    expect(sanitizeExportFileName(`report${".".repeat(100_000)}x`)).toBe("report");
+    expect(sanitizeExportFileName(`${" ".repeat(100_000)}report`)).toBe("report");
+    expect(Date.now() - started).toBeLessThan(500);
   });
 });
 

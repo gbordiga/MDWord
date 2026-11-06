@@ -1,3 +1,5 @@
+import { stripTrailingChars } from "./strings";
+
 const TITLE_KEYS = ["title", "titolo", "name", "nome"] as const;
 
 export type DocumentTitleKey = (typeof TITLE_KEYS)[number];
@@ -40,15 +42,17 @@ export function displayDocumentTitle(
 
 const INVALID_EXPORT_NAME = /[<>:"/\\|?*\u0000-\u001f]/g;
 
+/** Dots and spaces are legal mid-name but Windows rejects them at the end. */
+function stripFileNameTail(value: string): string {
+  return stripTrailingChars(value, (c) => c === 46 || c === 32);
+}
+
 /** Strip characters that Windows/macOS reject in a downloaded file name. */
 export function sanitizeExportFileName(name: string, fallback = "document"): string {
-  const cleaned = name
-    .normalize("NFKC")
-    .replace(INVALID_EXPORT_NAME, " ")
-    .replace(/\s+/g, " ")
-    .replace(/[. ]+$/g, "")
-    .trim();
-  const stem = (cleaned || fallback).slice(0, 150).replace(/[. ]+$/g, "").trim();
+  const cleaned = stripFileNameTail(
+    name.normalize("NFKC").replace(INVALID_EXPORT_NAME, " ").replace(/\s+/g, " ")
+  ).trim();
+  const stem = stripFileNameTail((cleaned || fallback).slice(0, 150)).trim();
   return stem || fallback;
 }
 

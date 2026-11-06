@@ -1,10 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { normalizeDocPath, resolveExternalImagePath } from "./paths";
+import { headingSlug, normalizeDocPath, resolveExternalImagePath } from "./paths";
 
 describe("path traversal", () => {
   it("rejects escaping the workspace root", () => {
     expect(() => normalizeDocPath("../etc/passwd")).toThrow();
     expect(() => normalizeDocPath("a/../../secret")).toThrow();
+  });
+});
+
+describe("headingSlug", () => {
+  it("turns headings into dashed slugs", () => {
+    expect(headingSlug("Gestione prodotto non conforme")).toBe("gestione-prodotto-non-conforme");
+    expect(headingSlug("  Caffè & Latte  ")).toBe("caffe-latte");
+  });
+
+  it("removes leading and trailing separators", () => {
+    expect(headingSlug("---Title---")).toBe("title");
+    expect(headingSlug("...")).toBe("");
+    expect(headingSlug(`${"-".repeat(20_000)}Title${"-".repeat(20_000)}`)).toBe("title");
   });
 });
 

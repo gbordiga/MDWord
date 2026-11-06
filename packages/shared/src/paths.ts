@@ -1,4 +1,4 @@
-import { stripTrailingSeps } from "./strings";
+import { stripEdgeDashes, stripTrailingSeps } from "./strings";
 
 /** POSIX-style relative path helpers. Never talk to the filesystem here. */
 
@@ -44,13 +44,13 @@ export function joinPath(...parts: string[]): string {
 }
 
 export function headingSlug(text: string): string {
-  return text
+  const slug = text
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/[^a-z0-9]+/g, "-");
+  return stripEdgeDashes(slug);
 }
 
 export function isHttpUrl(url: string): boolean {
