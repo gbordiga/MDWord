@@ -130,7 +130,7 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
 | Crash drafts cover only the active tab | background dirty tabs are lost if the app crashes. Needs per-tab recovery ids, `listRecovery()` implemented in the Electron main process and the web IDB adapter (both return `[]` today), plus a restore-all dialog. Blocked until the Electron path can be exercised here. | L |
 | `store.ts` owns tabs, files, export and undo in one 1100-line module | split workspace mutations into their own module once the next feature lands there | L |
 | Sequential saves in `saveAllDirty` | correct but slow with many dirty tabs on close; measure before parallelising | M |
-| `useEditorTick` still bumps on selection-only transactions | `useEditorDocVersion` exists now; move panels that do not depend on the caret over to it | S |
+| `ImportImagesControl` deletion failures are swallowed | `deleteImportedImageFiles` ignores per-file errors and the panel reports nothing; a partial cleanup looks complete | S |
 
 ## Known limitations
 
@@ -148,6 +148,8 @@ web IDB adapter, and the multi-tab restore flow cannot be exercised without an
 Electron runtime. Landing it needs a desktop build to verify, otherwise recovery
 could silently stop working.
 
-The next safe task is to move caret-independent panels (`Ribbon`, `MobileChrome`)
-from `useEditorTick` to `useEditorDocVersion` where they only mirror content, and
-to split short labels/messages out of `store.ts` as the first step of its split.
+The next safe task is to measure `saveAllDirty` on a session with many dirty tabs
+before deciding whether to parallelise it, then to start the `store.ts` split by
+moving workspace mutations into `apps/web/src/lib/workspaceActions.ts` with no
+behaviour change. `Ribbon`, `MobileChrome` and `LinkBubble` must keep
+`useEditorTick`: their state depends on the caret, not only on the content.
