@@ -34,6 +34,7 @@ import { clearCrashDraft, readCrashDraft } from "@/lib/recovery";
 import { saveStatusText } from "@/lib/saveStatus";
 import { APP_VERSION } from "@/lib/appVersion";
 import "@/lib/imagePreview";
+import { installErrorCapture } from "@/lib/errorReporting";
 
 export function AppShell() {
   const editorRef = useRef<Editor | null>(null);
@@ -163,12 +164,28 @@ function AppShellInner({
 
   useEffect(() => useApp.getState().connectUpdates(), []);
 
+  useEffect(
+    () =>
+      installErrorCapture(() => {
+        const state = useApp.getState();
+        // Details stay in the console and in Copy diagnostics, not in the banner.
+        state.setErrorMessage(
+          "Something unexpected went wrong. Copy diagnostics from the command palette if it keeps happening."
+        );
+      }),
+    []
+  );
+
   useEffect(() => {
     let cancelled = false;
-    void readCrashDraft().then((draft) => {
-      if (cancelled || !draft || !recoveredDraftDiffers(draft.content)) return;
-      setRecovery({ content: draft.content, title: draft.meta.title, path: draft.meta.path ?? null });
-    });
+    void readCrashDraft()
+      .then((draft) => {
+        if (cancelled || !draft || !recoveredDraftDiffers(draft.content)) return;
+        setRecovery({ content: draft.content, title: draft.meta.title, path: draft.meta.path ?? null });
+      })
+      .catch((error) => {
+        console.error("Could not read the crash draft", error);
+      });
     return () => {
       cancelled = true;
     };

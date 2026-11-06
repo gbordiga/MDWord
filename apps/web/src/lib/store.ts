@@ -92,6 +92,7 @@ export interface BusyState {
 const VISUAL_APPLY_MS = 160;
 const SOURCE_APPLY_MS = 220;
 const SAVE_FAILED = "Could not save the document. Your changes are still unsaved.";
+const NOTICE_MS = 4000;
 const OPEN_FAILED = "Could not open that document.";
 let pendingTiptap: { doc: TiptapNode; tabId: string } | null = null;
 let applyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -103,6 +104,7 @@ let workspaceEpoch = 0;
 let draftWrite: Promise<void> | null = null;
 let workspaceOpenSeq = 0;
 const pendingWorkspaceOpens = new Map<string, { seq: number; preview: boolean }>();
+let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function withFilePicker<T>(run: () => Promise<T>): Promise<T | undefined> {
   if (filePickerOpen) return undefined;
@@ -223,6 +225,10 @@ export interface AppState {
   /** Last user-visible failure of a file or export operation, cleared on success. */
   errorMessage: string | null;
   setErrorMessage: (message: string | null) => void;
+  /** Transient, non-error confirmation (for example "Diagnostics copied"). */
+  noticeMessage: string | null;
+  /** Show a transient confirmation; `null` clears it. */
+  showNotice: (message: string | null) => void;
   applySource: (source: string) => void;
   applyTiptap: (doc: TiptapNode) => void;
   setView: (view: ViewMode) => void;
@@ -685,6 +691,20 @@ export const useApp = create<AppState>((set, get) => {
   busy: null,
   errorMessage: null,
   setErrorMessage: (errorMessage) => set({ errorMessage }),
+  noticeMessage: null,
+  showNotice: (message) => {
+    if (noticeTimer != null) clearTimeout(noticeTimer);
+    if (!message) {
+      noticeTimer = null;
+      set({ noticeMessage: null });
+      return;
+    }
+    set({ noticeMessage: message });
+    noticeTimer = setTimeout(() => {
+      noticeTimer = null;
+      set({ noticeMessage: null });
+    }, NOTICE_MS);
+  },
   flushPendingEdits: () => {
     flushVisualEdits();
     flushSourceEdits();

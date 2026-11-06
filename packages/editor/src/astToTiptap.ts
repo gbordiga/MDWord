@@ -866,7 +866,10 @@ export function visualProjection(ast: GenericNode): { ast: GenericNode; origins:
     const origins =
       rawOrigins.length === sanitized.length ? mapped : mapped.slice(0, sanitized.length);
     return { ast: tiptapToAst(doc), origins };
-  } catch {
+  } catch (error) {
+    // Showing an empty projection would make a conversion bug look like an empty
+    // document, so leave a trace: the patch path falls back to a full rewrite.
+    console.error("Could not project the document for the visual editor", error);
     return { ast: { type: "root", children: [{ type: "paragraph" }] }, origins: [] };
   }
 }
@@ -875,7 +878,8 @@ export function astToTiptap(ast: GenericNode): TiptapNode {
   try {
     const resolved = promotePipeParagraphs(resolveImageReferences(ast));
     return sanitizeTiptapDoc({ type: "doc", content: blocks(resolved.children) });
-  } catch {
+  } catch (error) {
+    console.error("Could not convert the document for the visual editor", error);
     return { type: "doc", content: [EMPTY_PARAGRAPH] };
   }
 }

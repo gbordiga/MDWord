@@ -4,6 +4,7 @@ import { Command } from "cmdk";
 import { useApp } from "@/lib/store";
 import { useMarkdownAssociation } from "./MarkdownAssociationControl";
 import { useEditorUi } from "@/lib/editorUi";
+import { copyDiagnostics } from "@/lib/diagnostics";
 export function CommandPalette({
   onInsert
 }: {
@@ -60,6 +61,19 @@ export function CommandPalette({
           <Command.Item onSelect={() => { onInsert("wikilink"); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Add wikilink</Command.Item>
           <Command.Item onSelect={() => { void actions.printDocument(); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Print</Command.Item>
           <Command.Item onSelect={() => { void actions.exportPdf(); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Export PDF</Command.Item>
+          <Command.Item
+            onSelect={() => {
+              close();
+              void copyDiagnostics().then((copied) => {
+                const state = useApp.getState();
+                if (copied) state.showNotice("Diagnostics copied to the clipboard.");
+                else state.setErrorMessage("Could not copy diagnostics.");
+              });
+            }}
+            className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]"
+          >
+            Copy diagnostics
+          </Command.Item>
           {markdownAssociation.status?.supported ? (
             <Command.Item
               onSelect={() => {

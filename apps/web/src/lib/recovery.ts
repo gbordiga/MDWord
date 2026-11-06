@@ -38,9 +38,14 @@ export async function readCrashDraft(): Promise<{ content: string; meta: Recover
   return { content, meta };
 }
 
+/** Best effort: callers clear the draft after a save and cannot handle a failure. */
 export async function clearCrashDraft(): Promise<void> {
   lastWrittenContent = "";
   const host = getHost();
-  await host.app.clearRecovery(RECOVERY_ID);
-  await host.app.clearRecovery(RECOVERY_META_ID);
+  try {
+    await host.app.clearRecovery(RECOVERY_ID);
+    await host.app.clearRecovery(RECOVERY_META_ID);
+  } catch (error) {
+    console.error("Could not clear the crash draft", error);
+  }
 }
