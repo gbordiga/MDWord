@@ -66,12 +66,15 @@ import {
 import { rewriteDisplayBlobsInTree, tiptapToAst, visualProjection, type TiptapNode } from "@mdword/editor";
 import { hydrateMermaidHtml, renderPrintDocument } from "@mdword/renderer";
 import { resolveLeftPanel, type LeftPanel } from "./leftPanel";
+import { diskChange } from "./externalChange";
 
 export type OpenWorkspaceFileOptions = { preview?: boolean };
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view" | "image" | "table" | "callout";
 export type { LeftPanel } from "./leftPanel";
 export { LEFT_PANELS, resolveLeftPanel } from "./leftPanel";
 export type MobileSheet = "workspace" | "insert" | "properties" | "more" | null;
+export type ExternalChangePrompt = { tabId: string; path: string; incoming: string };
+export type ExternalConflictChoice = "overwrite" | "reload" | "cancel";
 export type BusyKind = "open" | "save" | "folder" | "export" | "workspace";
 
 export interface BusyState {
@@ -191,7 +194,9 @@ export interface AppState {
   findOpen: boolean;
   findQuery: string;
   workspace: WorkspaceState | null;
-  externalDialog: { path: string; incoming: string } | null;
+  externalDialog: ExternalChangePrompt | null;
+  /** Answer the "file changed on disk" prompt. Overwrite keeps the local text. */
+  resolveExternalConflict: (choice: ExternalConflictChoice) => Promise<void>;
   syncGeneration: number;
   sourceGeneration: number;
   editGeneration: number;
@@ -405,6 +410,37 @@ export const useApp = create<AppState>((set, get) => {
     if (pending && pending.tabId === get().activeTabId) commitSource(pending.source);
   };
 
+  const readDiskSnapshot = async (path: string): Promise<string | null> => {
+    try {
+      return await getHost().files.read(path);
+    } catch {
+      return null;
+    }
+  };
+
+  /** Replace a tab with the text that is currently on disk (discards local edits). */
+  const reloadTabFromDisk = (tabId: string, content: string) => {
+    const model = modelFrom(content, get().workspace?.workspaceMdoc);
+    const savedAt = Date.now();
+    const tabs = persistActiveTab().map((tab) =>
+      tab.id === tabId
+        ? {
+            ...tab,
+            model,
+            dirty: false,
+            lastSavedAt: savedAt,
+            lastSavedContent: content,
+            syncGeneration: get().syncGeneration + 1,
+            sourceGeneration: get().sourceGeneration + 1,
+            editGeneration: get().editGeneration + 1,
+            documentUndo: emptyDocumentUndo()
+          }
+        : tab
+    );
+    const active = tabs.find((tab) => tab.id === get().activeTabId);
+    set({ tabs, ...(active ? activeDocumentFields(active) : {}) });
+  };
+
   /**
    * Record a completed write against the tab it started from, not whichever tab
    * happens to be active when the disk handshake finishes. Edits typed while the
@@ -443,7 +479,10 @@ export const useApp = create<AppState>((set, get) => {
    * Write one tab to disk. Saving a background tab must not change the document
    * the user is looking at, so this never activates the tab it saves.
    */
-  const writeTabContent = async (tabId: string): Promise<boolean> => {
+  const writeTabContent = async (
+    tabId: string,
+    options?: { ignoreExternalChange?: boolean }
+  ): Promise<boolean> => {
     flushVisualEdits();
     flushSourceEdits();
     const tab = persistActiveTab().find((entry) => entry.id === tabId);
@@ -471,6 +510,18 @@ export const useApp = create<AppState>((set, get) => {
       return true;
     }
     const path = tab.path;
+    if (!options?.ignoreExternalChange) {
+      const diskContent = await readDiskSnapshot(path);
+      const decision = diskChange({
+        diskContent,
+        lastSavedContent: tab.lastSavedContent,
+        pendingContent: content
+      });
+      if (decision === "external" && diskContent != null) {
+        set({ externalDialog: { tabId, path, incoming: diskContent } });
+        return false;
+      }
+    }
     beginBusy({ kind: "save", label: "Saving…", blocking: false });
     try {
       await primeWrite(path);
@@ -529,6 +580,17 @@ export const useApp = create<AppState>((set, get) => {
   findQuery: "",
   workspace: null,
   externalDialog: null,
+  resolveExternalConflict: async (choice) => {
+    const prompt = get().externalDialog;
+    if (!prompt) return;
+    set({ externalDialog: null });
+    if (choice === "cancel") return;
+    if (choice === "overwrite") {
+      await writeTabContent(prompt.tabId, { ignoreExternalChange: true });
+      return;
+    }
+    reloadTabFromDisk(prompt.tabId, prompt.incoming);
+  },
   syncGeneration: 0,
   sourceGeneration: 0,
   editGeneration: 0,

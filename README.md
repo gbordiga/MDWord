@@ -53,6 +53,9 @@ Document · Source · Split. Same AST. Unknown MyST directives show as a Raw car
 **Export**
 Print, PDF, and HTML use the same page model as the canvas.
 
+**Safety**
+Saving never silently overwrites an edit made outside MDWord: if the file changed on disk, it asks first — overwrite, reload from disk, or cancel. Unsaved work is drafted locally and offered for recovery after a crash.
+
 **Offline**
 Desktop (Windows / macOS / Linux), local-first web, mobile shells. Files stay on the device unless you export or save them yourself.
 

@@ -6,7 +6,8 @@ type Deferred = { resolve: () => void; reject: (error: unknown) => void };
 const host = vi.hoisted(() => ({
   saves: [] as { path: string; content: string }[],
   saveAsName: null as string | null,
-  deferred: null as Deferred | null
+  deferred: null as Deferred | null,
+  disk: new Map<string, string>()
 }));
 
 vi.mock("./host", () => ({
@@ -23,7 +24,12 @@ vi.mock("./host", () => ({
           host.deferred = { resolve, reject };
         });
       },
-      saveAs: async () => host.saveAsName
+      saveAs: async () => host.saveAsName,
+      read: async (path: string) => {
+        const content = host.disk.get(path);
+        if (content === undefined) throw new Error("File handle missing");
+        return content;
+      }
     },
     shell: {},
     export: {}
@@ -52,6 +58,8 @@ beforeEach(() => {
   host.saves.length = 0;
   host.deferred = null;
   host.saveAsName = null;
+  host.disk.clear();
+  useApp.setState({ externalDialog: null });
 });
 
 describe("saveFile", () => {
@@ -206,5 +214,120 @@ describe("saveTab", () => {
     const cancelled = state.tabs.find((tab) => tab.id === background.id);
     expect(cancelled?.dirty).toBe(true);
     expect(cancelled?.path).toBeNull();
+  });
+});
+
+const BASE_SOURCE = "---\ntitle: Doc\n---\n\nfirst draft\n";
+const LOCAL_SOURCE = "---\ntitle: Doc\n---\n\nsecond draft\n";
+const EXTERNAL_SOURCE = "---\ntitle: Doc\n---\n\nedited elsewhere\n";
+
+function openSavedTab() {
+  const model = openDocument(BASE_SOURCE);
+  useApp.setState({
+    path: "/ws/doc.md",
+    model,
+    dirty: false,
+    lastSavedContent: model.source,
+    lastSavedAt: Date.now(),
+    busy: null,
+    errorMessage: null,
+    externalDialog: null
+  });
+}
+
+function editTo(source: string) {
+  useApp.setState({ model: openDocument(source), dirty: true });
+}
+
+describe("external changes on disk", () => {
+  it("does not overwrite a file that changed outside the app", async () => {
+    openSavedTab();
+    editTo(LOCAL_SOURCE);
+    host.disk.set("/ws/doc.md", EXTERNAL_SOURCE);
+
+    await useApp.getState().saveFile();
+
+    expect(host.saves).toEqual([]);
+    expect(useApp.getState().externalDialog).toEqual({
+      tabId: useApp.getState().activeTabId,
+      path: "/ws/doc.md",
+      incoming: EXTERNAL_SOURCE
+    });
+    expect(useApp.getState().dirty).toBe(true);
+  });
+
+  it("writes the local text when the user chooses Overwrite", async () => {
+    openSavedTab();
+    editTo(LOCAL_SOURCE);
+    host.disk.set("/ws/doc.md", EXTERNAL_SOURCE);
+    await useApp.getState().saveFile();
+
+    const answer = useApp.getState().resolveExternalConflict("overwrite");
+    await vi.waitFor(() => expect(host.saves).toHaveLength(1));
+    host.deferred?.resolve();
+    await answer;
+
+    expect(host.saves[0]?.content).toBe(LOCAL_SOURCE);
+    expect(useApp.getState().dirty).toBe(false);
+    expect(useApp.getState().externalDialog).toBeNull();
+  });
+
+  it("adopts the disk version when the user chooses Reload", async () => {
+    openSavedTab();
+    editTo(LOCAL_SOURCE);
+    host.disk.set("/ws/doc.md", EXTERNAL_SOURCE);
+    await useApp.getState().saveFile();
+
+    await useApp.getState().resolveExternalConflict("reload");
+
+    const state = useApp.getState();
+    expect(state.externalDialog).toBeNull();
+    expect(state.model.source).toBe(EXTERNAL_SOURCE);
+    expect(state.lastSavedContent).toBe(EXTERNAL_SOURCE);
+    expect(state.dirty).toBe(false);
+    expect(state.tabs[0]?.model.source).toBe(EXTERNAL_SOURCE);
+    expect(host.saves).toEqual([]);
+  });
+
+  it("keeps the pending edit when the user cancels", async () => {
+    openSavedTab();
+    editTo(LOCAL_SOURCE);
+    host.disk.set("/ws/doc.md", EXTERNAL_SOURCE);
+    await useApp.getState().saveFile();
+
+    await useApp.getState().resolveExternalConflict("cancel");
+
+    expect(useApp.getState().externalDialog).toBeNull();
+    expect(useApp.getState().model.source).toBe(LOCAL_SOURCE);
+    expect(useApp.getState().dirty).toBe(true);
+    expect(host.saves).toEqual([]);
+  });
+
+  it("saves normally when the disk still matches the opened file", async () => {
+    openSavedTab();
+    editTo(LOCAL_SOURCE);
+    host.disk.set("/ws/doc.md", BASE_SOURCE);
+
+    const pending = useApp.getState().saveFile();
+    await vi.waitFor(() => expect(host.saves).toHaveLength(1));
+    host.deferred?.resolve();
+    await pending;
+
+    expect(host.saves[0]?.content).toBe(LOCAL_SOURCE);
+    expect(useApp.getState().externalDialog).toBeNull();
+    expect(useApp.getState().dirty).toBe(false);
+  });
+
+  it("still saves when the disk cannot be read", async () => {
+    openSavedTab();
+    editTo(LOCAL_SOURCE);
+
+    const pending = useApp.getState().saveFile();
+    await vi.waitFor(() => expect(host.saves).toHaveLength(1));
+    host.deferred?.resolve();
+    await pending;
+
+    expect(useApp.getState().externalDialog).toBeNull();
+    expect(useApp.getState().dirty).toBe(false);
   });
 });

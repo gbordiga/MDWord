@@ -11,6 +11,7 @@ import { DesktopTopBar } from "./DesktopTopBar";
 import { MobileFormatBar, MobileSheets, MobileTabBar, MobileTopBar } from "./MobileChrome";
 import { FindBar } from "./FindBar";
 import { ErrorBanner } from "./ErrorBanner";
+import { ExternalChangeDialog } from "./ExternalChangeDialog";
 import { LinkBubble } from "./LinkBubble";
 import { EditorContextMenu } from "./EditorContextMenu";
 import { LinkDialog } from "./LinkDialog";
@@ -275,6 +276,7 @@ function AppShellInner({
       <LinkDialog open={dialog === "link"} editor={editor} onClose={closeDialog} />
       <ImageDialog open={dialog === "image"} editor={editor} onClose={closeDialog} />
       <WikilinkDialog open={dialog === "wikilink"} editor={editor} onClose={closeDialog} />
+      <ExternalChangeDialog />
       <ConfirmDialog
         confirm={confirm}
         onDismiss={closeConfirm}
