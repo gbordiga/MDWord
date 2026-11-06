@@ -12,7 +12,15 @@ function selectionForDoc(doc: PMNode) {
   }
 }
 
-/** Replace the whole document and reset undo/redo (e.g. after open or source sync). */
+/**
+ * Replace the whole document and reset undo/redo (e.g. after open or source sync).
+ *
+ * `view.updateState` would bypass Tiptap's dispatcher, so listeners that track
+ * document changes (re-render, outline/TOC panels) would never learn about the new
+ * document. A no-op replace with the same content is dispatched afterwards to
+ * publish the change: it emits a normal transaction with `docChanged = true` and
+ * stays out of the undo history.
+ */
 export function replaceEditorDocument(editor: Editor, json: TiptapNode): void {
   const doc = editor.schema.nodeFromJSON(json);
   doc.check();
@@ -23,4 +31,9 @@ export function replaceEditorDocument(editor: Editor, json: TiptapNode): void {
     selection: selectionForDoc(doc)
   });
   editor.view.updateState(state);
+  const { size } = editor.state.doc.content;
+  const announce = editor.state.tr
+    .replaceWith(0, size, editor.state.doc.content)
+    .setMeta("addToHistory", false);
+  editor.view.dispatch(announce);
 }
