@@ -10,6 +10,7 @@ import {
   importDocumentImages,
   type ImportImagesResult
 } from "@/lib/importDocumentImages";
+import { useApp } from "@/lib/store";
 
 function summary(result: ImportImagesResult): string {
   if (!result.imported.length && !result.skipped.length) {
@@ -43,24 +44,40 @@ export function ImportImagesControl({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ImportImagesResult | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const run = async () => {
     onStart?.();
     setBusy(true);
     try {
       setResult(await importDocumentImages(editor));
+    } catch (error) {
+      console.error("Could not import images", error);
+      useApp.getState().setErrorMessage("Could not import the images.");
     } finally {
       setBusy(false);
     }
   };
 
-  const close = () => setResult(null);
+  const close = () => {
+    setResult(null);
+    setDeleteError(null);
+  };
 
   const deleteFiles = async () => {
     if (!result?.imported.length) return;
     setDeleting(true);
+    setDeleteError(null);
     try {
-      await deleteImportedImageFiles(result.imported.map((item) => item.path));
+      const { failed } = await deleteImportedImageFiles(result.imported.map((item) => item.path));
+      if (failed.length) {
+        setDeleteError(
+          failed.length === 1
+            ? `Could not delete ${failed[0]}. It is still in the workspace.`
+            : `Could not delete ${failed.length} files: ${failed.join(", ")}. They are still in the workspace.`
+        );
+        return;
+      }
       close();
     } finally {
       setDeleting(false);
@@ -126,6 +143,11 @@ export function ImportImagesControl({
           {result.imported.length ? (
             <p className="mt-3 text-[14px] leading-6 text-[#344054]">
               Delete the original image files from the workspace now that they are embedded?
+            </p>
+          ) : null}
+          {deleteError ? (
+            <p role="alert" data-testid="import-images-error" className="mt-2 text-[14px] leading-6 text-[#b42318]">
+              {deleteError}
             </p>
           ) : null}
         </Dialog>

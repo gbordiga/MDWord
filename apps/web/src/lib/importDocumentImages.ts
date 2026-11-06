@@ -58,16 +58,32 @@ export async function importDocumentImages(editor: Editor | null): Promise<Impor
   return { imported, skipped };
 }
 
-export async function deleteImportedImageFiles(paths: string[]): Promise<void> {
+export type DeleteImagesResult = { deleted: string[]; failed: string[] };
+
+/**
+ * Remove image files that were just embedded in the Markdown. Reports failures
+ * instead of swallowing them: a partial cleanup must not look complete.
+ * A file that is already gone on disk counts as deleted.
+ */
+export async function deleteImportedImageFiles(paths: string[]): Promise<DeleteImagesResult> {
   const host = getHost();
-  const unique = [...new Set(paths)];
-  for (const filePath of unique) {
+  const deleted: string[] = [];
+  const failed: string[] = [];
+  for (const filePath of [...new Set(paths)]) {
     try {
       if (typeof host.files.prepareWrite === "function") await host.files.prepareWrite(filePath);
       await host.files.remove(filePath);
+      deleted.push(filePath);
     } catch {
-      /* a missing file is already gone */
+      let stillThere = true;
+      try {
+        stillThere = await host.files.exists(filePath);
+      } catch {
+        stillThere = true;
+      }
+      (stillThere ? failed : deleted).push(filePath);
     }
   }
   await useApp.getState().refreshWorkspace();
+  return { deleted, failed };
 }

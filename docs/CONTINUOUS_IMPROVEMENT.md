@@ -20,7 +20,7 @@ not run.
 
 | Check | Result |
 | --- | --- |
-| `pnpm test` | 66 files, 363 tests passing |
+| `pnpm test` | 68 files, 376 tests passing |
 | `pnpm typecheck` | passing (all workspace projects) |
 | `pnpm build:web` | passing |
 | Playwright (chromium + mobile) | 75 tests passing |
@@ -123,14 +123,51 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
   `apps/web/e2e/outline-headings.spec.ts` (both cases fail without the editor fix
   above)
 
+### 2026-11-06 — Image cleanup reported success it did not have
+
+- **Problem:** `deleteImportedImageFiles` swallowed every per-file error, so the
+  import dialog closed as if the originals were gone when they were still on disk.
+  `importDocumentImages` could also reject with no user feedback at all.
+- **Solution:** the delete helper now returns `{ deleted, failed }` (a file that is
+  already missing counts as deleted, checked with `files.exists`). The dialog stays
+  open and shows which files are still in the workspace; a failing import reports
+  through the app error banner. The inline name error in the file tree is announced
+  with `role="alert"`.
+- **Files:** `apps/web/src/lib/importDocumentImages.ts`,
+  `apps/web/src/components/ImportImagesControl.tsx`,
+  `apps/web/src/components/FileTree.tsx`
+- **Tests:** `apps/web/src/lib/deleteImportedImages.test.ts` (dedupe, already gone,
+  still on disk), e2e `import-images`
+
+### 2026-11-06 — Workspace mutations had no regression tests
+
+- **Problem:** create/rename/copy/delete were only covered through the file-tree
+  e2e flows. The validation rules and the tab bookkeeping lived in `store.ts` with
+  no test that pinned them.
+- **Solution:** added store-level tests with a mocked host: refusal without a folder,
+  name validation before any disk call, unique naming (create and copy), rename
+  no-op / duplicate rejection / tab path rewrite, delete refusing the root and
+  closing the tabs inside the deleted path.
+- **Files:** `apps/web/src/lib/store.workspace.test.ts` (tests only, no behaviour
+  change)
+
 ## Backlog (highest first)
 
 | Task | Why | Effort |
 | --- | --- | --- |
 | Crash drafts cover only the active tab | background dirty tabs are lost if the app crashes. Needs per-tab recovery ids, `listRecovery()` implemented in the Electron main process and the web IDB adapter (both return `[]` today), plus a restore-all dialog. Blocked until the Electron path can be exercised here. | L |
-| `store.ts` owns tabs, files, export and undo in one 1100-line module | split workspace mutations into their own module once the next feature lands there | L |
-| Sequential saves in `saveAllDirty` | correct but slow with many dirty tabs on close; measure before parallelising | M |
-| `ImportImagesControl` deletion failures are swallowed | `deleteImportedImageFiles` ignores per-file errors and the panel reports nothing; a partial cleanup looks complete | S |
+
+## Decisions
+
+- **`saveAllDirty` stays sequential.** The web host funnels every write through one
+  queue (`enqueueWrite`), so parallel saves would serialize anyway; on desktop the
+  win is milliseconds while the busy-state races are real. Revisit only with a
+  profile that shows the close guard waiting.
+- **The `store.ts` split waits.** Moving workspace mutations into
+  `apps/web/src/lib/workspaceActions.ts` needs a context object; the actions are
+  covered now, so the split is low risk whenever a feature touches them.
+- **`Ribbon`, `MobileChrome` and `LinkBubble` keep `useEditorTick`.** Their state
+  depends on the caret, not only on the content.
 
 ## Known limitations
 
@@ -148,8 +185,8 @@ web IDB adapter, and the multi-tab restore flow cannot be exercised without an
 Electron runtime. Landing it needs a desktop build to verify, otherwise recovery
 could silently stop working.
 
-The next safe task is to measure `saveAllDirty` on a session with many dirty tabs
-before deciding whether to parallelise it, then to start the `store.ts` split by
-moving workspace mutations into `apps/web/src/lib/workspaceActions.ts` with no
-behaviour change. `Ribbon`, `MobileChrome` and `LinkBubble` must keep
-`useEditorTick`: their state depends on the caret, not only on the content.
+No safe, high-value task is left in the current backlog: the remaining items are
+either blocked (crash recovery for background tabs) or deliberately deferred (the
+`store.ts` split). Next session: split `store.ts` only if a feature lands in the
+workspace actions, otherwise take the crash-recovery item as soon as a desktop
+build can be exercised.

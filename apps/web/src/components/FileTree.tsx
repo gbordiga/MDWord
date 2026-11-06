@@ -608,7 +608,11 @@ export function FileTree({
             />
           </DialogField>
         </form>
-        {nameError ? <p className="text-[13px] text-[#b42318]">{nameError}</p> : null}
+        {nameError ? (
+          <p role="alert" className="text-[13px] text-[#b42318]">
+            {nameError}
+          </p>
+        ) : null}
       </Dialog>
       <Dialog
         open={Boolean(error)}
