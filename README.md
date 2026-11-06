@@ -45,7 +45,7 @@ Paper size and orientation, rulers, margins, type scale, running header and foot
 GFM pipe tables with column resize and caption. When you need widths or a label, MDWord writes a MyST `{table}` (and keeps `{list-table}` / `{csv-table}`). Images can live on disk or be embedded in the same `.md`. Mermaid diagrams and KaTeX equation blocks render in the page.
 
 **Workspace**
-Open a folder. Tabs, `[[wikilinks]]`, search, backlinks. Multiple documents without leaving the editor.
+Open a folder. Tabs, `[[wikilinks]]`, search, backlinks. Multiple documents without leaving the editor. Desktop reopens recent documents from the File tab.
 
 **Views**
 Document · Source · Split. Same AST. Unknown MyST directives show as a Raw card and are never stripped on save.

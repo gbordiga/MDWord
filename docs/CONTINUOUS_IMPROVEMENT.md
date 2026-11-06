@@ -20,7 +20,7 @@ not run.
 
 | Check | Result |
 | --- | --- |
-| `pnpm test` | 69 files, 387 tests passing |
+| `pnpm test` | 71 files, 400 tests passing |
 | `pnpm typecheck` | passing (all workspace projects) |
 | `pnpm build:web` | passing |
 | Playwright (chromium + mobile) | 77 tests passing |
@@ -174,11 +174,36 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
   desktop and best-effort in the browser; changes made while the app is closed are
   reported on the next save, not while typing.
 
+### 2026-11-06 — Recent files (MVP checklist item)
+
+- **Problem:** `UserPreferences.recentFiles` existed but nothing read preferences,
+  so the File tab had no way to reopen a document. A desktop restart also left
+  recent paths outside the Electron allowlist.
+- **Solution:** the **main process** now owns the list. It records a path when the
+  user opens a file from the dialog, saves with Save As, or the OS opens a document,
+  through `rememberRecentFile` (dedupe, cap 10, Windows case folding). The new
+  `files.openRecent(path)` rejects anything that is not already in that list before
+  adding its folder to `allowedRoots`, so the allowlist is not widened.
+  `app.setPreferences` now strips `recentFiles` from renderer payloads: the
+  renderer must not be able to turn preferences into a path allowlist.
+  The renderer loads the list, shows up to five entries in the File tab, and opens
+  them from the preloaded content (no second read). Hosts without `openRecent`
+  (web, mobile) keep the section hidden.
+- **Files:** `packages/shared/src/recentFiles.ts`,
+  `apps/desktop/src/main/index.ts`, `apps/desktop/src/preload/index.ts`,
+  `packages/shared/src/host.ts`, `apps/web/src/lib/store.ts`,
+  `apps/web/src/components/Ribbon.tsx`, `apps/web/src/components/AppShell.tsx`
+- **Tests:** `packages/shared/src/recentFiles.test.ts` (ordering, dedupe, case
+  folding, cap, sanitising), `apps/web/src/lib/store.recentFiles.test.ts` (hidden
+  without host support, sanitized load, opens preloaded content, reports a failure)
+- **Partially verified:** the Electron IPC cannot be executed here. Main/preload are
+  typechecked and the pure list logic is tested, but a desktop build must confirm
+  `files.openRecent` before release.
+
 ## Backlog (highest first)
 
 | Task | Why | Effort |
 | --- | --- | --- |
-| Recent files (MVP checklist) | `UserPreferences.recentFiles` exists but nothing reads preferences, and on desktop a recent path is outside `allowedRoots` after a restart. Needs a dedicated IPC that only opens paths already listed in preferences, plus the File-tab list. Security-sensitive: design it, do not widen `assertSafePath`. | M |
 | Crash drafts cover only the active tab | background dirty tabs are lost if the app crashes. Needs per-tab recovery ids, `listRecovery()` implemented in the Electron main process and the web IDB adapter (both return `[]` today), plus a restore-all dialog. Blocked until the Electron path can be exercised here. | L |
 
 ## Decisions
@@ -209,13 +234,15 @@ web IDB adapter, and the multi-tab restore flow cannot be exercised without an
 Electron runtime. Landing it needs a desktop build to verify, otherwise recovery
 could silently stop working.
 
-Version 0.1.8 is the state of this tree: the save path now honours the
-“never silently overwrite an external edit” promise, image cleanup and file/export
-failures report honestly, and the outline reads the live document.
+Version 0.1.8 is the state of this tree: the save path honours the “never silently
+overwrite an external edit” promise, recent files reopen from the File tab on
+desktop, image cleanup and file/export failures report honestly, and the outline
+reads the live document.
 
-No safe, high-value task is left in the current backlog. Next session, in order:
-1. Recent files, designed around the Electron allowlist (see backlog; needs the
-   desktop build to verify).
+Remaining work, in order:
+1. **Verify recent files on a desktop build** (`pnpm dev:desktop`): open a file,
+   restart, reopen it from File → Recent. The IPC is typechecked but not executed
+   in CI.
 2. Crash recovery for every dirty tab (blocked on `listRecovery()` across runtimes).
 3. `store.ts` split once a feature touches the workspace actions.
 
@@ -225,3 +252,6 @@ The version is bumped in `package.json`, `apps/{web,desktop,mobile}/package.json
 `packages/shared/src/constants.ts`, the `next.config.ts` fallback and
 `docs/releasing.md`. Tagging, installers and store uploads stay with the release
 checklist (`docs/COSA-DEVI-FARE.md`); nothing was deployed from here.
+
+Recent files is desktop-only and its IPC has not been exercised outside
+typechecking: check it on `pnpm dev:desktop` before tagging.
