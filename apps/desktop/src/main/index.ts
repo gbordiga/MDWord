@@ -20,6 +20,12 @@ import {
   registerMarkdownAssociation,
   writeMarkdownAssociation
 } from "./fileAssociation";
+import {
+  checkForUpdates,
+  currentUpdateStatus,
+  installUpdate,
+  registerAutoUpdater
+} from "./updater";
 
 const isDev = !app.isPackaged;
 let pendingPrintHtml: string | null = null;
@@ -382,6 +388,7 @@ app.whenReady().then(() => {
   mkdirSync(userData("logs"), { recursive: true });
   void writeMarkdownAssociation(app.getPath("exe"), process.platform, markdownFileIconPath());
   registerIpc();
+  registerAutoUpdater();
   for (const filePath of markdownPathsFromArgv(process.argv)) queueOpenDocument(filePath);
   createWindow();
 });
@@ -664,6 +671,16 @@ function registerIpc(): void {
   ipcMain.handle("app.setMarkdownAssociation", async () =>
     registerMarkdownAssociation(app.getPath("exe"), process.platform, markdownFileIconPath())
   );
+
+  ipcMain.handle("app.updateStatus", async () => currentUpdateStatus());
+  ipcMain.handle("app.checkForUpdates", async () => checkForUpdates(true));
+  ipcMain.handle("app.installUpdate", async () => {
+    // The renderer saves every dirty tab before asking; skip the close guard so
+    // quitAndInstall can replace the app instead of opening the unsaved dialog.
+    closeConfirmed = true;
+    closeRequested = false;
+    installUpdate();
+  });
 
   ipcMain.handle("app.exportDiagnostics", async () => {
     return {

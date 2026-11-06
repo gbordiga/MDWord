@@ -16,6 +16,7 @@ import {
   isNotAllowedError,
   sanitizeRecentFiles,
   suggestedPdfFileName,
+  type UpdateStatus,
   type ViewMode
 } from "@mdword/shared";
 import { pageMetrics, type Mdoc } from "@mdword/layout-engine";
@@ -202,6 +203,13 @@ export interface AppState {
   externalDialog: ExternalChangePrompt | null;
   /** Paths the host itself listed as recent and is allowed to reopen. */
   recentFiles: string[];
+  /** Latest desktop auto-update state; null until the bridge reports one. */
+  updateStatus: UpdateStatus | null;
+  /** True when the host implements the desktop update bridge. */
+  updatesSupported: boolean;
+  connectUpdates: () => () => void;
+  checkForUpdates: () => Promise<void>;
+  installUpdate: () => Promise<void>;
   /** Answer the "file changed on disk" prompt. Overwrite keeps the local text. */
   resolveExternalConflict: (choice: ExternalConflictChoice) => Promise<void>;
   syncGeneration: number;
@@ -590,6 +598,44 @@ export const useApp = create<AppState>((set, get) => {
   workspace: null,
   externalDialog: null,
   recentFiles: [],
+  updateStatus: null,
+  updatesSupported: false,
+  connectUpdates: () => {
+    const updates = getHost().app.updates;
+    if (!updates) return () => undefined;
+    let active = true;
+    void updates
+      .status()
+      .then((status) => {
+        // Development builds report "unsupported": keep the File tab clean there.
+        if (active) set({ updateStatus: status, updatesSupported: status.state !== "unsupported" });
+      })
+      .catch(() => undefined);
+    const stop = updates.onStatus((status) => set({ updateStatus: status }));
+    return () => {
+      active = false;
+      stop();
+    };
+  },
+  checkForUpdates: async () => {
+    const updates = getHost().app.updates;
+    if (!updates) return;
+    set({ updateStatus: { state: "checking" } });
+    try {
+      set({ updateStatus: await updates.check() });
+    } catch (error) {
+      console.error("Could not check for updates", error);
+      set({ updateStatus: { state: "error", message: "Could not check for updates." } });
+    }
+  },
+  installUpdate: async () => {
+    const updates = getHost().app.updates;
+    if (!updates || get().updateStatus?.state !== "downloaded") return;
+    flushVisualEdits();
+    flushSourceEdits();
+    if (!(await get().saveAllDirty())) return;
+    await updates.install();
+  },
   loadRecentFiles: async () => {
     const host = getHost();
     if (!host.files.openRecent) {

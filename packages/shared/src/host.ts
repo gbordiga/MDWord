@@ -1,3 +1,5 @@
+import type { UpdateStatus } from "./updates";
+
 export type ViewMode = "document" | "source" | "split";
 
 function errorName(error: unknown): string {
@@ -123,6 +125,16 @@ export interface HostApi {
     allowClose?(): void;
     /** Desktop: the user cancelled, so a quit in progress must not continue. */
     cancelClose?(): void;
+    /**
+     * Desktop auto-update through GitHub Releases. Missing on web and mobile.
+     * `check` is silent on startup and reports `none`/`error` only when asked.
+     */
+    updates?: {
+      status(): Promise<UpdateStatus>;
+      check(): Promise<UpdateStatus>;
+      install(): Promise<void>;
+      onStatus(handler: (status: UpdateStatus) => void): () => void;
+    };
     /** Desktop: whether MDWord is the default Markdown handler. */
     getMarkdownAssociation?(): Promise<{
       supported: boolean;

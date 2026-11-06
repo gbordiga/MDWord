@@ -11,6 +11,7 @@ export * from "./title";
 export * from "./lineDiff";
 export * from "./workspaceList";
 export * from "./recentFiles";
+export * from "./updates";
 export * from "./gfmTables";
 export * from "./mermaid";
 export * from "./mathBlock";

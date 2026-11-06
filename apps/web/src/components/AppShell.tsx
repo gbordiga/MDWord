@@ -12,6 +12,7 @@ import { MobileFormatBar, MobileSheets, MobileTabBar, MobileTopBar } from "./Mob
 import { FindBar } from "./FindBar";
 import { ErrorBanner } from "./ErrorBanner";
 import { ExternalChangeDialog } from "./ExternalChangeDialog";
+import { UpdateBanner } from "./UpdateBanner";
 import { LinkBubble } from "./LinkBubble";
 import { EditorContextMenu } from "./EditorContextMenu";
 import { LinkDialog } from "./LinkDialog";
@@ -160,6 +161,8 @@ function AppShellInner({
     void useApp.getState().loadRecentFiles();
   }, []);
 
+  useEffect(() => useApp.getState().connectUpdates(), []);
+
   useEffect(() => {
     let cancelled = false;
     void readCrashDraft().then((draft) => {
@@ -224,6 +227,7 @@ function AppShellInner({
       <MobileFormatBar editor={editor} />
       <FindBar />
       <ErrorBanner />
+      <UpdateBanner />
       <div className="relative flex min-h-0 min-w-0 flex-1">
         <WorkspaceSplit leftOpen={leftOpen} rightOpen={rightOpen}>
           <div

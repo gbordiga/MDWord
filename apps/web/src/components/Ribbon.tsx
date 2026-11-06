@@ -38,7 +38,8 @@ import {
   Workflow,
   RectangleHorizontal,
   RectangleVertical,
-  Clock
+  Clock,
+  Download
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useApp, type RibbonTab } from "@/lib/store";
@@ -132,6 +133,8 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
   const { openLink, openImage, openWikilink, confirmIfDirty } = useEditorUi();
   const fileBusy = Boolean(busy?.blocking);
   const recentFiles = useApp((s) => s.recentFiles);
+  const updatesSupported = useApp((s) => s.updatesSupported);
+  const updateStatus = useApp((s) => s.updateStatus);
   const tocEnabled = Boolean(actions.model.resolvedMdoc.toc?.enabled);
   const tocDepth = actions.model.resolvedMdoc.toc?.depth ?? 3;
   const landscape = actions.model.resolvedMdoc.page?.orientation === "landscape";
@@ -246,6 +249,20 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             <Btn title="Export HTML" onClick={() => void actions.exportHtml()} disabled={fileBusy}>
               <FileCode size={16} /> Export HTML
             </Btn>
+            {updatesSupported ? (
+              <>
+                <Divider />
+                <Btn
+                  title="Check for updates"
+                  testId="check-updates"
+                  onClick={() => void actions.checkForUpdates()}
+                  busy={updateStatus?.state === "checking"}
+                  disabled={fileBusy}
+                >
+                  <Download size={16} /> Updates
+                </Btn>
+              </>
+            ) : null}
             <MarkdownAssociationButton className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-[13px] text-[#1c1f24] hover:bg-[#eef2f6] aria-pressed:bg-[#e8eefc] aria-pressed:text-accent" />
           </>
         )}

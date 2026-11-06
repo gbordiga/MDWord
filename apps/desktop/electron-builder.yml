@@ -59,4 +59,8 @@ linux:
   mimeTypes:
     - text/markdown
     - text/x-markdown
-publish: null
+publish:
+  provider: github
+  owner: gbordiga
+  repo: MDWord
+  releaseType: release
