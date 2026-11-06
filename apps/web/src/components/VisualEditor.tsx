@@ -4,6 +4,7 @@ import {
   Component,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -283,7 +284,13 @@ function VisualEditorCanvas({
   const tocEnabled = Boolean(resolvedMdoc.toc?.enabled);
   const tocDepth = resolvedMdoc.toc?.depth ?? 3;
   const numberedHeadings = Boolean(resolvedMdoc.numbering?.headings);
-  const tocItems = editor ? collectEditorHeadings(editor, tocDepth) : [];
+  // ProseMirror documents are immutable, so the walk only needs to run when the
+  // document identity changes — not on every cursor move that re-renders here.
+  const tocDoc = editor?.state.doc;
+  const tocItems = useMemo(
+    () => (editor && tocDoc && tocEnabled ? collectEditorHeadings(editor, tocDepth) : []),
+    [editor, tocDoc, tocDepth, tocEnabled]
+  );
 
   const typo = resolvedMdoc.typography ?? {};
   const titleText = documentTitle(frontmatter, "");
