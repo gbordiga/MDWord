@@ -82,6 +82,8 @@ export interface BusyState {
 
 const VISUAL_APPLY_MS = 160;
 const SOURCE_APPLY_MS = 220;
+const SAVE_FAILED = "Could not save the document. Your changes are still unsaved.";
+const OPEN_FAILED = "Could not open that document.";
 let pendingTiptap: { doc: TiptapNode; tabId: string } | null = null;
 let applyTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSource: { source: string; tabId: string } | null = null;
@@ -198,6 +200,9 @@ export interface AppState {
   lastSavedContent: string;
   documentUndo: DocumentUndoState;
   busy: BusyState | null;
+  /** Last user-visible failure of a file or export operation, cleared on success. */
+  errorMessage: string | null;
+  setErrorMessage: (message: string | null) => void;
   applySource: (source: string) => void;
   applyTiptap: (doc: TiptapNode) => void;
   setView: (view: ViewMode) => void;
@@ -275,6 +280,11 @@ export const useApp = create<AppState>((set, get) => {
   };
 
   const beginBusy = (busy: BusyState) => set({ busy });
+
+  const fail = (message: string) => set({ errorMessage: message });
+  const succeed = () => {
+    if (get().errorMessage) set({ errorMessage: null });
+  };
 
   const patchActiveTab = (partial: Partial<DocumentTab>) => {
     const state = get();
@@ -395,20 +405,111 @@ export const useApp = create<AppState>((set, get) => {
     if (pending && pending.tabId === get().activeTabId) commitSource(pending.source);
   };
 
-  const markSaved = (path: string, content: string, model: DocumentModel) => {
-    patchActiveTab({
-      path,
-      dirty: false,
-      model: { ...model, source: content },
-      lastSavedAt: Date.now(),
-      lastSavedContent: content
+  /**
+   * Record a completed write against the tab it started from, not whichever tab
+   * happens to be active when the disk handshake finishes. Edits typed while the
+   * write was in flight stay in the model and keep the tab dirty.
+   */
+  const markSaved = (tabId: string, path: string, content: string) => {
+    const savedAt = Date.now();
+    const tabs = persistActiveTab().map((tab) =>
+      tab.id === tabId
+        ? {
+            ...tab,
+            path,
+            dirty: tab.model.source !== content,
+            lastSavedAt: savedAt,
+            lastSavedContent: content
+          }
+        : tab
+    );
+    const active = tabs.find((tab) => tab.id === get().activeTabId);
+    set({
+      tabs,
+      ...(active
+        ? {
+            path: active.path,
+            dirty: active.dirty,
+            lastSavedAt: active.lastSavedAt,
+            lastSavedContent: active.lastSavedContent
+          }
+        : {})
     });
     rememberSavedFile(path, content);
     void clearCrashDraft();
   };
 
-  const initialSource = untitledDocument();
-  const initialTab = createUntitledTab(modelFrom(initialSource), initialSource);
+  /**
+   * Write one tab to disk. Saving a background tab must not change the document
+   * the user is looking at, so this never activates the tab it saves.
+   */
+  const writeTabContent = async (tabId: string): Promise<boolean> => {
+    flushVisualEdits();
+    flushSourceEdits();
+    const tab = persistActiveTab().find((entry) => entry.id === tabId);
+    if (!tab) return false;
+    const host = getHost();
+    const content = serializedDocument(tab.model);
+    if (!tab.path) {
+      const next = await withFilePicker(async () => {
+        try {
+          return await host.files.saveAs(content, "document.md");
+        } catch (error) {
+          console.error("Could not save document", error);
+          fail(SAVE_FAILED);
+          return null;
+        }
+      });
+      if (!next) return false;
+      beginBusy({ kind: "save", label: "Saving…", blocking: false });
+      try {
+        markSaved(tabId, next, content);
+        succeed();
+      } finally {
+        set({ busy: null });
+      }
+      return true;
+    }
+    const path = tab.path;
+    beginBusy({ kind: "save", label: "Saving…", blocking: false });
+    try {
+      await primeWrite(path);
+      await yieldPaint();
+      await host.files.save({ path, content });
+      markSaved(tabId, path, content);
+      succeed();
+      return true;
+    } catch (error) {
+      if (isNotAllowedError(error)) {
+        const next = await withFilePicker(async () => {
+          try {
+            return await host.files.saveAs(content, path);
+          } catch (fallback) {
+            console.error("Could not save document", fallback);
+            fail(SAVE_FAILED);
+            return null;
+          }
+        });
+        if (!next) return false;
+        markSaved(tabId, next, content);
+        succeed();
+        return true;
+      }
+      console.error("Could not save document", error);
+      fail(SAVE_FAILED);
+      return false;
+    } finally {
+      set({ busy: null });
+    }
+  };
+
+  /** One `untitledDocument()` call so the model and its saved baseline agree. */
+  const freshUntitledTab = () => {
+    const source = untitledDocument();
+    return createUntitledTab(modelFrom(source), source);
+  };
+
+  const initialTab = freshUntitledTab();
 
   return {
   tabs: [initialTab],
@@ -436,6 +537,8 @@ export const useApp = create<AppState>((set, get) => {
   lastSavedContent: initialTab.lastSavedContent,
   documentUndo: initialTab.documentUndo,
   busy: null,
+  errorMessage: null,
+  setErrorMessage: (errorMessage) => set({ errorMessage }),
   flushPendingEdits: () => {
     flushVisualEdits();
     flushSourceEdits();
@@ -476,7 +579,7 @@ export const useApp = create<AppState>((set, get) => {
     discardPendingVisual();
     discardPendingSource();
     void clearCrashDraft();
-    appendTab(createUntitledTab(modelFrom(untitledDocument()), untitledDocument()));
+    appendTab(freshUntitledTab());
   },
   switchTab: (tabId) => {
     if (tabId === get().activeTabId) return;
@@ -508,7 +611,7 @@ export const useApp = create<AppState>((set, get) => {
     tabs = tabs.filter((tab) => tab.id !== tabId);
     if (!tabs.length) {
       void clearCrashDraft();
-      const fresh = createUntitledTab(modelFrom(untitledDocument()), untitledDocument());
+      const fresh = freshUntitledTab();
       set({
         tabs: [fresh],
         activeTabId: fresh.id,
@@ -531,6 +634,7 @@ export const useApp = create<AppState>((set, get) => {
         return await getHost().files.open();
       } catch (error) {
         console.error("Could not open document", error);
+        fail(OPEN_FAILED);
         return null;
       }
     });
@@ -558,77 +662,35 @@ export const useApp = create<AppState>((set, get) => {
         busy: null
       });
       await yieldPaint();
+      succeed();
     } catch (error) {
       console.error("Could not open document", error);
+      fail(OPEN_FAILED);
       set({ busy: null });
     }
   },
   saveFile: async () => {
-    flushVisualEdits();
-    flushSourceEdits();
-    const host = getHost();
-    const { model, path } = get();
-    const content = serializedDocument(model);
-    if (!path) {
-      const next = await withFilePicker(async () => {
-        try {
-          return await host.files.saveAs(content, "document.md");
-        } catch (error) {
-          console.error("Could not save document", error);
-          return null;
-        }
-      });
-      if (!next) return;
-      beginBusy({ kind: "save", label: "Saving…", blocking: false });
-      try {
-        markSaved(next, content, model);
-      } finally {
-        set({ busy: null });
-      }
-      return;
-    }
-    beginBusy({ kind: "save", label: "Saving…", blocking: false });
-    try {
-      await primeWrite(path);
-      await yieldPaint();
-      await host.files.save({ path, content });
-      markSaved(path, content, model);
-    } catch (error) {
-      if (isNotAllowedError(error)) {
-        const next = await withFilePicker(async () => {
-          try {
-            return await host.files.saveAs(content, path);
-          } catch (fallback) {
-            console.error("Could not save document", fallback);
-            return null;
-          }
-        });
-        if (next) {
-          markSaved(next, content, model);
-        }
-      } else {
-        console.error("Could not save document", error);
-      }
-    } finally {
-      set({ busy: null });
-    }
+    await writeTabContent(get().activeTabId);
   },
   saveFileAs: async () => {
     flushVisualEdits();
     flushSourceEdits();
+    const tabId = get().activeTabId;
     const content = serializedDocument(get().model);
     const next = await withFilePicker(async () => {
       try {
         return await getHost().files.saveAs(content, get().path ?? "document.md");
       } catch (error) {
         console.error("Could not save document", error);
+        fail(SAVE_FAILED);
         return null;
       }
     });
     if (!next) return;
     beginBusy({ kind: "save", label: "Saving…", blocking: false });
     try {
-      markSaved(next, content, get().model);
+      markSaved(tabId, next, content);
+      succeed();
     } finally {
       set({ busy: null });
     }
@@ -638,9 +700,8 @@ export const useApp = create<AppState>((set, get) => {
     flushSourceEdits();
     const tab = persistActiveTab().find((entry) => entry.id === tabId);
     if (!tab?.dirty) return true;
-    if (get().activeTabId !== tabId) activateTab(tab);
-    await get().saveFile();
-    return !persistActiveTab().some((entry) => entry.id === tabId && entry.dirty);
+    const saved = await writeTabContent(tabId);
+    return saved && !persistActiveTab().some((entry) => entry.id === tabId && entry.dirty);
   },
   saveAllDirty: async () => {
     flushVisualEdits();
@@ -659,6 +720,7 @@ export const useApp = create<AppState>((set, get) => {
         return await getHost().files.openFolder();
       } catch (error) {
         console.error("Could not open folder", error);
+        fail("Could not open that folder.");
         return null;
       }
     });
@@ -677,9 +739,13 @@ export const useApp = create<AppState>((set, get) => {
       const workspace = await indexWorkspace(getHost(), listed);
       if (epoch !== workspaceEpoch) return;
       set({ workspace, busy: null });
+      succeed();
     } catch (error) {
       console.error("Could not open folder", error);
-      if (epoch === workspaceEpoch) set({ busy: null });
+      if (epoch === workspaceEpoch) {
+        fail("Could not open that folder.");
+        set({ busy: null });
+      }
     }
   },
   openWorkspaceFile: async (filePath, options) => {
@@ -717,6 +783,7 @@ export const useApp = create<AppState>((set, get) => {
       if (plan.existingId) {
         set({ tabs: plan.tabs, mobileSheet: null, busy: null });
         get().switchTab(plan.existingId);
+        succeed();
         await yieldPaint();
         return;
       }
@@ -736,10 +803,13 @@ export const useApp = create<AppState>((set, get) => {
       });
       discardPendingVisual();
       discardPendingSource();
+      succeed();
       await yieldPaint();
-    } catch {
+    } catch (error) {
+      console.error("Could not open document", error);
       if (pendingWorkspaceOpens.get(normalized)?.seq === seq) {
         pendingWorkspaceOpens.delete(normalized);
+        fail(OPEN_FAILED);
         set({ busy: null });
       }
     }
@@ -857,7 +927,7 @@ export const useApp = create<AppState>((set, get) => {
       tabs = tabs.filter((tab) => tab.id !== tabId);
     }
     if (!tabs.length) {
-      const fresh = createUntitledTab(modelFrom(untitledDocument()), untitledDocument());
+      const fresh = freshUntitledTab();
       set({ tabs: [fresh], activeTabId: fresh.id, ...activeDocumentFields(fresh) });
     } else if (!tabs.some((tab) => tab.id === get().activeTabId)) {
       const nextTab = tabs[0];
@@ -881,6 +951,10 @@ export const useApp = create<AppState>((set, get) => {
         suggestedName: prepared.suggestedName,
         sourcePath: prepared.path
       });
+      succeed();
+    } catch (error) {
+      console.error("Could not export PDF", error);
+      fail("Could not export the PDF.");
     } finally {
       set({ busy: null });
     }
@@ -898,6 +972,10 @@ export const useApp = create<AppState>((set, get) => {
         pageWidthMicrons: prepared.pageWidthMicrons,
         pageHeightMicrons: prepared.pageHeightMicrons
       });
+      succeed();
+    } catch (error) {
+      console.error("Could not print document", error);
+      fail("Could not prepare the print view.");
     } finally {
       set({ busy: null });
     }
@@ -910,12 +988,14 @@ export const useApp = create<AppState>((set, get) => {
     try {
       const prepared = await preparePrintHtml(get());
       set({ busy: null });
-      await getHost().files.saveAs(
+      const saved = await getHost().files.saveAs(
         prepared.html,
         (prepared.path ?? "document").replace(/\.md$/, "") + ".html"
       );
+      if (saved) succeed();
     } catch (error) {
       console.error("Could not export HTML", error);
+      fail("Could not export the HTML.");
       set({ busy: null });
     }
   },
