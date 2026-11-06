@@ -16,7 +16,7 @@ pnpm --filter @mdword/web exec playwright test   # chromium + mobile
 Record the result of each command you actually run. Do not claim a check that did
 not run.
 
-## Baseline (2026-11-06, version 0.1.13)
+## Baseline (2026-11-06, version 0.1.14)
 
 | Check | Result |
 | --- | --- |
@@ -429,6 +429,42 @@ Node 24, so pnpm prints an engine warning. Everything above still passes.
   sets `disableWebInstaller` and keeps electron-updater's blockmap dumps out of the
   log.
 
+### 2026-11-06 — UI/UX polish pass (0.1.14)
+
+Reviewed the real surfaces with full-page and element screenshots at 1280×900
+and 390×844 (default document, structured document, File/View tabs, outline,
+search, find bar, command palette, banners, external-change dialog, mobile
+document and sheets), then fixed what the screenshots showed:
+
+- **Status bar named the wrong document.** An untitled file with a frontmatter
+  title showed `Untitled` in the bottom bar while the tab showed the title. It now
+  falls back to the document title (path still wins when the file is saved).
+- **Three save indicators.** The desktop title bar repeated the `Unsaved` label
+  already shown by the tab dot and the status bar; the title bar no longer
+  duplicates it.
+- **Find bar input spanned the whole window.** Capped at 24rem so the field, the
+  match counter and the arrows sit together; added an accessible label.
+- **Empty sidebar states had no next action.** Files and Search now explain what a
+  folder unlocks and offer a `Choose folder` button. The search placeholder was
+  clipped ("…title, path, te") and is now "Search this folder…".
+- **Command palette**: Escape now closes it (it previously only closed on a click
+  outside), it is a labelled `aria-modal` dialog, the selected row no longer shows
+  a leftover browser ring, a keyboard-hints footer was added for desktop, and on
+  phones it lays out full height with a scrollable list instead of a short panel.
+- **Mobile Properties sheet had two titles and two close buttons** (the sheet's and
+  the panel's). The panel header is now opt-out and hidden inside the sheet.
+- **Dialogs opened with a focus ring on the close button.** Focus now lands on the
+  first field, or on the panel itself (no visible ring); the global focus ring no
+  longer applies to `tabindex="-1"` containers, and file/date inputs no longer
+  throw when focused (that regression was caught by the e2e suite and fixed).
+- **Tables**: header row shaded like the printed table, cell borders use the
+  `#e4e7ec` token instead of a hard `#ccc`.
+- **Outline empty state** now says where headings come from.
+
+Verification: screenshots re-taken after each change; `pnpm test` 431/431,
+typecheck 7/7, `pnpm build:web`, and Playwright 82/82 (the suite caught the
+dialog-focus regression before release).
+
 ## Backlog (highest first)
 
 | Task | Why | Effort |
@@ -463,7 +499,7 @@ web IDB adapter, and the multi-tab restore flow cannot be exercised without an
 Electron runtime. Landing it needs a desktop build to verify, otherwise recovery
 could silently stop working.
 
-Version 0.1.13 is the state of this tree: the save path honours the “never silently
+Version 0.1.14 is the state of this tree: the save path honours the “never silently
 overwrite an external edit” promise, desktop builds update themselves from GitHub
 Releases, recent files reopen from the File tab, failures are reported and can be
 copied as a diagnostics report, the outline reads the live document, and visual
@@ -477,7 +513,7 @@ Remaining work, in order:
 2. Crash recovery for every dirty tab (blocked on `listRecovery()` across runtimes).
 3. `store.ts` split once a feature touches the workspace actions.
 
-## Releasing 0.1.13
+## Releasing 0.1.14
 
 The version is bumped in `package.json`, `apps/{web,desktop,mobile}/package.json`,
 `packages/shared/src/constants.ts`, the `next.config.ts` fallback and

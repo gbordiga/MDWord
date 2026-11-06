@@ -2,16 +2,11 @@
 
 import { PanelLeft, PanelRight } from "lucide-react";
 import { useApp } from "@/lib/store";
-import { saveStatusText } from "@/lib/saveStatus";
 import { DocumentTabBar } from "./DocumentTabBar";
 
 export function DesktopTopBar() {
-  const dirty = useApp((s) => s.dirty);
-  const busy = useApp((s) => s.busy);
-  const lastSavedAt = useApp((s) => s.lastSavedAt);
   const leftOpen = useApp((s) => s.leftOpen);
   const rightOpen = useApp((s) => s.rightOpen);
-  const saveHint = saveStatusText({ busyKind: busy?.kind, dirty, lastSavedAt });
 
   return (
     <header
@@ -22,11 +17,6 @@ export function DesktopTopBar() {
         <span className="shrink-0 text-[13px] font-semibold tracking-tight text-[#1c1f24]">MDWord</span>
         <span className="h-4 w-px shrink-0 bg-[#e4e7ec]" aria-hidden />
         <DocumentTabBar />
-        {saveHint.text ? (
-          <span className="shrink-0 text-[11px] text-[#667085]" data-testid="desktop-top-save-status">
-            {saveHint.text}
-          </span>
-        ) : null}
         <button
           type="button"
           data-testid="topbar-sidebar"

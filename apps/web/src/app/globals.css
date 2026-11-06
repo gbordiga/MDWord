@@ -105,7 +105,9 @@ html.keyboard-open .mdword-app {
   -webkit-overflow-scrolling: touch;
 }
 
-*:focus-visible {
+/* Keyboard focus ring for controls. Programmatic focus on containers
+   (`tabindex="-1"`, e.g. a dialog panel) must not draw one. */
+*:focus-visible:not([tabindex="-1"]) {
   outline: 2px solid #1d4ed8;
   outline-offset: 2px;
 }
@@ -880,12 +882,18 @@ html.keyboard-open .mdword-app {
 .ProseMirror th,
 .ProseMirror td {
   position: relative;
-  border: 1px solid #ccc;
+  border: 1px solid #e4e7ec;
   padding: 4px 8px;
   min-width: 0;
   vertical-align: top;
   word-wrap: break-word;
   overflow-wrap: anywhere;
+}
+
+/* First row with content is the header: give it weight like the printed table. */
+.ProseMirror table tr:first-child > th {
+  background: #f8fafc;
+  font-weight: 600;
 }
 
 .ProseMirror .selectedCell {
@@ -1238,3 +1246,9 @@ html.mdword-ready .md-boot {
   transition: opacity 180ms ease, visibility 180ms ease;
 }
 
+
+/* cmdk marks the active command as selected; the browser focus ring would add a
+   second blue outline on top of the highlight. */
+[cmdk-item] {
+  outline: none;
+}

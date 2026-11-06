@@ -23,6 +23,7 @@ import { BusyOverlay } from "./BusyOverlay";
 import { Spinner } from "./Spinner";
 import { useApp } from "@/lib/store";
 import { getHost } from "@/lib/host";
+import { displayDocumentTitle } from "@mdword/shared";
 import { configureNativeChrome, hideNativeSplash } from "@/lib/native";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
 import { useCtrlWheelZoom } from "@/hooks/useCtrlWheelZoom";
@@ -61,6 +62,7 @@ function AppShellInner({
   const rightOpen = useApp((s) => s.rightOpen);
   const dirty = useApp((s) => s.dirty);
   const path = useApp((s) => s.path);
+  const documentLabel = useApp((s) => s.path ?? displayDocumentTitle(s.model.frontmatter, s.path));
   const diagnostics = useApp((s) => s.model.diagnostics);
   const busy = useApp((s) => s.busy);
   const { keyboardOpen } = useVisualViewport();
@@ -270,8 +272,8 @@ function AppShellInner({
       </div>
       <footer className="hidden h-7 shrink-0 items-center justify-between border-t border-[#e4e7ec] bg-white px-3 text-[11px] text-[#667085] lg:flex">
         <span className="inline-flex min-w-0 items-center gap-2">
-          <span className="truncate">
-            {path ?? "Untitled"} {dirty ? "•" : ""}
+          <span className="truncate" data-testid="status-document">
+            {documentLabel} {dirty ? "•" : ""}
           </span>
           <DesktopSaveStatus />
         </span>

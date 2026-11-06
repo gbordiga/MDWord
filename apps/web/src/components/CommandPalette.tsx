@@ -23,9 +23,19 @@ export function CommandPalette({
     <div
       className="fixed inset-0 z-50 bg-black/20 pt-[env(safe-area-inset-top)]"
       onClick={() => setPalette(false)}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          close();
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Command palette"
+      data-testid="command-palette"
     >
       <Command
-        className="mx-auto mt-0 w-full overflow-hidden bg-white shadow-page max-lg:h-[var(--app-height,100dvh)] max-lg:rounded-none lg:mt-[18vh] lg:w-[min(560px,92vw)] lg:rounded-xl"
+        className="mx-auto mt-0 flex w-full flex-col overflow-hidden bg-white shadow-page max-lg:h-[var(--app-height,100dvh)] max-lg:rounded-none lg:mt-[18vh] lg:w-[min(560px,92vw)] lg:rounded-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <Command.Input
@@ -33,7 +43,7 @@ export function CommandPalette({
           placeholder="Type a command…"
           className="w-full border-b border-[#e4e7ec] px-4 py-3 text-[16px] outline-hidden lg:text-[15px]"
         />
-        <Command.List className="max-h-[min(24rem,calc(var(--app-height,100dvh)-5rem))] overflow-auto p-2">
+        <Command.List className="min-h-0 flex-1 overflow-auto p-2 lg:max-h-[min(24rem,calc(var(--app-height,100dvh)-5rem))] lg:flex-none">
           <Command.Item
             onSelect={() => {
               close();
@@ -88,6 +98,18 @@ export function CommandPalette({
             </Command.Item>
           ) : null}
         </Command.List>
+        <div className="hidden items-center justify-between gap-2 border-t border-[#e4e7ec] px-3 py-2 text-[11px] text-[#667085] sm:flex">
+          <span>Type to filter</span>
+          <span className="inline-flex items-center gap-2">
+            <kbd className="rounded border border-[#e4e7ec] bg-[#f8fafc] px-1">↑</kbd>
+            <kbd className="rounded border border-[#e4e7ec] bg-[#f8fafc] px-1">↓</kbd>
+            move
+            <kbd className="rounded border border-[#e4e7ec] bg-[#f8fafc] px-1">↵</kbd>
+            run
+            <kbd className="rounded border border-[#e4e7ec] bg-[#f8fafc] px-1">esc</kbd>
+            close
+          </span>
+        </div>
       </Command>
     </div>
   );

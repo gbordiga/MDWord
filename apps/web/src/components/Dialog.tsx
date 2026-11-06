@@ -4,6 +4,8 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
+const TEXTUAL_INPUT_TYPES = new Set(["text", "search", "url", "email", "tel", "password"]);
+
 export function Dialog({
   open,
   title,
@@ -36,12 +38,22 @@ export function Dialog({
   useEffect(() => {
     if (!open) return;
     const root = panelRef.current;
-    const focusable = root?.querySelector<HTMLElement>("input, textarea, select, button");
-    focusable?.focus();
-    if (focusable instanceof HTMLInputElement || focusable instanceof HTMLTextAreaElement) {
-      const len = focusable.value.length;
-      focusable.setSelectionRange(len, len);
+    // Prefer a field; otherwise focus the panel itself so the close button does
+    // not show a focus ring on open.
+    const field = root?.querySelector<HTMLElement>("input, textarea, select");
+    if (field) {
+      field.focus();
+      // File, date and number inputs reject setSelectionRange.
+      const selectsText =
+        field instanceof HTMLTextAreaElement ||
+        (field instanceof HTMLInputElement && TEXTUAL_INPUT_TYPES.has(field.type));
+      if (selectsText) {
+        const len = (field as HTMLInputElement | HTMLTextAreaElement).value.length;
+        (field as HTMLInputElement | HTMLTextAreaElement).setSelectionRange(len, len);
+      }
+      return;
     }
+    root?.focus();
   }, [open]);
 
   if (!open || typeof document === "undefined") return null;
@@ -56,11 +68,12 @@ export function Dialog({
       />
       <div
         ref={panelRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${testId}-title`}
         data-testid={testId}
-        className="relative z-10 flex max-h-[min(90dvh,var(--app-height,100dvh))] w-full flex-col rounded-t-2xl bg-white shadow-[0_16px_48px_rgb(16_24_40_/_24%)] sm:max-w-md sm:rounded-xl"
+        className="relative z-10 flex max-h-[min(90dvh,var(--app-height,100dvh))] w-full flex-col rounded-t-2xl bg-white shadow-[0_16px_48px_rgb(16_24_40_/_24%)] outline-none sm:max-w-md sm:rounded-xl"
       >
         <header className="flex items-center justify-between gap-2 border-b border-[#e4e7ec] px-3 py-1">
           <h2 id={`${testId}-title`} className="px-1 text-[16px] font-semibold text-[#1c1f24]">

@@ -350,7 +350,7 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
         <LeftSidebar className="h-full w-full border-r-0" />
       </Sheet>
       <Sheet open={sheet === "properties"} onClose={close} side="bottom" title="Properties" testId="sheet-properties">
-        <PropertiesPanel className="h-auto w-full border-l-0" />
+        <PropertiesPanel className="h-auto w-full border-l-0" showHeader={false} />
       </Sheet>
       <Sheet open={sheet === "insert"} onClose={close} side="bottom" title="Insert" testId="sheet-insert">
         <div className="grid grid-cols-1 gap-1 p-2 pb-4">

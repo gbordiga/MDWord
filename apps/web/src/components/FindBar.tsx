@@ -88,7 +88,8 @@ export function FindBar() {
       <input
         ref={inputRef}
         data-testid="find-input"
-        className="min-h-11 min-w-0 flex-1 rounded-md border border-[#e4e7ec] px-3 text-[16px] outline-hidden lg:min-h-8 lg:text-[13px]"
+        aria-label="Find in document"
+        className="min-h-11 min-w-0 flex-1 rounded-md border border-[#e4e7ec] px-3 text-[16px] outline-hidden focus:border-accent lg:min-h-8 lg:max-w-[24rem] lg:text-[13px]"
         placeholder="Find in document"
         value={query}
         onChange={(e) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { FolderOpen, X } from "lucide-react";
 import { searchHits, type SearchHitField } from "@mdword/indexer";
 import { cn } from "@mdword/ui";
 import { useApp } from "@/lib/store";
@@ -109,7 +109,19 @@ export function LeftSidebar({ className }: { className?: string }) {
               onOpenFile={openFile}
             />
           ) : (
-            <p className="p-2 text-[#667085]">Open a folder to browse files.</p>
+            <div className="flex h-full min-h-40 flex-col items-center justify-center gap-3 px-3 text-center" data-testid="files-empty">
+              <FolderOpen size={22} className="text-[#98a2b3]" aria-hidden />
+              <p className="text-[12px] leading-5 text-[#667085]">
+                Open a folder to browse documents, follow wikilinks and keep several files open.
+              </p>
+              <button
+                type="button"
+                onClick={() => void useApp.getState().openFolder()}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#d0d5dd] bg-white px-2.5 text-[12px] font-medium text-[#344054] hover:bg-[#f2f4f7]"
+              >
+                <FolderOpen size={14} aria-hidden /> Choose folder
+              </button>
+            </div>
           )
         ) : null}
         {left === "outline" && (
@@ -129,7 +141,9 @@ export function LeftSidebar({ className }: { className?: string }) {
               </li>
             ))}
             {headings.length === 0 && (
-              <p className="p-2 text-[#667085]">Headings in this document will appear here.</p>
+              <p className="p-2 text-[#667085]">
+                Headings in this document will appear here. Add one from the Home tab.
+              </p>
             )}
           </ul>
         )}
@@ -138,7 +152,8 @@ export function LeftSidebar({ className }: { className?: string }) {
             <input
               data-testid="workspace-search"
               className="mb-2 w-full rounded-md border border-[#e4e7ec] px-2 py-2 text-[16px] lg:py-1 lg:text-[13px]"
-              placeholder="Search the open folder (title, path, text, tags)"
+              aria-label="Search the open folder"
+              placeholder="Search this folder…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
@@ -176,7 +191,20 @@ export function LeftSidebar({ className }: { className?: string }) {
             {workspace && q.trim() && results.length === 0 && (
               <p className="p-2 text-[#667085]">No matching documents.</p>
             )}
-            {!workspace && <p className="p-2 text-[#667085]">Open a folder to search across files.</p>}
+            {!workspace && (
+              <div className="flex flex-col items-center gap-3 px-2 py-6 text-center" data-testid="search-empty">
+                <p className="text-[12px] leading-5 text-[#667085]">
+                  Open a folder to search titles, paths, text and tags across your documents.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void useApp.getState().openFolder()}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#d0d5dd] bg-white px-2.5 text-[12px] font-medium text-[#344054] hover:bg-[#f2f4f7]"
+                >
+                  <FolderOpen size={14} aria-hidden /> Choose folder
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
