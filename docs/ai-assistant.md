@@ -18,7 +18,8 @@ Where the shipped code differs from, or decides something the sections below lef
 - **Diagnostics check.** Uses `DocumentModel.diagnostics` (`severity: "error" | "warning" | "info"`, optional `line`); an edit is refused only for error diagnostics that were not already present (open item 7 closed).
 - **Cost.** The session cost uses the `cost` OpenRouter reports in usage (`usage: { include: true }`), falling back to token counts times the live model price. The default cap is $3 per session and can be turned off.
 - **Model list.** `packages/agent/src/suggested-models.json` is the data; `scripts/check-model-list.mjs` checks it against the public API (default must be valid; the rest only warn). The picker drops suggested ids that are missing, expired, or lost tool support, using the live list once a key exists.
-- **Not built yet:** mobile (hidden when the host has no assistant API); the pseudo-locale for development; showing which suggested models the privacy toggle makes unavailable (the public endpoints API does not expose provider data policies, so this needs a real request: open item 9 stays open); the 20 to 30 request evaluation (needs a real key; run it before changing the default); a manual confirmation that the production CSP blocks other origins.
+- **Not built yet:** mobile (hidden when the host has no assistant API); the pseudo-locale for development; showing which suggested models the privacy toggle makes unavailable (the public endpoints API does not expose provider data policies, so this needs a real request: open item 9 stays open); the 20 to 30 request evaluation (needs a real key; run it before changing the default).
+- **Verified:** a production build serves the CSP above; in Chromium a request to openrouter.ai succeeds and a request to any other origin is refused.
 
 ## 1. Goals and non-goals
 
