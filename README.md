@@ -62,6 +62,9 @@ Desktop builds update themselves from GitHub Releases: MDWord checks after launc
 **Offline**
 Desktop (Windows / macOS / Linux), local-first web, mobile shells. Files stay on the device unless you export or save them yourself.
 
+**Assistant (optional)**
+A side panel that finds, reads, and edits your Markdown files in plain language. You bring your own OpenRouter account (sign in or paste a key). Every edit appears as a card with the exact change; nothing is written until you press Apply, and one Apply is one undo step. Nothing is sent anywhere until you connect a key. Desktop and web; see [docs/ai-assistant.md](docs/ai-assistant.md).
+
 ---
 
 ## Markdown dialects
