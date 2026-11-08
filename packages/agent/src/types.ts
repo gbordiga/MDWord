@@ -22,6 +22,8 @@ export interface EditProposal {
   before: string;
   after: string;
   edits: AppliedEdit[];
+  /** The path does not exist yet. Apply creates the file instead of patching it. */
+  create?: boolean;
 }
 
 export type EditDecision =
@@ -40,6 +42,8 @@ export interface AssistantEnv {
   /** Buffer of an open tab, else the file on disk. `null` when it does not exist. */
   readFile(path: string): Promise<string | null>;
   diagnostics(source: string): Diagnostic[];
+  /** False when there is no folder to create files in (only open tabs). */
+  canCreateFiles(): boolean;
   /** Resolves when the user applies or discards. Must honor the abort signal. */
   proposeEdit(proposal: EditProposal, signal: AbortSignal | undefined): Promise<EditDecision>;
 }

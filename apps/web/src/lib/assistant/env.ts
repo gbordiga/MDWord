@@ -201,6 +201,7 @@ export function createAssistantEnv(options: EnvOptions): AssistantEnv {
         )
       ];
     },
+    canCreateFiles: () => Boolean(useApp.getState().workspace?.root),
     proposeEdit: options.propose
   };
 }
@@ -211,6 +212,7 @@ export function createAssistantEnv(options: EnvOptions): AssistantEnv {
  * file. Nothing is written when it no longer applies cleanly.
  */
 export async function applyProposal(proposal: EditProposal): Promise<EditDecision> {
+  if (proposal.create) return applyCreate(proposal);
   const entry = resolve(proposal.path);
   if (!entry) return { status: "stale", reason: "The file is no longer available." };
   const store = useApp.getState();
@@ -230,4 +232,28 @@ export async function applyProposal(proposal: EditProposal): Promise<EditDecisio
   }
   const done = useApp.getState().applyAssistantEdit(open.tabId, again.result, proposal.id);
   return done ? { status: "applied" } : { status: "stale", reason: "The tab was closed." };
+}
+
+async function applyCreate(proposal: EditProposal): Promise<EditDecision> {
+  const root = useApp.getState().workspace?.root;
+  if (!root) return { status: "stale", reason: "Open a folder before creating a file." };
+  const entry = resolve(proposal.path);
+  if (!entry?.abs) return { status: "stale", reason: "That path is not a markdown file in this folder." };
+  if ((await readEntry(entry)) != null) return { status: "stale", reason: "The file already exists." };
+  const host = getHost();
+  try {
+    if (typeof host.files.prepareWrite === "function") await host.files.prepareWrite(entry.abs);
+    await host.files.write(entry.abs, proposal.after);
+  } catch {
+    return { status: "stale", reason: "The file could not be written. Check that the folder exists." };
+  }
+  await useApp.getState().refreshWorkspace();
+  await useApp.getState().openWorkspaceFile(entry.abs);
+  const open = useApp.getState().readOpenBuffer(entry.abs);
+  if (!open) return { status: "stale", reason: "The file was written but could not be opened." };
+  if (open.source !== proposal.after) {
+    const done = useApp.getState().applyAssistantEdit(open.tabId, proposal.after, proposal.id);
+    if (!done) return { status: "stale", reason: "The tab was closed." };
+  }
+  return { status: "applied" };
 }

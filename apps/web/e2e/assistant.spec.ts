@@ -135,8 +135,22 @@ test("a proposed edit changes nothing until Apply, and Apply is one undo step", 
   const provider = requests[0]!.body.provider as { data_collection?: string } | undefined;
   expect(provider?.data_collection).toBe("deny");
   const tools = (requests[0]!.body.tools as { function: { name: string } }[]).map((t) => t.function.name).sort();
-  expect(tools).toEqual(["editFile", "listFiles", "readFile", "search"]);
+  expect(tools).toEqual(["editFile", "listFiles", "readFile", "search", "writeFile"]);
   expect(JSON.stringify(requests[0]!.body.messages)).toContain("Make the greeting friendlier");
+});
+
+test("without an open folder a new file is refused before any card is shown", async ({ page }) => {
+  await withKey(page);
+  const requests = await mockOpenRouter(page, [
+    toolCall("writeFile", { path: "notes.md", content: "# Notes\n" }),
+    text("I need a folder first.")
+  ]);
+  await openAssistant(page);
+  await page.getByTestId("assistant-input").fill("Create a notes file");
+  await page.getByTestId("assistant-input").press("Enter");
+  await expect(page.getByTestId("assistant-message")).toContainText("I need a folder first.", { timeout: 15_000 });
+  await expect(page.getByTestId("assistant-edit-card")).toHaveCount(0);
+  expect(JSON.stringify(requests[1]!.body.messages)).toContain("No folder is open");
 });
 
 test("Discard leaves the document alone and tells the model", async ({ page }) => {

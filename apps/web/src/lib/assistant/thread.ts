@@ -23,6 +23,8 @@ export type ThreadItem =
       id: string;
       path: string;
       edits: EditCardEdit[];
+      /** A new file rather than a change to an existing one. */
+      create?: boolean;
       status: "pending" | "applied" | "discarded" | "stale";
     }
   | { kind: "notice"; id: string; text: string };
@@ -59,6 +61,8 @@ export function toolLabel(name: string, input: unknown): string {
         : t("tool.readFile", { path });
     case "editFile":
       return t("tool.editFile", { path });
+    case "writeFile":
+      return t("tool.writeFile", { path });
     default:
       return name;
   }

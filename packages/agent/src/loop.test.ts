@@ -77,6 +77,7 @@ function fakeEnv(
       source.includes("BROKEN")
         ? [{ severity: "error" as const, message: "broken frontmatter", line: 1 }]
         : [],
+    canCreateFiles: () => true,
     proposeEdit: async (proposal) => {
       proposals.push(proposal);
       const decision = decide(proposal);
@@ -391,7 +392,54 @@ describe("tools", () => {
     expect(String(out.error)).toContain("No edit was applied");
   });
 
-  it("cannot create files", async () => {
+  it("creates a markdown file that does not exist", async () => {
+    const { env, proposals } = fakeEnv({});
+    const out = await exec(createTools(ctxFor(env)).writeFile, {
+      path: "notes/new.md",
+      content: "# New\n\nHello\n"
+    });
+    expect(out).toMatchObject({ ok: true, status: "applied" });
+    expect(proposals[0]).toMatchObject({ path: "notes/new.md", create: true, before: "" });
+  });
+
+  it("refuses to create a file that already exists", async () => {
+    const { env, proposals } = fakeEnv({ "new.md": "already" });
+    const out = await exec(createTools(ctxFor(env)).writeFile, {
+      path: "new.md",
+      content: "# New\n"
+    });
+    expect(out).toMatchObject({ ok: false });
+    expect(String(out.error)).toContain("already exists");
+    expect(proposals).toHaveLength(0);
+  });
+
+  it("refuses a new file when there is no folder to put it in", async () => {
+    const { env, proposals } = fakeEnv({});
+    env.canCreateFiles = () => false;
+    const out = await exec(createTools(ctxFor(env)).writeFile, { path: "new.md", content: "# New\n" });
+    expect(out).toMatchObject({ ok: false });
+    expect(String(out.error)).toContain("No folder is open");
+    expect(proposals).toHaveLength(0);
+  });
+
+  it("refuses new file paths that are not portable markdown names", async () => {
+    const { env, proposals } = fakeEnv({});
+    const tools = createTools(ctxFor(env));
+    for (const path of ["notes.txt", "a:b.md", "dir|x/new.md", "../new.md", "/abs.md"]) {
+      expect(await exec(tools.writeFile, { path, content: "# New\n" })).toMatchObject({ ok: false });
+    }
+    expect(proposals).toHaveLength(0);
+  });
+
+  it("refuses a new file whose text has errors", async () => {
+    const { env, proposals } = fakeEnv({});
+    const out = await exec(createTools(ctxFor(env)).writeFile, { path: "new.md", content: "BROKEN\n" });
+    expect(out).toMatchObject({ ok: false });
+    expect(String(out.error)).toContain("No file was written");
+    expect(proposals).toHaveLength(0);
+  });
+
+  it("cannot create files with editFile", async () => {
     const { env } = fakeEnv({});
     const out = await exec(createTools(ctxFor(env)).editFile, {
       path: "new.md",
