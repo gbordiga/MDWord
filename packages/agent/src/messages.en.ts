@@ -1,0 +1,132 @@
+/**
+ * User-facing strings of the assistant. English is the first locale; every
+ * string is a whole sentence with named parameters so a translator can reorder
+ * words. Model-facing text (prompt, tool errors) is NOT here: it is always
+ * English and lives next to the code that produces it.
+ */
+export const messagesEn = {
+  "panel.title": "Assistant",
+  "panel.close": "Close assistant",
+  "panel.settings": "Assistant settings",
+  "panel.newChat": "New chat",
+  "panel.clearHistory": "Clear history",
+  "panel.input.placeholder": "Ask about this document or workspace",
+  "panel.input.disabled": "Sign in or add an OpenRouter key to start",
+  "panel.send": "Send",
+  "panel.stop": "Stop",
+  "panel.empty.title": "Ask for help with your writing",
+  "panel.empty.body":
+    "The assistant can read your files and propose edits. Nothing changes until you press Apply.",
+  "panel.context.file": "Context: {name}",
+  "panel.context.selection": "Selection: lines {start} to {end}",
+  "panel.cost.session": "Session: {cost}",
+  "panel.cost.unknown": "Session cost unknown",
+  "panel.nokey.title": "Connect OpenRouter",
+  "panel.nokey.body":
+    "The assistant uses your own OpenRouter account. Nothing is sent until you connect it.",
+  "panel.nokey.open": "Open settings",
+  "panel.unavailable.mobile": "The assistant is not available on mobile yet.",
+  "panel.thinking": "Working",
+
+  "tool.listFiles": "Listing files in {folder}",
+  "tool.listFiles.root": "the workspace",
+  "tool.search": "Searching for \u201c{query}\u201d",
+  "tool.readFile": "Reading {path}",
+  "tool.readFile.range": "Reading {path}, lines {start} to {end}",
+  "tool.editFile": "Proposing an edit to {path}",
+  "tool.failed": "Could not complete: {reason}",
+
+  "edit.card.title": "Proposed edit to {path}",
+  "edit.card.summary": "{count, plural, one {# change} other {# changes}}",
+  "edit.apply": "Apply",
+  "edit.discard": "Discard",
+  "edit.applied": "Applied. You can undo it with one step.",
+  "edit.discarded": "Discarded",
+  "edit.stale": "The document changed, so this edit no longer applies. Nothing was written.",
+  "edit.removed": "Removed",
+  "edit.added": "Added",
+  "edit.line": "Line {line}",
+
+  "stop.done": "",
+  "stop.maxSteps": "Stopped: the assistant reached the step limit for one request.",
+  "stop.toolBudget": "Stopped: the assistant read too much text for one request.",
+  "stop.spendCap": "Stopped: the session spending limit was reached. Raise it in settings to continue.",
+  "stop.failures": "Stopped: the same tool failed three times in a row.",
+  "stop.aborted": "Stopped.",
+
+  "error.auth": "OpenRouter rejected the key. Check it in settings.",
+  "error.credits": "Your OpenRouter account is out of credits.",
+  "error.rateLimit": "The model is busy or rate limited. Try again in a moment.",
+  "error.model": "The selected model is not available. Choose another one in settings.",
+  "error.privacy":
+    "No provider for this model matches your privacy setting. Choose another model or change the setting.",
+  "error.network": "Could not reach OpenRouter. Check your connection.",
+  "error.unknown": "The request failed.",
+
+  "settings.title": "Assistant settings",
+  "settings.back": "Back to chat",
+  "settings.account": "OpenRouter account",
+  "settings.signIn": "Sign in with OpenRouter",
+  "settings.signingIn": "Waiting for OpenRouter",
+  "settings.pasteKey": "Or paste an API key",
+  "settings.key.placeholder": "sk-or-\u2026",
+  "settings.key.save": "Save key",
+  "settings.key.saved": "Key saved: {masked}",
+  "settings.key.none": "No key saved",
+  "settings.key.clear": "Remove key",
+  "settings.key.note":
+    "The key has no spending limit of its own. For a hard limit, create a dedicated key on openrouter.ai and paste it here.",
+  "settings.model": "Model",
+  "settings.model.suggested": "Suggested",
+  "settings.model.all": "All models",
+  "settings.model.loading": "Loading models",
+  "settings.model.failed": "Could not load the model list. Suggested models are still available.",
+  "settings.model.price": "{input} in / {output} out per million tokens",
+  "settings.model.unavailablePrivacy": "Unavailable with your privacy setting",
+  "settings.tier.low": "Low cost",
+  "settings.tier.balanced": "Balanced",
+  "settings.tier.quality": "Quality",
+  "settings.cap": "Spending limit per session",
+  "settings.cap.off": "No limit",
+  "settings.cap.value": "{amount} per session",
+  "settings.privacy": "Only use providers that do not keep my prompts",
+  "settings.privacy.note":
+    "Sends a routing preference to OpenRouter. Some models have only one provider and may become unavailable.",
+  "settings.history": "Chat history",
+  "settings.history.clear": "Clear history for this workspace",
+  "settings.history.note": "History is stored on this device, outside your project.",
+  "settings.notice.title": "Before you start",
+  "settings.notice.body":
+    "When you use the assistant, your messages and the parts of your documents it reads are sent to OpenRouter and to the model provider you choose. Their data policies apply. Nothing is sent when no key is set.",
+  "settings.notice.accept": "I understand",
+  "settings.signin.failed": "Sign in failed. You can paste a key instead.",
+  "settings.signin.cancelled": "Sign in was cancelled."
+} as const;
+
+export type MessageKey = keyof typeof messagesEn;
+export type MessageParams = Record<string, string | number>;
+
+/**
+ * Minimal formatter: `{name}` substitution and one-level
+ * `{n, plural, one {...} other {...}}` (ICU-compatible subset), so the
+ * catalog can move to a full ICU library without rewriting strings.
+ */
+export function formatMessage(
+  template: string,
+  params: MessageParams = {},
+  locale = "en"
+): string {
+  const plural = /\{(\w+), plural, one \{([^}]*)\} other \{([^}]*)\}\}/g;
+  const withPlurals = template.replace(plural, (_m, name: string, one: string, other: string) => {
+    const n = Number(params[name] ?? 0);
+    const rule = new Intl.PluralRules(locale).select(n);
+    return (rule === "one" ? one : other).replace(/#/g, String(n));
+  });
+  return withPlurals.replace(/\{(\w+)\}/g, (m, name: string) =>
+    name in params ? String(params[name]) : m
+  );
+}
+
+export function t(key: MessageKey, params?: MessageParams): string {
+  return formatMessage(messagesEn[key], params);
+}

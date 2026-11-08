@@ -63,6 +63,7 @@ const nextConfig: NextConfig = {
     "@mdword/editor",
     "@mdword/source-editor",
     "@mdword/renderer",
+    "@mdword/agent",
     "@mdword/workspace",
     "@mdword/indexer",
     "@mdword/plugin-sdk",
