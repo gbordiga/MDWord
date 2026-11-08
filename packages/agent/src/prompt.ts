@@ -81,7 +81,8 @@ and page layout live there, not in the body. Say so when you change it.
 2. Read: use readFile before you edit. Read only what you need, chunk by
    chunk (follow nextStartLine) or by line range; never read a whole long file.
 3. Edit: use editFile with the smallest oldText that is still unique in the
-   file. The user reviews every edit before it is applied.
+   file. To add a markdown file that does not exist yet, use writeFile with
+   the full text. The user reviews every edit before it is applied.
 4. Report: say briefly what you changed or proposed. Do not repeat the whole
    edit.
 If the request is ambiguous, ask one short question instead of guessing.
@@ -130,7 +131,9 @@ export function buildSystemPrompt(options: { webSearch?: boolean; instructions?:
 
 export const TOOL_DESCRIPTIONS = {
   editFile:
-    "Edit one file with exact text replacement. Every edits[].oldText must match exactly one region of the original file and must not overlap another edit. Merge nearby changes into one edit. Keep oldText as small as possible while still unique. The user reviews the change before it is applied. If any edit is invalid, none is applied.",
+    "Edit one file with exact text replacement. Every edits[].oldText must match exactly one region of the original file and must not overlap another edit. Merge nearby changes into one edit. Keep oldText as small as possible while still unique. The user reviews the change before it is applied. If any edit is invalid, none is applied. This tool cannot create a file; use writeFile for a path that does not exist.",
+  writeFile:
+    "Create one new markdown file. The path must not already exist. Pass the full file text. The user reviews it before the file is created. Use editFile to change a file that already exists.",
   readFile:
     "Read a text file in the workspace. Returns the current content, including unsaved changes if the file is open. Returns at most 500 lines or about 24000 characters, always whole lines. If the result says more remains, call again with startLine to continue, only when you need it. Use startLine and endLine to jump to a part.",
   search:

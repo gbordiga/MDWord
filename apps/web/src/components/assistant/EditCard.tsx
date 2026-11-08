@@ -26,11 +26,13 @@ function Block({ kind, text }: { kind: "remove" | "add"; text: string }) {
 export function EditCard({ item }: { item: EditItem }) {
   const resolve = useAssistant((s) => s.resolveEdit);
   const pending = item.status === "pending";
+  const create = item.create === true;
   return (
     <section
       data-testid="assistant-edit-card"
       data-status={item.status}
-      aria-label={t("edit.card.title", { path: item.path })}
+      data-create={create ? "true" : undefined}
+      aria-label={t(create ? "edit.card.titleNew" : "edit.card.title", { path: item.path })}
       className="rounded-lg border border-[#d0d5dd] bg-white"
     >
       <header className="flex items-center gap-1.5 border-b border-[#e4e7ec] px-2.5 py-1.5">
@@ -39,13 +41,13 @@ export function EditCard({ item }: { item: EditItem }) {
           {item.path}
         </span>
         <span className="shrink-0 text-[11px] text-[#667085]">
-          {t("edit.card.summary", { count: item.edits.length })}
+          {create ? t("edit.card.new") : t("edit.card.summary", { count: item.edits.length })}
         </span>
       </header>
       <div className="space-y-2 px-2.5 py-2">
         {item.edits.map((edit, index) => (
           <div key={index} className="space-y-1">
-            <Block kind="remove" text={edit.oldText} />
+            {create ? null : <Block kind="remove" text={edit.oldText} />}
             <Block kind="add" text={edit.newText} />
           </div>
         ))}
@@ -75,9 +77,9 @@ export function EditCard({ item }: { item: EditItem }) {
         ) : (
           <span className="text-[12px] text-[#667085]" role="status">
             {item.status === "applied"
-              ? t("edit.applied")
+              ? t(create ? "edit.created" : "edit.applied")
               : item.status === "stale"
-                ? t("edit.stale")
+                ? t(create ? "edit.createFailed" : "edit.stale")
                 : t("edit.discarded")}
           </span>
         )}

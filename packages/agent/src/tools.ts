@@ -19,6 +19,12 @@ export interface ToolContext {
 export type ToolFailure = { ok: false; error: string };
 
 const MAX_LIST = 200;
+const MAX_NEW_FILE_CHARS = 500_000;
+
+/** Names Windows, macOS, and Linux all accept. Keep in step with `isValidWorkspaceEntryName`. */
+function isPortableName(name: string): boolean {
+  return name.trim() !== "" && name.length <= 200 && !/[:*?"<>|]/.test(name);
+}
 let proposalCounter = 0;
 
 function fail(error: string): ToolFailure {
@@ -145,6 +151,87 @@ export function createTools(ctx: ToolContext) {
     }
   });
 
+  const writeFile = tool({
+    description: TOOL_DESCRIPTIONS.writeFile,
+    inputSchema: z
+      .object({
+        path: z.string().min(1),
+        content: z.string().min(1).max(MAX_NEW_FILE_CHARS)
+      })
+      .strict(),
+    execute: async ({ path, content }) => {
+      const run = async () => {
+        if (!env.canCreateFiles()) {
+          return account(
+            ctx,
+            fail("No folder is open, so there is nowhere to create a file. Ask the user to open a folder.")
+          );
+        }
+        const checked = normalizeWorkspacePath(path);
+        if (!checked.ok) return account(ctx, fail(checked.reason));
+        if (!checked.path.toLowerCase().endsWith(".md")) {
+          return account(ctx, fail("writeFile creates markdown files only. The path must end in .md."));
+        }
+        if (checked.path.split("/").some((segment) => !isPortableName(segment))) {
+          return account(
+            ctx,
+            fail('Each name in the path must be at most 200 characters and must not contain : * ? " < > |.')
+          );
+        }
+        const existing = await env.readFile(checked.path);
+        if (existing != null) {
+          return account(
+            ctx,
+            fail(`The file "${checked.path}" already exists. Use editFile to change it. No file was written.`)
+          );
+        }
+        const text = content.replace(/\r\n/g, "\n");
+        const errors = [...env.diagnostics(text), ...unclosedDirectives(text)]
+          .filter((d) => d.severity === "error")
+          .slice(0, 5)
+          .map((d) => (d.line ? `line ${d.line}: ${d.message}` : d.message));
+        if (errors.length > 0) {
+          return account(
+            ctx,
+            fail(`This file would contain errors: ${errors.join("; ")}. Fix the text. No file was written.`)
+          );
+        }
+        const decision = await env.proposeEdit(
+          {
+            id: newProposalId(),
+            path: checked.path,
+            before: "",
+            after: text,
+            edits: [{ oldText: "", newText: text, line: 1 }],
+            create: true
+          },
+          ctx.signal
+        );
+        if (decision.status === "applied") {
+          return account(ctx, {
+            ok: true as const,
+            status: "applied" as const,
+            message: `The user created ${checked.path}. Use readFile if you need to edit it.`
+          });
+        }
+        if (decision.status === "rejected") {
+          return account(ctx, {
+            ok: true as const,
+            status: "rejected" as const,
+            message: "The user declined this new file. Do not propose the same file again; ask what they want instead."
+          });
+        }
+        return account(
+          ctx,
+          fail(`The file could not be created: ${decision.reason} No file was written.`)
+        );
+      };
+      const next = editQueue.then(run, run);
+      editQueue = next.catch(() => undefined);
+      return next;
+    }
+  });
+
   const editFile = tool({
     description: TOOL_DESCRIPTIONS.editFile,
     inputSchema: z
@@ -223,7 +310,7 @@ export function createTools(ctx: ToolContext) {
     }
   });
 
-  return { listFiles, search, readFile, editFile };
+  return { listFiles, search, readFile, editFile, writeFile };
 }
 
 export type AssistantTools = ReturnType<typeof createTools>;

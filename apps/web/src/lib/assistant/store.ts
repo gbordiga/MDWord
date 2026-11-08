@@ -217,6 +217,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
           id,
           path: proposal.path,
           edits: proposal.edits.map((e) => ({ line: e.line, oldText: e.oldText, newText: e.newText })),
+          ...(proposal.create ? { create: true } : {}),
           status: "pending"
         }
       ]);
