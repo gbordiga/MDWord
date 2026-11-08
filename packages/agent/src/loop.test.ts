@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { runAssistantTurn } from "./loop";
@@ -280,10 +280,15 @@ describe("assistant loop", () => {
         throw Object.assign(new Error("bad key"), { statusCode: 401 });
       }
     });
-    const { done, events } = run(model, env);
-    const result = await done;
-    expect(result.stop).toBe("error");
-    expect(events.at(-1)).toMatchObject({ type: "stop", message: t("error.auth") });
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { done, events } = run(model, env);
+      const result = await done;
+      expect(result.stop).toBe("error");
+      expect(events.at(-1)).toMatchObject({ type: "stop", message: t("error.auth") });
+    } finally {
+      logged.mockRestore();
+    }
   });
 });
 
