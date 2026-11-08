@@ -29,6 +29,13 @@ import { pageMarginCss, resolvedRunningComments, runningBarsHtml } from "./runni
 
 export { collectTocItems, renderTocHtml, type TocItem } from "./toc";
 
+const HTML_LANG = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
+
+function htmlLang(value: string | undefined): string {
+  const tag = (value ?? "").trim();
+  return HTML_LANG.test(tag) ? tag : "en";
+}
+
 function escape(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -391,6 +398,8 @@ export function renderPrintDocument(options: {
   subtitle?: string;
   author?: string;
   date?: string;
+  /** BCP 47 tag for the printed document. Invalid values fall back to English. */
+  language?: string;
   filename?: string;
   /**
    * Repeat header/footer as a print table (thead/tfoot). Chromium's native print
@@ -462,7 +471,7 @@ export function renderPrintDocument(options: {
   <script src="${escape(options.pagedScriptUrl)}" onerror="document.documentElement.dataset.pagedReady='1'"><\/script>`
     : "";
   return `<!DOCTYPE html>
-<html lang="it">
+<html lang="${htmlLang(options.language)}">
 <head>
   <meta charset="utf-8" />
   <title>${escape(options.title ?? "Document")}</title>

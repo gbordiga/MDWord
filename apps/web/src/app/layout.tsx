@@ -52,7 +52,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="it">
+    <html lang="en">
       <head>{process.env.NODE_ENV === "production" ? <meta httpEquiv="Content-Security-Policy" content={CSP} /> : null}</head>
       <body>
         <div id="mdword-boot" className="md-boot" data-testid="app-boot" role="status" aria-live="polite">

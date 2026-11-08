@@ -93,3 +93,17 @@ export function documentDate(
   }
   return "";
 }
+
+const LANG_TAG = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
+
+/** Document language from `language` or Italian `lingua`. Empty when unset or invalid. */
+export function documentLanguage(
+  frontmatter: Record<string, unknown> | null | undefined
+): string {
+  if (!frontmatter) return "";
+  for (const key of ["language", "lingua"] as const) {
+    const value = frontmatter[key];
+    if (typeof value === "string" && LANG_TAG.test(value.trim())) return value.trim();
+  }
+  return "";
+}

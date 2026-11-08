@@ -12,6 +12,7 @@ import {
 import {
   displayDocumentTitle,
   documentDate,
+  documentLanguage,
   isMarkdownFileName,
   isNotAllowedError,
   sanitizeRecentFiles,
@@ -171,6 +172,7 @@ async function preparePrintHtml(state: Pick<AppState, "model" | "path">): Promis
       title: displayDocumentTitle(model.frontmatter, path),
       subtitle: String(model.frontmatter.subtitle ?? model.frontmatter.sottotitolo ?? ""),
       date: documentDate(model.frontmatter),
+      language: documentLanguage(model.frontmatter),
       filename: path ?? "document.md",
       runningInBody: false,
       pagedScriptUrl: webPagedScriptUrl(host.platform)
