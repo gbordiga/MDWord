@@ -280,6 +280,13 @@ export interface AppState {
   applyRecoveredDraft: (content: string, path: string | null) => Promise<void>;
   undoDocument: () => boolean;
   redoDocument: () => boolean;
+  /**
+   * Apply an assistant edit to a tab as exactly one undo step. The tab becomes
+   * active so the user sees the change. Returns false when the tab is gone.
+   */
+  applyAssistantEdit: (tabId: string, nextSource: string, editId: string) => boolean;
+  /** Current text of the tab open for `path` (flushing pending typing), else null. */
+  readOpenBuffer: (path: string) => { tabId: string; source: string } | null;
 }
 
 function modelFrom(source: string, workspaceMdoc?: Mdoc): DocumentModel {
@@ -1281,6 +1288,33 @@ export const useApp = create<AppState>((set, get) => {
       draftWrite = null;
     });
     await draftWrite;
+  },
+  applyAssistantEdit: (tabId, nextSource, editId) => {
+    flushVisualEdits();
+    flushSourceEdits();
+    const tab = persistActiveTab().find((entry) => entry.id === tabId);
+    if (!tab) return false;
+    if (tab.id !== get().activeTabId) activateTab(tab);
+    const previous = get().model.source;
+    const model = modelFrom(nextSource, get().workspace?.workspaceMdoc);
+    if (model.source === previous) return true;
+    patchActiveTab({
+      model,
+      dirty: model.source !== get().lastSavedContent,
+      syncGeneration: get().syncGeneration + 1,
+      sourceGeneration: get().sourceGeneration + 1,
+      editGeneration: get().editGeneration + 1,
+      // A kind unique to this edit never coalesces with typing or another edit.
+      documentUndo: recordDocumentChange(get().documentUndo, previous, model.source, `assistant:${editId}`)
+    });
+    return true;
+  },
+  readOpenBuffer: (path) => {
+    flushVisualEdits();
+    flushSourceEdits();
+    const wanted = normalizeTabPath(path);
+    const tab = persistActiveTab().find((entry) => entry.path != null && normalizeTabPath(entry.path) === wanted);
+    return tab ? { tabId: tab.id, source: tab.model.source } : null;
   },
   undoDocument: () => {
     flushVisualEdits();
