@@ -1,4 +1,28 @@
 /**
+ * `status` or `statusCode`, then an optional `:` or `=`, then three digits.
+ * A regex for that is polynomial (`\s*` on both sides of an optional separator).
+ */
+function statusAfterLabel(message: string): string | undefined {
+  const lower = message.toLowerCase();
+  let from = 0;
+  while (from < lower.length) {
+    const at = lower.indexOf("status", from);
+    if (at < 0) return undefined;
+    let i = at + "status".length;
+    if (lower.startsWith("code", i)) i += "code".length;
+    while (lower.charCodeAt(i) === 32 || lower.charCodeAt(i) === 9) i += 1;
+    if (lower[i] === ":" || lower[i] === "=") {
+      i += 1;
+      while (lower.charCodeAt(i) === 32 || lower.charCodeAt(i) === 9) i += 1;
+    }
+    const digits = lower.slice(i, i + 3);
+    if (/^\d{3}$/.test(digits)) return digits;
+    from = at + "status".length;
+  }
+  return undefined;
+}
+
+/**
  * State of the desktop auto-updater, shared by the Electron main process, the
  * preload bridge and the renderer. The web and mobile builds never emit these.
  */
@@ -37,7 +61,7 @@ export function updateErrorReason(error: unknown): string {
   const httpCode = /^HTTP_ERROR_(\d{3})$/.exec(code)?.[1];
   if (httpCode) return `HTTP ${httpCode}`;
   if (code === "ERR_UPDATER_HTTP_ERROR" || /HttpError/i.test(`${code} ${message}`)) {
-    const status = /([45]\d{2})/.exec(message)?.[1] ?? /status(?:Code)?\s*[:=]?\s*(\d{3})/i.exec(message)?.[1];
+    const status = /([45]\d{2})/.exec(message)?.[1] ?? statusAfterLabel(message);
     return status ? `HTTP ${status}` : "server error";
   }
   if (/ERR_UPDATER_LATEST_VERSION_NOT_FOUND|ERR_UPDATER_NO_PUBLISHED_VERSIONS|Cannot find latest\.yml|CHANNEL_FILE_NOT_FOUND/i.test(`${code} ${message}`)) {

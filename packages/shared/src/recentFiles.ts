@@ -1,8 +1,10 @@
+import { toPosixPath } from "./strings";
+
 export const MAX_RECENT_FILES = 10;
 
 /** Windows and drive-letter paths compare case-insensitively; POSIX paths do not. */
 function recentKey(value: string): string {
-  const normalized = value.trim().replace(/\\/g, "/").replace(/\/+$/, "");
+  const normalized = toPosixPath(value.trim());
   return /^[a-zA-Z]:\//.test(normalized) ? normalized.toLowerCase() : normalized;
 }
 
