@@ -66,6 +66,26 @@ const api = {
       return () => ipcRenderer.removeListener("app.print", listener);
     }
   },
+  assistant: {
+    keyStatus: () => ipcRenderer.invoke("assistant.keyStatus"),
+    saveKey: (key: string) => ipcRenderer.invoke("assistant.saveKey", key),
+    clearKey: () => ipcRenderer.invoke("assistant.clearKey"),
+    signIn: () => ipcRenderer.invoke("assistant.signIn"),
+    cancelSignIn: () => ipcRenderer.invoke("assistant.cancelSignIn"),
+    requestStart: (id: string, url: string, init: unknown) =>
+      ipcRenderer.invoke("assistant.requestStart", { id, url, init }),
+    requestAbort: (id: string) => ipcRenderer.invoke("assistant.requestAbort", id),
+    onRequestEvent: (handler: (event: unknown) => void) => {
+      const listener = (_event: unknown, payload: unknown) => handler(payload);
+      ipcRenderer.on("assistant.requestEvent", listener);
+      return () => ipcRenderer.removeListener("assistant.requestEvent", listener);
+    },
+    history: {
+      load: (key: string) => ipcRenderer.invoke("assistant.history.load", key),
+      save: (key: string, json: string) => ipcRenderer.invoke("assistant.history.save", { key, json }),
+      clear: (key: string) => ipcRenderer.invoke("assistant.history.clear", key)
+    }
+  },
   export: {
     pdf: (html: string, options: { suggestedName?: string; sourcePath?: string | null } = {}) =>
       ipcRenderer.invoke("export.pdf", {

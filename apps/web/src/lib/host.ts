@@ -13,6 +13,7 @@ import {
 import { isNativeApp, openNativeUrl, shareNativeFile, writeNativeDocument } from "./native";
 import { APP_VERSION } from "./appVersion";
 import { createWebAssistantHost } from "./assistant/webHost";
+import { createElectronAssistantHost, type ElectronAssistantBridge } from "./assistant/electronHost";
 
 const DB = "mdword";
 const PREFS = "preferences";
@@ -23,9 +24,20 @@ export function isElectron(): boolean {
   return typeof window !== "undefined" && Boolean((window as Window & { mdword?: HostApi }).mdword);
 }
 
+let electronHost: HostApi | null = null;
+
 export function getHost(): HostApi {
   if (typeof window !== "undefined" && (window as Window & { mdword?: HostApi }).mdword) {
-    return (window as Window & { mdword: HostApi }).mdword;
+    const bridged = (window as Window & { mdword: HostApi }).mdword;
+    if (!electronHost) {
+      // The preload exposes raw request primitives; turn them into `fetch` here,
+      // because a Response cannot cross the context bridge.
+      const bridge = (bridged as { assistant?: unknown }).assistant as ElectronAssistantBridge | undefined;
+      electronHost = bridge
+        ? { ...bridged, assistant: createElectronAssistantHost(bridge) }
+        : bridged;
+    }
+    return electronHost;
   }
   if (isNativeApp()) return capacitorHost;
   return webHost;

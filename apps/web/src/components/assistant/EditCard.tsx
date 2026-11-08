@@ -45,7 +45,6 @@ export function EditCard({ item }: { item: EditItem }) {
       <div className="space-y-2 px-2.5 py-2">
         {item.edits.map((edit, index) => (
           <div key={index} className="space-y-1">
-            <div className="text-[11px] text-[#667085]">{t("edit.line", { line: edit.line })}</div>
             <Block kind="remove" text={edit.oldText} />
             <Block kind="add" text={edit.newText} />
           </div>

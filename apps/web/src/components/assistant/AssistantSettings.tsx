@@ -18,7 +18,7 @@ const TIERS: Tier[] = ["low", "balanced", "quality"];
 function Row({ label, children, note }: { label: string; children: React.ReactNode; note?: string }) {
   return (
     <div className="space-y-1.5">
-      <div className="text-[12px] font-medium text-[#344054]">{label}</div>
+      {label ? <div className="text-[12px] font-medium text-[#344054]">{label}</div> : null}
       {children}
       {note ? <p className="text-[11px] leading-snug text-[#667085]">{note}</p> : null}
     </div>
@@ -42,7 +42,7 @@ function describeModel(id: string, models: ModelInfo[] | null): string {
 export function AssistantSettings() {
   const s = useAssistant();
   const [draft, setDraft] = useState("");
-  const [keyError, setKeyError] = useState(false);
+  const [keyError, setKeyError] = useState<null | "invalid" | "storage">(null);
   const host = getHost().assistant;
 
   const { loadModels } = s;
@@ -145,7 +145,7 @@ export function AssistantSettings() {
                     value={draft}
                     onChange={(e) => {
                       setDraft(e.target.value);
-                      setKeyError(false);
+                      setKeyError(null);
                     }}
                   />
                   <button
@@ -154,9 +154,9 @@ export function AssistantSettings() {
                     className={buttonClass}
                     disabled={!draft.trim()}
                     onClick={async () => {
-                      const ok = await s.saveKey(draft);
-                      if (ok) setDraft("");
-                      else setKeyError(true);
+                      const result = await s.saveKey(draft);
+                      if (result === "ok") setDraft("");
+                      else setKeyError(result);
                     }}
                   >
                     {t("settings.key.save")}
@@ -165,7 +165,7 @@ export function AssistantSettings() {
               </label>
               {keyError ? (
                 <p className="text-[12px] text-[#b42318]" role="alert">
-                  {t("error.auth")}
+                  {keyError === "storage" ? t("error.secureStorage") : t("error.auth")}
                 </p>
               ) : null}
             </div>
@@ -220,7 +220,7 @@ export function AssistantSettings() {
           </select>
         </Row>
 
-        <Row label={t("settings.privacy")} note={t("settings.privacy.note")}>
+        <Row label="" note={t("settings.privacy.note")}>
           <label className="flex items-center gap-2 text-[12px] text-[#344054]">
             <input
               type="checkbox"

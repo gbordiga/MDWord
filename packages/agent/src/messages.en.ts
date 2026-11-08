@@ -9,7 +9,6 @@ export const messagesEn = {
   "panel.close": "Close assistant",
   "panel.settings": "Assistant settings",
   "panel.newChat": "New chat",
-  "panel.clearHistory": "Clear history",
   "panel.input.placeholder": "Ask about this document or workspace",
   "panel.input.disabled": "Sign in or add an OpenRouter key to start",
   "panel.send": "Send",
@@ -18,14 +17,12 @@ export const messagesEn = {
   "panel.empty.body":
     "The assistant can read your files and propose edits. Nothing changes until you press Apply.",
   "panel.context.file": "Context: {name}",
-  "panel.context.selection": "Selection: lines {start} to {end}",
   "panel.cost.session": "Session: {cost}",
   "panel.cost.unknown": "Session cost unknown",
   "panel.nokey.title": "Connect OpenRouter",
   "panel.nokey.body":
     "The assistant uses your own OpenRouter account. Nothing is sent until you connect it.",
   "panel.nokey.open": "Open settings",
-  "panel.unavailable.mobile": "The assistant is not available on mobile yet.",
   "panel.thinking": "Working",
 
   "tool.listFiles": "Listing files in {folder}",
@@ -34,7 +31,6 @@ export const messagesEn = {
   "tool.readFile": "Reading {path}",
   "tool.readFile.range": "Reading {path}, lines {start} to {end}",
   "tool.editFile": "Proposing an edit to {path}",
-  "tool.failed": "Could not complete: {reason}",
 
   "edit.card.title": "Proposed edit to {path}",
   "edit.card.summary": "{count, plural, one {# change} other {# changes}}",
@@ -45,7 +41,6 @@ export const messagesEn = {
   "edit.stale": "The document changed, so this edit no longer applies. Nothing was written.",
   "edit.removed": "Removed",
   "edit.added": "Added",
-  "edit.line": "Line {line}",
 
   "stop.done": "",
   "stop.maxSteps": "Stopped: the assistant reached the step limit for one request.",
@@ -61,6 +56,8 @@ export const messagesEn = {
   "error.privacy":
     "No provider for this model matches your privacy setting. Choose another model or change the setting.",
   "error.network": "Could not reach OpenRouter. Check your connection.",
+  "error.secureStorage":
+    "This system has no secure place to store the key. On Linux, install and unlock a keyring such as GNOME Keyring or KWallet, then try again.",
   "error.unknown": "The request failed.",
 
   "settings.title": "Assistant settings",
@@ -79,10 +76,8 @@ export const messagesEn = {
   "settings.model": "Model",
   "settings.model.suggested": "Suggested",
   "settings.model.all": "All models",
-  "settings.model.loading": "Loading models",
   "settings.model.failed": "Could not load the model list. Suggested models are still available.",
   "settings.model.price": "{input} in / {output} out per million tokens",
-  "settings.model.unavailablePrivacy": "Unavailable with your privacy setting",
   "settings.tier.low": "Low cost",
   "settings.tier.balanced": "Balanced",
   "settings.tier.quality": "Quality",

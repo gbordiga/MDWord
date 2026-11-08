@@ -68,6 +68,7 @@ function loadSettings(): AssistantSettings {
   }
 }
 
+export type SaveKeyResult = "ok" | "invalid" | "storage";
 export type SignInState = "idle" | "waiting" | "failed" | "cancelled";
 
 export interface AssistantState {
@@ -87,7 +88,7 @@ export interface AssistantState {
   setView: (view: "chat" | "settings") => void;
   updateSettings: (patch: Partial<AssistantSettings>) => void;
   refreshKey: () => Promise<void>;
-  saveKey: (key: string) => Promise<boolean>;
+  saveKey: (key: string) => Promise<SaveKeyResult>;
   clearKey: () => Promise<void>;
   startSignIn: () => Promise<void>;
   cancelSignIn: () => Promise<void>;
@@ -244,11 +245,15 @@ export const useAssistant = create<AssistantState>((set, get) => {
     saveKey: async (value) => {
       const host = assistantHost();
       const key = value.trim();
-      if (!host || !looksLikeKey(key)) return false;
-      await host.saveKey(key);
+      if (!host || !looksLikeKey(key)) return "invalid";
+      try {
+        await host.saveKey(key);
+      } catch (error) {
+        return /secure-storage-unavailable/.test(String((error as Error)?.message)) ? "storage" : "invalid";
+      }
       await get().refreshKey();
       void get().loadModels();
-      return true;
+      return "ok";
     },
     clearKey: async () => {
       await assistantHost()?.clearKey();
