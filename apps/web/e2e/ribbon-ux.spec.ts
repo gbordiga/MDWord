@@ -10,7 +10,7 @@ test("ribbon file and insert groups use Lucide icons", async ({ page }) => {
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: "File", exact: true }).click();
   await expect(page.getByRole("button", { name: "New", exact: true }).locator("svg")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open folder" }).locator("svg")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open project" }).locator("svg")).toBeVisible();
   await page.getByRole("button", { name: "Insert" }).click();
   await expect(page.getByTestId("insert-callout").locator("svg")).toBeVisible();
   await expect(page.getByTitle("Page break").locator("svg")).toBeVisible();

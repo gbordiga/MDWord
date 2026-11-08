@@ -123,6 +123,20 @@ export function DocumentProperties({
             onChange={(e) => patchFrontmatter({ [titleKey]: e.target.value })}
           />
         </Field>
+        <label className="flex items-center gap-2 text-[12px] text-[#344054]">
+          <input
+            type="checkbox"
+            data-testid={testIds ? "prop-show-title" : "fm-show-title"}
+            checked={Boolean(model.resolvedMdoc.masthead?.title)}
+            onChange={(e) =>
+              patchMdoc({
+                ...mdoc,
+                masthead: { ...model.resolvedMdoc.masthead, title: e.target.checked }
+              })
+            }
+          />
+          Show title in the document
+        </label>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Date">
             <input
@@ -141,6 +155,20 @@ export function DocumentProperties({
             />
           </Field>
         </div>
+        <label className="flex items-center gap-2 text-[12px] text-[#344054]">
+          <input
+            type="checkbox"
+            data-testid={testIds ? "prop-show-date" : "fm-show-date"}
+            checked={Boolean(model.resolvedMdoc.masthead?.date)}
+            onChange={(e) =>
+              patchMdoc({
+                ...mdoc,
+                masthead: { ...model.resolvedMdoc.masthead, date: e.target.checked }
+              })
+            }
+          />
+          Show date in the document
+        </label>
       </PropertySection>
 
       <PropertySection

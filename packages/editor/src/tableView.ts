@@ -1,6 +1,7 @@
 import { TableView } from "@tiptap/extension-table";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import type { NodeView, ViewMutationRecord } from "@tiptap/pm/view";
+import { reapplyColumnResizePreview } from "./scaledColumnResizeFix";
 
 export class MdTableView implements NodeView {
   node: PMNode;
@@ -40,6 +41,7 @@ export class MdTableView implements NodeView {
     this.node = node;
     if (!this.tableView.update(node)) return false;
     this.releaseAutoColumns(node);
+    reapplyColumnResizePreview();
     this.renderChrome(node);
     return true;
   }

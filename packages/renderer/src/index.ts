@@ -439,12 +439,17 @@ export function renderPrintDocument(options: {
   const tocDepth = options.mdoc.toc?.depth ?? 3;
   const tocHtml = tocEnabled ? renderTocHtml(collectTocItems(options.ast, tocDepth), numbered) : "";
   const bodyHtml = astToHtml(options.ast);
+  const showTitle = Boolean(options.mdoc.masthead?.title);
+  const showDate = Boolean(options.mdoc.masthead?.date);
+  const printedTitle = showTitle ? options.title : "";
+  const printedSubtitle = showTitle ? options.subtitle : "";
+  const printedDate = showDate ? options.date : "";
   const masthead =
-    options.title || options.subtitle || options.date
+    printedTitle || printedSubtitle || printedDate
       ? `<header class="doc-masthead">
-  ${options.title ? `<div class="doc-title">${escape(options.title)}</div>` : ""}
-  ${options.subtitle ? `<p class="doc-subtitle">${escape(options.subtitle)}</p>` : ""}
-  ${options.date ? `<p class="doc-date">${escape(options.date)}</p>` : ""}
+  ${printedTitle ? `<div class="doc-title">${escape(printedTitle)}</div>` : ""}
+  ${printedSubtitle ? `<p class="doc-subtitle">${escape(printedSubtitle)}</p>` : ""}
+  ${printedDate ? `<p class="doc-date">${escape(printedDate)}</p>` : ""}
 </header>`
       : "";
   const useBodyBars = Boolean(options.runningInBody) && !options.pagedScriptUrl;

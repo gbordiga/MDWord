@@ -28,7 +28,6 @@ test("opens a process document with empty table cells and Italian titolo", async
   const prose = page.locator(".ProseMirror");
   await expect(prose).toBeVisible();
   await expect(page.getByTestId("visual-editor-error")).toHaveCount(0);
-  await expect(page.getByTestId("doc-title")).toHaveText("Direzione strategica");
   await expect(prose).toContainText("Direzione strategica");
   await expect(prose).toContainText("Process Owner");
   await expect(prose.locator("table").first()).toBeVisible();

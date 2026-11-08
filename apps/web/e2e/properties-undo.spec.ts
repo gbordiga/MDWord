@@ -4,7 +4,7 @@ test("Ctrl+Z undoes a sidebar property and clears dirty when it was the only cha
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
   await page.getByTestId("prop-title").fill("Changed title");
-  await expect(page.getByTestId("doc-title")).toContainText("Changed title");
+  await expect(page.getByTestId("prop-title")).toHaveValue("Changed title");
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-save-state", "unsaved");
   await page.keyboard.press("ControlOrMeta+Z");
   await expect(page.getByTestId("prop-title")).toHaveValue("Untitled");

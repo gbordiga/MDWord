@@ -70,6 +70,14 @@ export const mdocSchema = z
         depth: z.number().int().min(1).max(6).optional()
       })
       .strict()
+      .optional(),
+    /** Title and date are stored in frontmatter. They are printed only when opted in. */
+    masthead: z
+      .object({
+        title: z.boolean().optional(),
+        date: z.boolean().optional()
+      })
+      .strict()
       .optional()
   })
   .passthrough();

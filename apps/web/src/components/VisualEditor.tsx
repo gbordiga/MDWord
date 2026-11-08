@@ -431,15 +431,18 @@ function VisualEditorCanvas({
               paddingLeft: metrics.margins.left
             }}
           >
-            {titleText || subtitleText || dateText ? (
+            {(resolvedMdoc.masthead?.title && (titleText || subtitleText)) ||
+            (resolvedMdoc.masthead?.date && dateText) ? (
               <div className="md-doc-masthead">
-                {titleText ? (
+                {resolvedMdoc.masthead?.title && titleText ? (
                   <div className="md-doc-title" data-testid="doc-title">
                     {titleText}
                   </div>
                 ) : null}
-                {subtitleText ? <p className="md-doc-subtitle">{subtitleText}</p> : null}
-                {dateText ? (
+                {resolvedMdoc.masthead?.title && subtitleText ? (
+                  <p className="md-doc-subtitle">{subtitleText}</p>
+                ) : null}
+                {resolvedMdoc.masthead?.date && dateText ? (
                   <p className="md-doc-date" data-testid="doc-date">
                     {dateText}
                   </p>

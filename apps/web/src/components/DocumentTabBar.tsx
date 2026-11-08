@@ -161,14 +161,18 @@ export function DocumentTabBar({ compact = false }: { compact?: boolean }) {
                 type="button"
                 title={tab.preview ? `${title} (Preview)` : title}
                 data-testid="document-tab-title"
-                className={`min-w-0 flex-1 truncate px-2.5 text-left ${compact ? "py-1 text-[12px]" : "py-1.5 text-[13px]"} ${
+                className={`flex min-w-0 flex-1 items-center px-2.5 text-left ${compact ? "py-1 text-[12px]" : "py-1.5 text-[13px]"} ${
                   active ? "font-medium text-[#1c1f24]" : "text-[#344054]"
                 } ${tab.preview ? "italic" : ""}`}
                 onClick={() => switchTab(tab.id)}
                 onDoubleClick={() => pinTab(tab.id)}
               >
-                {title}
-                {dirty ? <span className="ml-1 text-accent">•</span> : null}
+                <span className="min-w-0 truncate">{title}</span>
+                {dirty ? (
+                  <span className="ml-1 shrink-0 text-accent" data-testid="document-tab-dirty" aria-label="Unsaved changes">
+                    •
+                  </span>
+                ) : null}
               </button>
               <button
                 type="button"

@@ -49,6 +49,8 @@ test("PDF export writes title and date into the print document", async ({ page }
   const dateField = page.getByTestId("prop-date");
   await dateField.fill("2026-03-15");
   await expect(dateField).toHaveValue("2026-03-15");
+  await page.getByTestId("prop-show-title").check();
+  await page.getByTestId("prop-show-date").check();
   await expect(page.getByTestId("doc-title")).toContainText("Audit report");
   await expect(page.getByTestId("doc-date")).toContainText("2026-03-15");
   await page.getByRole("button", { name: "File", exact: true }).click();
@@ -79,7 +81,7 @@ test("Ctrl+P prepares the print document from the document title", async ({ page
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
   await page.getByTestId("prop-title").fill("Print job");
-  await expect(page.getByTestId("doc-title")).toContainText("Print job");
+  await expect(page.getByTestId("prop-title")).toHaveValue("Print job");
   await page.keyboard.press("ControlOrMeta+P");
   await page.waitForFunction(
     () => Boolean((window as Window & { __MDWORD_LAST_EXPORT_HTML__?: string }).__MDWORD_LAST_EXPORT_HTML__)

@@ -66,7 +66,7 @@ function fail(message: string, error: unknown): UpdateStatus {
     message: reason ? `${message} (${reason}).` : message
   };
   if (manualCheck) broadcast(next);
-  else status = next;
+  else broadcast({ state: "idle" });
   return next;
 }
 
@@ -87,7 +87,13 @@ export async function checkForUpdates(manual = false): Promise<UpdateStatus> {
   for (let attempt = 1; attempt <= 2; attempt++) {
     logUpdate(`check start (attempt ${attempt}, ${manual ? "manual" : "startup"})`);
     try {
-      await autoUpdater.checkForUpdates();
+      await Promise.race([
+        autoUpdater.checkForUpdates(),
+        new Promise((resolve) => setTimeout(resolve, 20_000))
+      ]);
+      // The check can end without update-not-available (or the event can be lost).
+      // Leave the File button spinner only while a check is actually running.
+      if (status.state === "checking") broadcast(manual ? { state: "none" } : { state: "idle" });
       logUpdate(`check finished: ${status.state}`);
       return status;
     } catch (error) {
@@ -158,7 +164,10 @@ export function registerAutoUpdater(): void {
     // so the banner only appears for a check the user asked for.
     console.error("Update error", error);
     if (manualCheck) fail("Could not check for updates", error);
-    else logUpdate("background error not shown in the UI");
+    else {
+      logUpdate("background error not shown in the UI");
+      if (status.state === "checking") broadcast({ state: "idle" });
+    }
   });
 
   // Give the window time to paint before touching the network.

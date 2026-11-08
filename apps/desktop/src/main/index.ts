@@ -239,6 +239,21 @@ async function addRecentFile(filePath: string): Promise<void> {
   await atomicWrite(userData("preferences.json"), JSON.stringify({ ...prefs, recentFiles }, null, 2));
 }
 
+async function addRecentProject(folderPath: string): Promise<void> {
+  const resolved = path.resolve(folderPath);
+  const prefs = (await readPreferencesFile()) ?? {};
+  const recentProjects = rememberRecentFile(sanitizeRecentFiles(prefs.recentProjects), resolved);
+  await atomicWrite(userData("preferences.json"), JSON.stringify({ ...prefs, recentProjects }, null, 2));
+}
+
+async function addRecentProjectQuietly(folderPath: string): Promise<void> {
+  try {
+    await addRecentProject(folderPath);
+  } catch {
+    /* a failed recent-project write must not block opening the project */
+  }
+}
+
 async function addRecentFileQuietly(filePath: string): Promise<void> {
   try {
     await addRecentFile(filePath);
@@ -474,7 +489,19 @@ function registerIpc(): void {
     if (result.canceled || !result.filePaths[0]) return null;
     const root = result.filePaths[0];
     allowedRoots.add(root);
+    await addRecentProjectQuietly(root);
     return root;
+  });
+
+  ipcMain.handle("files.openRecentFolder", async (_e, folderPath: unknown) => {
+    const resolved = path.resolve(z.string().min(1).parse(folderPath));
+    const prefs = await readPreferencesFile();
+    if (!isRecentFile(sanitizeRecentFiles(prefs?.recentProjects), resolved)) {
+      throw new Error("This project is not in the recent list");
+    }
+    allowedRoots.add(resolved);
+    await addRecentProjectQuietly(resolved);
+    return resolved;
   });
 
   ipcMain.handle("files.list", async (_e, folder: unknown) => {
@@ -605,7 +632,7 @@ function registerIpc(): void {
   ipcMain.handle("files.remove", async (_e, filePath: unknown) => {
     const resolved = assertSafePath(z.string().parse(filePath), [...allowedRoots]);
     if ([...allowedRoots].some((root) => path.resolve(root) === resolved)) {
-      throw new Error("Cannot delete the open folder");
+      throw new Error("Cannot delete the open project");
     }
     await fs.rm(resolved, { recursive: true, force: false });
   });
@@ -629,11 +656,13 @@ function registerIpc(): void {
     // The recent list is owned by the main process: `files.openRecent` trusts it,
     // so a renderer must not be able to add paths to it through preferences.
     delete incoming.recentFiles;
+    delete incoming.recentProjects;
     const current = (await readPreferencesFile()) ?? {};
     const recentFiles = sanitizeRecentFiles(current.recentFiles);
+    const recentProjects = sanitizeRecentFiles(current.recentProjects);
     await atomicWrite(
       userData("preferences.json"),
-      JSON.stringify({ ...incoming, recentFiles }, null, 2)
+      JSON.stringify({ ...incoming, recentFiles, recentProjects }, null, 2)
     );
   });
 

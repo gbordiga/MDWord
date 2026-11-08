@@ -126,6 +126,7 @@ test("inline properties edit standard and custom fields", async ({ page }) => {
   await expect(page.getByTestId("frontmatter-editor")).toBeVisible();
   await expect(page.getByTestId("fm-value-title")).toBeVisible();
   await page.getByTestId("fm-value-title").fill("Scheda QMS");
+  await page.getByTestId("fm-show-title").check();
   await page.getByTestId("fm-new-key").fill("codice");
   await page.getByTestId("fm-add").click();
   await expect(page.getByTestId("fm-row-codice")).toBeVisible();

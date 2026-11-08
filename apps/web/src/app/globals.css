@@ -130,7 +130,9 @@ html.keyboard-open .mdword-app {
   min-height: 100%;
 }
 
-.ProseMirror {
+.ProseMirror,
+.ProseMirror:focus,
+.ProseMirror:focus-visible {
   outline: none;
   min-height: 100%;
   overflow-wrap: anywhere;

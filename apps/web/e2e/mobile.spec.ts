@@ -34,7 +34,6 @@ test("opens properties in a sheet and edits the title", async ({ page }) => {
   await page.getByTestId("sheet-properties").getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByTestId("sheet-properties")).toBeHidden();
   await expect(page.getByTestId("mobile-top-bar")).toContainText("Documento mobile");
-  await expect(page.getByTestId("doc-title")).toHaveText("Documento mobile");
 });
 
 test("switches to source from the more menu", async ({ page }) => {
@@ -73,9 +72,6 @@ test("title, headings and body have distinct visual size", async ({ page }) => {
   const prose = page.locator(".ProseMirror");
   await expect(prose).toBeVisible({ timeout: 20_000 });
 
-  await expect(page.getByTestId("doc-title")).toBeVisible();
-  const titleSize = await page.getByTestId("doc-title").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-
   await prose.click();
   await page.keyboard.type("Heading one");
   await page.getByTestId("mobile-style").selectOption("1");
@@ -92,7 +88,6 @@ test("title, headings and body have distinct visual size", async ({ page }) => {
   await page.keyboard.type("Body text");
   const pSize = await prose.locator("p").last().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
 
-  expect(titleSize).toBeGreaterThan(h1Size);
   expect(h1Size).toBeGreaterThan(h2Size);
   expect(h2Size).toBeGreaterThan(pSize);
   expect(Number(h1Weight)).toBeGreaterThanOrEqual(600);

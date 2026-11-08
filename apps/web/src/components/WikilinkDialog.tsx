@@ -124,7 +124,7 @@ export function WikilinkDialog({
         </ul>
       ) : (
         <p className="text-[12px] text-[#667085]">
-          Open a folder to pick a page, or type a target name to insert <code>[[target]]</code>.
+          Open a project to pick a page, or type a target name to insert <code>[[target]]</code>.
         </p>
       )}
     </Dialog>

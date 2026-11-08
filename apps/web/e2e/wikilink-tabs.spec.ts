@@ -74,7 +74,6 @@ test("wikilink click opens the target document, not the parent", async ({ page }
   await expect(page.locator(".ProseMirror")).toContainText("Unique child body");
   await expect(page.locator(".ProseMirror")).not.toContainText("See");
   await expect(page.locator('[data-testid="document-tab"][data-active="true"]:visible')).toContainText("Target note");
-  await expect(page.getByTestId("doc-title")).toHaveText("Target note");
 });
 
 test("switching parent and target tabs keeps their contents apart", async ({ page }) => {

@@ -88,11 +88,11 @@ beforeEach(() => {
 describe("workspace actions", () => {
   it("refuses every action until a folder is open", async () => {
     const actions = useApp.getState();
-    await expect(actions.createWorkspaceFile("/ws", "a.md")).rejects.toThrow("Open a folder first");
-    await expect(actions.createWorkspaceFolder("/ws", "a")).rejects.toThrow("Open a folder first");
-    await expect(actions.renameWorkspaceEntry("/ws/a.md", "b.md")).rejects.toThrow("Open a folder first");
-    await expect(actions.copyWorkspaceEntry("/ws/a.md", "/ws")).rejects.toThrow("Open a folder first");
-    await expect(actions.deleteWorkspaceEntry("/ws/a.md")).rejects.toThrow("Open a folder first");
+    await expect(actions.createWorkspaceFile("/ws", "a.md")).rejects.toThrow("Open a project first");
+    await expect(actions.createWorkspaceFolder("/ws", "a")).rejects.toThrow("Open a project first");
+    await expect(actions.renameWorkspaceEntry("/ws/a.md", "b.md")).rejects.toThrow("Open a project first");
+    await expect(actions.copyWorkspaceEntry("/ws/a.md", "/ws")).rejects.toThrow("Open a project first");
+    await expect(actions.deleteWorkspaceEntry("/ws/a.md")).rejects.toThrow("Open a project first");
   });
 
   it("validates names before touching the disk", async () => {
@@ -153,7 +153,7 @@ describe("workspace actions", () => {
   it("delete refuses the open folder", async () => {
     startSession([notes]);
     await expect(useApp.getState().deleteWorkspaceEntry("/ws")).rejects.toThrow(
-      "Cannot delete the open folder"
+      "Cannot delete the open project"
     );
     expect(host.removes).toEqual([]);
   });

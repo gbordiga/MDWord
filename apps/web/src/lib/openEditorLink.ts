@@ -22,7 +22,7 @@ export function openWikiTarget(target: string): void {
   }
   const state = useApp.getState();
   if (!state.workspace) {
-    alertLink("Open a folder to follow this link.");
+    alertLink("Open a project to follow this link.");
     return;
   }
   void state.openWorkspaceFileByTitle(name, { preview: true }).then((ok) => {
@@ -52,7 +52,7 @@ export function openEditorHref(href: string): void {
 async function openRelativeDocument(href: string): Promise<void> {
   const state = useApp.getState();
   if (!state.workspace) {
-    alertLink("Open a folder to follow this link.");
+    alertLink("Open a project to follow this link.");
     return;
   }
   const resolved = resolveExternalImagePath(href, state.path, state.workspace.root);

@@ -414,7 +414,7 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
           <MoreItem label="Save as" onClick={() => run(() => void actions.saveFileAs())}>
             <Save size={18} />
           </MoreItem>
-          <MoreItem label="Open folder" onClick={() => run(() => void actions.openFolder())}>
+          <MoreItem label="Open project" onClick={() => run(() => void actions.openFolder())}>
             <FolderOpen size={18} />
           </MoreItem>
           <div className="my-1 h-px bg-[#e4e7ec]" />

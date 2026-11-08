@@ -169,7 +169,7 @@ describe("running header and footer", () => {
   it("writes title and date into the document body", () => {
     const html = renderPrintDocument({
       ast: { type: "root", children: [] },
-      mdoc: { version: 1, header: { left: "{{title}}" }, footer: { right: "{{date}}" } },
+      mdoc: { version: 1, header: { left: "{{title}}" }, footer: { right: "{{date}}" }, masthead: { title: true, date: true } },
       title: "Audit",
       date: "2026-01-01",
       runningInBody: true
@@ -214,7 +214,8 @@ describe("running header and footer", () => {
       mdoc: {
         version: 1,
         header: { left: "{{title}}", right: "{{page}} / {{pages}}" },
-        footer: { right: "{{date}}" }
+        footer: { right: "{{date}}" },
+        masthead: { title: true }
       },
       title: "Audit",
       date: "2026-01-01",

@@ -205,6 +205,7 @@ export interface AppState {
   externalDialog: ExternalChangePrompt | null;
   /** Paths the host itself listed as recent and is allowed to reopen. */
   recentFiles: string[];
+  recentProjects: string[];
   /** Latest desktop auto-update state; null until the bridge reports one. */
   updateStatus: UpdateStatus | null;
   /** True when the host implements the desktop update bridge. */
@@ -241,6 +242,7 @@ export interface AppState {
   openFile: () => Promise<void>;
   loadRecentFiles: () => Promise<void>;
   openRecentFile: (path: string) => Promise<void>;
+  openRecentProject: (path: string) => Promise<void>;
   saveFile: () => Promise<void>;
   saveFileAs: () => Promise<void>;
   /** Save one tab. Returns false when the user cancels or the write fails. */
@@ -248,6 +250,7 @@ export interface AppState {
   /** Save every dirty tab. Returns false when any document is still dirty. */
   saveAllDirty: () => Promise<boolean>;
   openFolder: () => Promise<void>;
+  openFolderPath: (root: string) => Promise<void>;
   openWorkspaceFile: (filePath: string, options?: OpenWorkspaceFileOptions) => Promise<void>;
   openWorkspaceFileByTitle: (title: string, options?: OpenWorkspaceFileOptions) => Promise<boolean>;
   refreshWorkspace: () => Promise<void>;
@@ -604,6 +607,7 @@ export const useApp = create<AppState>((set, get) => {
   workspace: null,
   externalDialog: null,
   recentFiles: [],
+  recentProjects: [],
   updateStatus: null,
   updatesSupported: false,
   connectUpdates: () => {
@@ -645,12 +649,15 @@ export const useApp = create<AppState>((set, get) => {
   loadRecentFiles: async () => {
     const host = getHost();
     if (!host.files.openRecent) {
-      if (get().recentFiles.length) set({ recentFiles: [] });
+      if (get().recentFiles.length || get().recentProjects.length) set({ recentFiles: [], recentProjects: [] });
       return;
     }
     try {
       const prefs = await host.app.getPreferences();
-      set({ recentFiles: sanitizeRecentFiles(prefs.recentFiles) });
+      set({
+        recentFiles: sanitizeRecentFiles(prefs.recentFiles),
+        recentProjects: sanitizeRecentFiles(prefs.recentProjects)
+      });
     } catch (error) {
       console.error("Could not read recent files", error);
     }
@@ -668,6 +675,18 @@ export const useApp = create<AppState>((set, get) => {
       fail(OPEN_FAILED);
     } finally {
       set({ busy: null });
+    }
+  },
+  openRecentProject: async (folderPath) => {
+    const host = getHost();
+    if (!host.files.openRecentFolder) return;
+    try {
+      const root = await host.files.openRecentFolder(folderPath);
+      await get().openFolderPath(root);
+      await get().loadRecentFiles();
+    } catch (error) {
+      console.error("Could not open a recent project", error);
+      fail("Could not open that project.");
     }
   },
   resolveExternalConflict: async (choice) => {
@@ -887,21 +906,25 @@ export const useApp = create<AppState>((set, get) => {
       try {
         return await getHost().files.openFolder();
       } catch (error) {
-        console.error("Could not open folder", error);
-        fail("Could not open that folder.");
+        console.error("Could not open project", error);
+        fail("Could not open that project.");
         return null;
       }
     });
     if (!root) return;
+    await get().openFolderPath(root);
+    await get().loadRecentFiles();
+  },
+  openFolderPath: async (root) => {
     const epoch = ++workspaceEpoch;
-    beginBusy({ kind: "folder", label: "Opening folder…", blocking: true });
+    beginBusy({ kind: "folder", label: "Opening project…", blocking: true });
     await yieldPaint();
     try {
       const listed = await listWorkspace(getHost(), root);
       if (epoch !== workspaceEpoch) return;
       set({
         workspace: listed,
-        busy: { kind: "folder", label: "Indexing workspace…", blocking: false }
+        busy: { kind: "folder", label: "Indexing project…", blocking: false }
       });
       await yieldPaint();
       const workspace = await indexWorkspace(getHost(), listed);
@@ -909,9 +932,9 @@ export const useApp = create<AppState>((set, get) => {
       set({ workspace, busy: null });
       succeed();
     } catch (error) {
-      console.error("Could not open folder", error);
+      console.error("Could not open project", error);
       if (epoch === workspaceEpoch) {
-        fail("Could not open that folder.");
+        fail("Could not open that project.");
         set({ busy: null });
       }
     }
@@ -995,7 +1018,7 @@ export const useApp = create<AppState>((set, get) => {
     flushVisualEdits();
     flushSourceEdits();
     const workspace = get().workspace;
-    if (!workspace?.root) throw new Error("Open a folder first");
+    if (!workspace?.root) throw new Error("Open a project first");
     const fileName = normalizeNewFileName(name);
     if (!isValidWorkspaceEntryName(fileName)) throw new Error("Enter a valid file name");
     const unique = uniqueChildName(childNamesInFolder(workspace.files, parentPath, workspace.root), fileName);
@@ -1017,7 +1040,7 @@ export const useApp = create<AppState>((set, get) => {
     flushVisualEdits();
     flushSourceEdits();
     const workspace = get().workspace;
-    if (!workspace?.root) throw new Error("Open a folder first");
+    if (!workspace?.root) throw new Error("Open a project first");
     const folderName = name.trim();
     if (!isValidWorkspaceEntryName(folderName)) throw new Error("Enter a valid folder name");
     const unique = uniqueChildName(childNamesInFolder(workspace.files, parentPath, workspace.root), folderName);
@@ -1037,7 +1060,7 @@ export const useApp = create<AppState>((set, get) => {
     flushVisualEdits();
     flushSourceEdits();
     const workspace = get().workspace;
-    if (!workspace?.root) throw new Error("Open a folder first");
+    if (!workspace?.root) throw new Error("Open a project first");
     const nextName = newName.trim();
     if (!isValidWorkspaceEntryName(nextName)) throw new Error("Enter a valid name");
     const parent = workspaceParentPath(fromPath, workspace.root);
@@ -1070,7 +1093,7 @@ export const useApp = create<AppState>((set, get) => {
     flushVisualEdits();
     flushSourceEdits();
     const workspace = get().workspace;
-    if (!workspace?.root) throw new Error("Open a folder first");
+    if (!workspace?.root) throw new Error("Open a project first");
     const name = fromPath.split(/[/\\]/).pop() || fromPath;
     const unique = uniqueChildName(childNamesInFolder(workspace.files, toParentPath, workspace.root), name);
     const dest = joinWorkspacePath(toParentPath, unique);
@@ -1083,8 +1106,8 @@ export const useApp = create<AppState>((set, get) => {
     flushVisualEdits();
     flushSourceEdits();
     const workspace = get().workspace;
-    if (!workspace?.root) throw new Error("Open a folder first");
-    if (targetPath === workspace.root) throw new Error("Cannot delete the open folder");
+    if (!workspace?.root) throw new Error("Open a project first");
+    if (targetPath === workspace.root) throw new Error("Cannot delete the open project");
     await primeWrite(targetPath);
     await getHost().files.remove(targetPath);
     let tabs = persistActiveTab();

@@ -139,9 +139,9 @@ function TreeRow({
   };
 
   const rowClass = cn(
-    "flex w-full min-h-8 items-center gap-1 rounded py-1 pr-1 text-left touch-manipulation",
+    "flex w-full min-h-7 items-center gap-1.5 rounded-md py-0.5 pr-1.5 text-left touch-manipulation",
     selected
-      ? "bg-[#e8eefc] font-medium text-accent shadow-[inset_2px_0_0_0_currentColor]"
+      ? "bg-[#e8eefc] font-medium text-accent"
       : "text-[#1c1f24] hover:bg-[#f2f4f7]"
   );
 
@@ -509,11 +509,11 @@ export function FileTree({
       data-testid="workspace-files"
       onContextMenu={(event) => openMenu(event, rootTarget)}
     >
-      <div className="sticky top-0 z-10 -mx-2 mb-1 bg-white px-2 pb-1">
+      <div className="sticky top-0 z-10 -mx-2 mb-1 border-b border-[#eef2f6] bg-white px-2 pb-1.5">
         <div className="flex items-center gap-0.5">
           <div
             data-testid="workspace-root"
-            className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-1.5 text-[13px] font-medium text-[#1c1f24]"
+            className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-1 text-[12px] font-medium tracking-tight text-[#344054]"
             title={root}
             onContextMenu={(event) => openMenu(event, rootTarget)}
           >
@@ -544,7 +544,7 @@ export function FileTree({
         </div>
       </div>
       {tree.length === 0 ? (
-        <p className="p-2 text-[#667085]">This folder is empty.</p>
+        <p className="p-2 text-[#667085]">This project is empty.</p>
       ) : (
         <ul role="tree" aria-label={`Files in ${workspaceFolderName(root)}`}>
           {tree.map((node) => (

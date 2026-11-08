@@ -49,6 +49,8 @@ export interface UserPreferences {
   zoom: number;
   lastFolder?: string;
   recentFiles: string[];
+  /** Project folders the app itself opened. Desktop reopens only paths from this list. */
+  recentProjects?: string[];
 }
 
 export const defaultPreferences: UserPreferences = {
@@ -83,6 +85,8 @@ export interface HostApi {
     /** Reopen a path the app itself listed in the recent files. Desktop only. */
     openRecent?(path: string): Promise<OpenDocumentResult>;
     openFolder(): Promise<string | null>;
+    /** Reopen a project path the app itself stored. Desktop only. */
+    openRecentFolder?(path: string): Promise<string>;
     list(folder: string): Promise<HostFileStat[]>;
     read(path: string): Promise<string>;
     /** Read a workspace file as a data URL (images). Missing files should reject. */

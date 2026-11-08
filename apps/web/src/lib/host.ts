@@ -248,7 +248,7 @@ function splitRel(full: string, root: string): string[] {
 async function ensureFolderWritable(): Promise<void> {
   if (!folderHandle) throw new Error("No folder is open");
   const ok = await ensureHandleAccess(folderHandle, "readwrite");
-  if (!ok) throw new Error("This browser did not allow writing in the folder");
+  if (!ok) throw new Error("This browser did not allow writing in the project");
 }
 
 async function resolveDir(path: string, create: boolean): Promise<DirHandle> {
@@ -552,7 +552,7 @@ export const webHost: HostApi = {
       dirHandles.delete(path);
       if (!folderRoot) return;
       await ensureFolderWritable();
-      if (path === folderRoot) throw new Error("Cannot delete the open folder");
+      if (path === folderRoot) throw new Error("Cannot delete the open project");
       const parent = await resolveDir(workspaceDirname(path, folderRoot), false);
       await parent.removeEntry(workspaceBasename(path), { recursive: true });
     },

@@ -61,6 +61,7 @@ import { useEditorUi } from "@/lib/editorUi";
 import { Spinner } from "./Spinner";
 import { CalloutRibbonTools, ImageRibbonTools, TableRibbonTools } from "./ContextualRibbons";
 import { MarkdownAssociationButton } from "./MarkdownAssociationControl";
+import { OpenProjectMenu } from "./OpenProjectMenu";
 import { ImportImagesControl } from "./ImportImagesControl";
 
 const MAIN_TABS: { id: RibbonTab; label: string }[] = [
@@ -212,9 +213,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
               <SaveAll size={16} /> Save as
             </Btn>
             <Divider />
-            <Btn title="Open folder" onClick={() => void actions.openFolder()} busy={busy?.kind === "folder"} disabled={fileBusy}>
-              <Folder size={16} /> Open folder
-            </Btn>
+            <OpenProjectMenu disabled={fileBusy} busy={busy?.kind === "folder"} />
             {recentFiles.length ? (
               <>
                 <Divider />
@@ -526,7 +525,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             <Btn title="Files" onClick={() => actions.setLeft("files")}>
               <Files size={16} />
             </Btn>
-            <Btn title="Search files" onClick={() => actions.setLeft("search")}>
+            <Btn title="Search project" onClick={() => actions.setLeft("search")}>
               <Search size={16} />
             </Btn>
             <Divider />

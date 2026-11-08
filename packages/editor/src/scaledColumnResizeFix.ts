@@ -33,6 +33,13 @@ function currentColWidth(view: EditorView, cellPos: number, attrs: { colspan: nu
   return domWidth / parts;
 }
 
+let reapplyPreview: (() => void) | null = null;
+
+/** Node view updates rewrite col widths from the document while a drag is only painted on the DOM. */
+export function reapplyColumnResizePreview() {
+  reapplyPreview?.();
+}
+
 function displayColumnWidth(
   view: EditorView,
   cell: number,
@@ -47,7 +54,11 @@ function displayColumnWidth(
   while (dom && (dom as HTMLElement).nodeName !== "TABLE") dom = dom.parentNode;
   if (!dom) return;
   const tableEl = dom as HTMLTableElement;
-  updateTableColumnsOnResize(table, tableEl.querySelector("colgroup"), tableEl, defaultCellMinWidth, col, width);
+  const colgroup = tableEl.querySelector("colgroup");
+  const paint = () =>
+    updateTableColumnsOnResize(table, colgroup, tableEl, defaultCellMinWidth, col, width);
+  reapplyPreview = paint;
+  paint();
 }
 
 function updateTableColumnsOnResize(
@@ -155,6 +166,7 @@ function handleScaledMouseDown(
     win.removeEventListener("mouseup", finish);
     win.removeEventListener("mousemove", move);
     const state = columnResizingPluginKey.getState(view.state);
+    reapplyPreview = null;
     if (state?.dragging) {
       updateColumnWidth(view, state.activeHandle, draggedWidth(state.dragging, event, cellMinWidth, scale));
       view.dispatch(view.state.tr.setMeta(columnResizingPluginKey, { setDragging: null }));
@@ -196,6 +208,44 @@ export function scaledColumnResizeFix(options: {
           return handleScaledMouseDown(view, event, scale, options.cellMinWidth, options.defaultCellMinWidth);
         }
       }
+    },
+    view(editorView) {
+      let frame = 0;
+      let pointerX: number | null = null;
+      const onMove = (event: MouseEvent) => {
+        pointerX = event.clientX;
+      };
+      const tick = () => {
+        frame = 0;
+        const state = columnResizingPluginKey.getState(editorView.state);
+        if (!state?.dragging || state.activeHandle < 0 || pointerX == null) return;
+        const scale = getPageScale(editorView, editorView.dom);
+        displayColumnWidth(
+          editorView,
+          state.activeHandle,
+          draggedWidth(state.dragging, { clientX: pointerX } as MouseEvent, options.cellMinWidth, scale),
+          options.defaultCellMinWidth
+        );
+        frame = requestAnimationFrame(tick);
+      };
+      window.addEventListener("mousemove", onMove);
+      return {
+        update(view) {
+          const state = columnResizingPluginKey.getState(view.state);
+          if (!state?.dragging) {
+            pointerX = null;
+            reapplyPreview = null;
+            return;
+          }
+          if (pointerX == null) pointerX = state.dragging.startX;
+          if (!frame) frame = requestAnimationFrame(tick);
+        },
+        destroy() {
+          if (frame) cancelAnimationFrame(frame);
+          window.removeEventListener("mousemove", onMove);
+          reapplyPreview = null;
+        }
+      };
     }
   });
 }
