@@ -27,6 +27,22 @@ export type ThreadItem =
     }
   | { kind: "notice"; id: string; text: string };
 
+export type ToolItem = Extract<ThreadItem, { kind: "tool" }>;
+export type ThreadBlock = { kind: "work"; id: string; tools: ToolItem[] } | { kind: "item"; item: ThreadItem };
+
+/** Consecutive tool steps become one "work" block; anything else stands alone. */
+export function groupThread(thread: ThreadItem[]): ThreadBlock[] {
+  const blocks: ThreadBlock[] = [];
+  for (const item of thread) {
+    if (item.kind === "tool") {
+      const last = blocks.at(-1);
+      if (last?.kind === "work") last.tools.push(item);
+      else blocks.push({ kind: "work", id: item.id, tools: [item] });
+    } else blocks.push({ kind: "item", item });
+  }
+  return blocks;
+}
+
 export function toolLabel(name: string, input: unknown): string {
   const i = (input ?? {}) as Record<string, unknown>;
   const path = typeof i.path === "string" ? i.path : "";

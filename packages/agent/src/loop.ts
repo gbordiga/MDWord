@@ -1,7 +1,8 @@
 import { streamText, type LanguageModel, type ModelMessage } from "ai";
 import { costFromUsage, type Pricing } from "./models";
 import { redactKeys } from "./openrouter";
-import { SYSTEM_PROMPT } from "./prompt";
+import { buildSystemPrompt } from "./prompt";
+import type { InstructionFile } from "./instructions";
 import { t, type MessageKey } from "./messages.en";
 import { createTools, type ToolContext } from "./tools";
 import {
@@ -25,6 +26,10 @@ export interface TurnInput {
   spentBeforeUsd?: number;
   /** `null` or undefined disables the cap. */
   spendCapUsd?: number | null;
+  /** The user allowed web search: adds instructions to the system prompt. */
+  webSearch?: boolean;
+  /** AGENTS.md-style files found in the workspace, nearest first. */
+  instructions?: InstructionFile[];
   signal?: AbortSignal;
   onEvent: (event: TurnEvent) => void;
 }
@@ -51,6 +56,7 @@ export function classifyError(error: unknown): MessageKey {
   const e = error as { statusCode?: number; message?: string; name?: string } | null;
   const status = e?.statusCode;
   const message = String(e?.message ?? "");
+  if (/model_stalled/.test(message)) return "error.stalled";
   if (/data policy|data_collection|no endpoints found/i.test(message)) return "error.privacy";
   if (status === 401 || status === 403) return "error.auth";
   if (status === 402) return "error.credits";
@@ -108,12 +114,35 @@ export async function runAssistantTurn(input: TurnInput): Promise<TurnResult> {
     failureCount = 0;
   };
 
+  // Stall watchdog: abort when the model sends nothing for a long time. It is
+  // paused while a tool runs (an edit can wait for the user for as long as needed).
+  const stall = new AbortController();
+  const onOuterAbort = () => stall.abort();
+  if (input.signal?.aborted) stall.abort();
+  input.signal?.addEventListener("abort", onOuterAbort, { once: true });
+  let stalled = false;
+  let inFlight = 0;
+  let watchdog: ReturnType<typeof setTimeout> | null = null;
+  const disarm = () => {
+    if (watchdog) clearTimeout(watchdog);
+    watchdog = null;
+  };
+  const arm = () => {
+    disarm();
+    if (inFlight > 0 || !limits.stallMs) return;
+    watchdog = setTimeout(() => {
+      stalled = true;
+      stall.abort();
+    }, limits.stallMs);
+  };
+  arm();
+
   const result = streamText({
     model: input.model,
-    system: SYSTEM_PROMPT,
+    system: buildSystemPrompt({ webSearch: input.webSearch, instructions: input.instructions }),
     messages: [...input.history, sent],
     tools,
-    abortSignal: input.signal,
+    abortSignal: stall.signal,
     stopWhen: [
       ({ steps }) => {
         if (steps.length >= limits.maxSteps && ctx.stopReason == null) ctx.stopReason = "max-steps";
@@ -124,6 +153,9 @@ export async function runAssistantTurn(input: TurnInput): Promise<TurnResult> {
 
   try {
     for await (const part of result.fullStream) {
+      if (part.type === "tool-call") inFlight += 1;
+      else if (part.type === "tool-result" || part.type === "tool-error") inFlight = Math.max(0, inFlight - 1);
+      arm();
       switch (part.type) {
         case "text-delta":
           input.onEvent({ type: "text", text: part.text });
@@ -186,9 +218,12 @@ export async function runAssistantTurn(input: TurnInput): Promise<TurnResult> {
   } catch (error) {
     streamError = error;
   }
+  disarm();
+  input.signal?.removeEventListener("abort", onOuterAbort);
+  if (stalled) streamError = new Error("model_stalled");
 
   let stop: StopReason;
-  if (input.signal?.aborted) stop = "aborted";
+  if (input.signal?.aborted && !stalled) stop = "aborted";
   else if (streamError != null) stop = "error";
   else if (ctx.stopReason != null && lastFinish === "tool-calls") stop = ctx.stopReason;
   else stop = "done";

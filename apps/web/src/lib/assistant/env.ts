@@ -1,17 +1,21 @@
 import {
   applyEdits,
+  pickInstructionFiles,
   type AssistantEnv,
+  type InstructionFile,
   type EditDecision,
   type EditProposal,
   type FileEntry
 } from "@mdword/agent";
 import { openDocument } from "@mdword/document-model";
+import { parseMdoc } from "@mdword/layout-engine";
 import { searchHits } from "@mdword/indexer";
 import {
   isOpenableWorkspaceFile,
   joinWorkspacePath,
   relativeWorkspacePath
 } from "@mdword/workspace";
+import type { Diagnostic } from "@mdword/shared";
 import { getHost } from "../host";
 import { useApp } from "../store";
 
@@ -86,6 +90,57 @@ async function readEntry(entry: Entry): Promise<string | null> {
   }
 }
 
+/** Workspace-relative paths of the instruction files that apply to the open file, nearest first. */
+export function instructionPaths(): string[] {
+  const state = useApp.getState();
+  const root = state.workspace?.root;
+  if (!root) return [];
+  const rels = fileTable().filter((e) => !e.isDirectory).map((e) => e.rel);
+  const open = state.path ? relativeWorkspacePath(state.path, root) : null;
+  return pickInstructionFiles(rels, open);
+}
+
+/** Read AGENTS.md-style files fresh for each turn: the user may have edited them, even unsaved. */
+export async function loadInstructionFiles(): Promise<InstructionFile[]> {
+  const out: InstructionFile[] = [];
+  for (const rel of instructionPaths()) {
+    const entry = resolve(rel);
+    const content = entry ? await readEntry(entry) : null;
+    if (content) out.push({ path: rel, content });
+  }
+  return out;
+}
+
+/**
+ * Errors in the layout block and in the standard metadata keys, so an edit that
+ * writes `margins: 20` (no unit) or `tags: draft` (not a list) is refused with a
+ * message the model can act on. Same-message errors that were already in the
+ * file do not block an edit.
+ */
+export function metadataDiagnostics(frontmatter: Record<string, unknown>): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  const error = (message: string, code: string) => out.push({ severity: "error", message, code });
+  if (frontmatter.mdoc !== undefined) {
+    if (frontmatter.mdoc === null || typeof frontmatter.mdoc !== "object" || Array.isArray(frontmatter.mdoc)) {
+      error("mdoc must be a mapping with keys such as page, margins, header.", "mdoc-invalid");
+    } else {
+      for (const issue of parseMdoc(frontmatter.mdoc).issues) error(`mdoc.${issue}`, "mdoc-invalid");
+    }
+  }
+  for (const key of ["title", "subtitle", "date", "language", "lingua"]) {
+    const value = frontmatter[key];
+    if (value !== undefined && value !== null && typeof value !== "string" && !(value instanceof Date)) {
+      error(`${key} must be text.`, "frontmatter-type");
+    }
+  }
+  const list = (value: unknown) => Array.isArray(value) && value.every((v) => typeof v === "string" || (v && typeof v === "object"));
+  if (frontmatter.tags !== undefined && !list(frontmatter.tags)) error("tags must be a list.", "frontmatter-type");
+  if (frontmatter.authors !== undefined && typeof frontmatter.authors !== "string" && !list(frontmatter.authors)) {
+    error("authors must be a name or a list.", "frontmatter-type");
+  }
+  return out;
+}
+
 export interface EnvOptions {
   propose: (proposal: EditProposal, signal: AbortSignal | undefined) => Promise<EditDecision>;
 }
@@ -138,8 +193,13 @@ export function createAssistantEnv(options: EnvOptions): AssistantEnv {
       return entry ? readEntry(entry) : null;
     },
     diagnostics(source) {
-      return openDocument(source, { workspaceMdoc: useApp.getState().workspace?.workspaceMdoc })
-        .diagnostics;
+      const model = openDocument(source, { workspaceMdoc: useApp.getState().workspace?.workspaceMdoc });
+      return [...model.diagnostics, ...metadataDiagnostics(
+          model.frontmatter.mdoc === undefined && Object.keys(model.mdoc ?? {}).length > 0
+            ? { ...model.frontmatter, mdoc: model.mdoc }
+            : model.frontmatter
+        )
+      ];
     },
     proposeEdit: options.propose
   };

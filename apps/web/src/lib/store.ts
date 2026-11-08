@@ -79,8 +79,8 @@ export type OpenWorkspaceFileOptions = {
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view" | "image" | "table" | "callout";
 export type { LeftPanel } from "./leftPanel";
 export { LEFT_PANELS, resolveLeftPanel } from "./leftPanel";
-export type RightPanel = "properties" | "assistant";
-export type MobileSheet = "workspace" | "insert" | "properties" | "more" | null;
+export type RightPanel = "assistant";
+export type MobileSheet = "workspace" | "insert" | "properties" | "assistant" | "more" | null;
 export type ExternalChangePrompt = { tabId: string; path: string; incoming: string };
 export type ExternalConflictChoice = "overwrite" | "reload" | "cancel";
 export type BusyKind = "open" | "save" | "folder" | "export" | "workspace";
@@ -272,7 +272,8 @@ export interface AppState {
   replaceFrontmatterModel: (model: DocumentModel) => void;
   setZoom: (zoom: number) => void;
   toggleLeft: () => void;
-  toggleRight: () => void;
+  /** Show or hide the Properties tab of the sidebar (a sheet on narrow screens). */
+  toggleProperties: () => void;
   /** Show a right-sidebar panel; pressing it again while it is showing closes the sidebar. */
   showRightPanel: (panel: RightPanel) => void;
   setMobileSheet: (sheet: MobileSheet) => void;
@@ -611,10 +612,10 @@ export const useApp = create<AppState>((set, get) => {
   view: "document",
   zoom: 1,
   ribbon: "home",
-  left: "files",
+  left: "properties",
   leftOpen: true,
-  rightOpen: true,
-  rightPanel: "properties",
+  rightOpen: false,
+  rightPanel: "assistant",
   mobileSheet: null,
   paletteOpen: false,
   findOpen: false,
@@ -1267,8 +1268,21 @@ export const useApp = create<AppState>((set, get) => {
   },
   setZoom: (zoom) => set({ zoom: Math.min(2, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
   toggleLeft: () => set({ leftOpen: !get().leftOpen }),
-  toggleRight: () => get().showRightPanel("properties"),
+  toggleProperties: () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      set({ mobileSheet: get().mobileSheet === "properties" ? null : "properties" });
+      return;
+    }
+    const { leftOpen, left } = get();
+    if (leftOpen && left === "properties") set({ leftOpen: false });
+    else set({ leftOpen: true, left: "properties" });
+  },
   showRightPanel: (panel) => {
+    // Narrow screens have no sidebar: the assistant opens as a full-height sheet.
+    if (panel === "assistant" && typeof window !== "undefined" && window.innerWidth < 1024) {
+      set({ mobileSheet: get().mobileSheet === "assistant" ? null : "assistant" });
+      return;
+    }
     const { rightOpen, rightPanel } = get();
     if (rightOpen && rightPanel === panel) set({ rightOpen: false });
     else set({ rightOpen: true, rightPanel: panel });

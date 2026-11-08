@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FolderOpen, ListTree, Search, X } from "lucide-react";
+import { FolderOpen, ListTree, Search, SlidersHorizontal, X } from "lucide-react";
 import { searchHits, type SearchHitField } from "@mdword/indexer";
 import { cn } from "@mdword/ui";
 import { useApp } from "@/lib/store";
@@ -11,6 +11,9 @@ import { useEditorDocVersion } from "@/hooks/useEditorDocVersion";
 import { useEditorUi } from "@/lib/editorUi";
 import { collectEditorOutline, jumpToHeadingPos } from "@/lib/toc";
 import { FileTree } from "./FileTree";
+import { PropertiesPanel } from "./PropertiesPanel";
+import { useIsCompact } from "@/hooks/useMediaQuery";
+import type { LeftPanel } from "@/lib/leftPanel";
 
 function relativeWorkspacePath(path: string, root?: string | null): string {
   const norm = path.replace(/\\/g, "/");
@@ -154,7 +157,10 @@ function OutlinePanel({
 }
 
 export function LeftSidebar({ className }: { className?: string }) {
-  const left = useApp((s) => s.left);
+  const storedLeft = useApp((s) => s.left);
+  // Narrow screens show Properties in their own sheet, so it is not a tab there.
+  const compact = useIsCompact();
+  const left: LeftPanel = compact && storedLeft === "properties" ? "files" : storedLeft;
   const workspace = useApp((s) => s.workspace);
   const model = useApp((s) => s.model);
   const path = useApp((s) => s.path);
@@ -175,34 +181,65 @@ export function LeftSidebar({ className }: { className?: string }) {
     void useApp.getState().openWorkspaceFile(filePath, options);
   };
 
-  const tabs = [
+  const allTabs = [
+    { id: "properties" as const, label: "Properties", title: "Document properties and page layout", icon: SlidersHorizontal },
     { id: "outline" as const, label: "Outline", title: "Headings in this document", icon: ListTree },
     { id: "files" as const, label: "Files", title: "Files in the open project", icon: FolderOpen },
-    { id: "search" as const, label: "Project", title: "Search the open project", icon: Search }
+    { id: "search" as const, label: "Search", title: "Search the open project", icon: Search }
   ];
+  const tabs = compact ? allTabs.filter((tab) => tab.id !== "properties") : allTabs;
+  const tabId = (id: string) => `sidebar-tab-${id}`;
+
+  // Arrow keys move between tabs, as in a native tab list.
+  const onTabKey = (event: React.KeyboardEvent) => {
+    const index = tabs.findIndex((tab) => tab.id === left);
+    let next = index;
+    if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+    else if (event.key === "ArrowLeft") next = (index - 1 + tabs.length) % tabs.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    const target = tabs[next]!;
+    useApp.getState().setLeft(target.id);
+    requestAnimationFrame(() => document.getElementById(tabId(target.id))?.focus());
+  };
 
   return (
     <aside className={cn("flex h-full w-full min-w-0 flex-col border-r border-[#e4e7ec] bg-[#f8fafc]", className)}>
       <div className="flex items-center gap-1 border-b border-[#e4e7ec] bg-[#f8fafc] px-1.5 py-1.5">
-        <div className="flex min-w-0 flex-1 gap-0.5 rounded-lg bg-[#eef2f6] p-0.5" role="tablist" aria-label="Sidebar">
+        <div
+          className="flex min-w-0 flex-1 gap-0.5 rounded-lg bg-[#eef2f6] p-0.5"
+          role="tablist"
+          aria-label="Sidebar"
+          onKeyDown={onTabKey}
+        >
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const active = left === tab.id;
             return (
               <button
                 key={tab.id}
+                id={tabId(tab.id)}
                 type="button"
                 role="tab"
+                data-testid={`sidebar-tab-${tab.id}`}
                 title={tab.title}
                 aria-label={tab.title}
                 aria-selected={active}
+                aria-controls="sidebar-panel"
+                tabIndex={active ? 0 : -1}
                 onClick={() => useApp.getState().setLeft(tab.id)}
-                className={`inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-1.5 text-[12px] touch-manipulation ${
-                  active ? "bg-white font-medium text-[#1c1f24] shadow-sm" : "text-[#667085] hover:text-[#344054]"
-                }`}
+                // The open tab shows its name; the others shrink to an icon so four tabs fit a narrow sidebar.
+                className={cn(
+                  "inline-flex min-h-8 min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-[12px] touch-manipulation transition-[flex-grow,background-color,color] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
+                  active
+                    ? "flex-[3_1_0%] bg-white font-medium text-[#1c1f24] shadow-sm"
+                    : "flex-1 text-[#667085] hover:bg-white/60 hover:text-[#344054]"
+                )}
               >
-                <Icon size={13} className={active ? "text-accent" : "text-[#98a2b3]"} aria-hidden />
-                <span className="truncate">{tab.label}</span>
+                <Icon size={14} className={cn("shrink-0", active ? "text-accent" : "text-[#98a2b3]")} aria-hidden />
+                {active ? <span className="truncate">{tab.label}</span> : null}
               </button>
             );
           })}
@@ -218,7 +255,12 @@ export function LeftSidebar({ className }: { className?: string }) {
           <X size={15} />
         </button>
       </div>
-      <div className="relative flex-1 overflow-auto bg-white p-2 text-[13px]">
+      <div
+        id="sidebar-panel"
+        role="tabpanel"
+        aria-labelledby={tabId(left)}
+        className={cn("relative flex-1 overflow-auto bg-white text-[13px]", left === "properties" ? "p-0" : "p-2")}
+      >
         {busy?.kind === "folder" && !workspace?.files.length ? (
           <div
             className="flex h-full min-h-32 flex-col items-center justify-center gap-2 text-[#667085]"
@@ -252,6 +294,7 @@ export function LeftSidebar({ className }: { className?: string }) {
             </div>
           )
         ) : null}
+        {left === "properties" && <PropertiesPanel />}
         {left === "outline" && <OutlinePanel headings={headings} editor={editor} numbered={numberedHeadings} />}
         {left === "search" && (
           <div>

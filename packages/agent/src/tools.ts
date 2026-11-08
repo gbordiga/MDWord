@@ -3,7 +3,7 @@ import { z } from "zod";
 import { applyEdits } from "./edits";
 import { normalizeWorkspacePath } from "./paths";
 import { TOOL_DESCRIPTIONS } from "./prompt";
-import { truncateMiddle } from "./truncate";
+import { READ_CHUNK_CHARS, READ_CHUNK_LINES } from "./truncate";
 import type { AssistantEnv, StopReason } from "./types";
 
 export interface ToolContext {
@@ -33,6 +33,15 @@ function account<T extends object>(ctx: ToolContext, result: T): T {
   ctx.toolChars += JSON.stringify(result).length;
   if (ctx.toolChars > ctx.maxToolChars && ctx.stopReason == null) ctx.stopReason = "tool-budget";
   return result;
+}
+
+/** Embedded photos are huge base64 lines the model never needs to read. */
+export function maskDataUrls(text: string): string {
+  // Any long data: URL, base64 or not, whatever its mime type and parameters.
+  return text.replace(/data:[a-z0-9.+/-]+(?:;[a-z0-9=.+-]+)*,[^\s)\]"'<>]{200,}/gi, (match) => {
+    const comma = match.indexOf(",");
+    return `${match.slice(0, comma + 1)}[${match.length - comma - 1} characters omitted]`;
+  });
 }
 
 export function createTools(ctx: ToolContext) {
@@ -74,7 +83,7 @@ export function createTools(ctx: ToolContext) {
       const hits = await env.search(query, field, limit ?? 8);
       return account(ctx, {
         ok: true as const,
-        hits: hits.slice(0, limit ?? 8),
+        hits: hits.slice(0, limit ?? 8).map((h) => ({ ...h, snippet: maskDataUrls(h.snippet).slice(0, 400) })),
         note: hits.length === 0 ? "No matches. Try other words or listFiles." : undefined
       });
     }
@@ -101,21 +110,36 @@ export function createTools(ctx: ToolContext) {
         );
       }
       const clean = (text.startsWith("\uFEFF") ? text.slice(1) : text).replace(/\r\n/g, "\n");
-      const lines = clean.split("\n");
+      const lines = maskDataUrls(clean).split("\n");
       const total = lines.length;
-      const from = Math.min(startLine ?? 1, total);
-      const to = Math.min(endLine ?? total, total);
-      if (to < from) return account(ctx, fail(`endLine ${to} is before startLine ${from}.`));
-      const slice = lines.slice(from - 1, to).join("\n");
-      const cut = truncateMiddle(slice);
+      if (startLine != null && startLine > total) {
+        return account(ctx, fail(`startLine ${startLine} is beyond the end of the file (${total} lines).`));
+      }
+      const from = startLine ?? 1;
+      const requestedTo = Math.min(endLine ?? total, total);
+      if (requestedTo < from) return account(ctx, fail(`endLine ${requestedTo} is before startLine ${from}.`));
+      // Read in chunks of whole lines (never a partial line): stop at the line or
+      // character limit, whichever comes first, but always return at least one line.
+      let to = from;
+      let size = lines[from - 1]!.length;
+      while (to < requestedTo && to - from + 1 < READ_CHUNK_LINES && size + lines[to]!.length + 1 <= READ_CHUNK_CHARS) {
+        size += lines[to]!.length + 1;
+        to += 1;
+      }
+      const more = to < requestedTo;
+      const body = lines.slice(from - 1, to).join("\n");
+      const content = more
+        ? `${body}\n\n[Showing lines ${from}-${to} of ${total}. Use startLine=${to + 1} to continue, only if you need more.]`
+        : body;
       return account(ctx, {
         ok: true as const,
         path: checked.path,
         startLine: from,
         endLine: to,
         totalLines: total,
-        truncated: cut.truncated,
-        content: cut.text
+        truncated: more,
+        ...(more ? { nextStartLine: to + 1 } : {}),
+        content
       });
     }
   });

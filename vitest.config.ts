@@ -35,6 +35,7 @@ export default defineConfig({
         __dirname,
         "packages/workspace/src/index.ts"
       ),
+      "@mdword/agent/runtime": path.resolve(__dirname, "packages/agent/src/runtime.ts"),
       "@mdword/agent": path.resolve(__dirname, "packages/agent/src/index.ts"),
       "@mdword/indexer": path.resolve(__dirname, "packages/indexer/src/index.ts"),
       "@mdword/renderer": path.resolve(__dirname, "packages/renderer/src/index.ts")

@@ -1,12 +1,11 @@
 export * from "./edits";
-export * from "./loop";
+export * from "./instructions";
 export * from "./messages.en";
 export * from "./models";
 export * from "./oauth";
-export * from "./openrouter";
+export { OPENROUTER_ORIGIN } from "./origin";
 export * from "./paths";
 export * from "./prompt";
-export * from "./tools";
 export * from "./truncate";
 export * from "./types";
-export type { ModelMessage } from "ai";
+export type { ModelMessage } from "ai"; // type only: erased at build time

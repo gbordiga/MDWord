@@ -42,6 +42,7 @@ function describeModel(id: string, models: ModelInfo[] | null): string {
 export function AssistantSettings() {
   const s = useAssistant();
   const [draft, setDraft] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
   const [keyError, setKeyError] = useState<null | "invalid" | "storage">(null);
   const host = getHost().assistant;
 
@@ -232,10 +233,41 @@ export function AssistantSettings() {
           </label>
         </Row>
 
+        <Row label="" note={t("settings.web.note")}>
+          <label className="flex items-center gap-2 text-[12px] text-[#344054]">
+            <input
+              type="checkbox"
+              data-testid="assistant-web-search"
+              checked={s.settings.webSearch}
+              onChange={(e) => s.updateSettings({ webSearch: e.target.checked })}
+            />
+            {t("settings.web")}
+          </label>
+        </Row>
+
         <Row label={t("settings.history")} note={t("settings.history.note")}>
-          <button type="button" className={buttonClass} data-testid="assistant-clear-history" onClick={() => void s.clearHistory()}>
-            {t("settings.history.clear")}
-          </button>
+          {confirmClear ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className={`${buttonClass} !border-[#b42318] !text-[#b42318]`}
+                data-testid="assistant-clear-history-confirm"
+                onClick={() => {
+                  setConfirmClear(false);
+                  void s.clearHistory();
+                }}
+              >
+                {t("settings.history.confirm")}
+              </button>
+              <button type="button" className={buttonClass} onClick={() => setConfirmClear(false)}>
+                {t("settings.history.cancel")}
+              </button>
+            </div>
+          ) : (
+            <button type="button" className={buttonClass} data-testid="assistant-clear-history" onClick={() => setConfirmClear(true)}>
+              {t("settings.history.clear")}
+            </button>
+          )}
         </Row>
       </div>
     </div>

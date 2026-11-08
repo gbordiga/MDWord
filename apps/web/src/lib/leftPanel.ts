@@ -1,4 +1,4 @@
-export const LEFT_PANELS = ["files", "outline", "search"] as const;
+export const LEFT_PANELS = ["properties", "outline", "files", "search"] as const;
 export type LeftPanel = (typeof LEFT_PANELS)[number];
 
 /** Drop removed panels such as the old backlinks and history tabs. */

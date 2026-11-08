@@ -3,14 +3,11 @@
 import { create } from "zustand";
 import {
   checkSuggested,
-  createAssistantModel,
   createPkce,
   buildAuthUrl,
   exchangeCode,
   DEFAULT_MODEL_ID,
-  looksLikeKey,
   parseModelList,
-  runAssistantTurn,
   SUGGESTED_MODELS,
   t,
   type EditDecision,
@@ -20,10 +17,19 @@ import {
   type SuggestedModel,
   type TurnEvent
 } from "@mdword/agent";
-import type { AssistantKeyStatus } from "@mdword/shared";
+import { looksLikeKey, redactKeys, type AssistantKeyStatus } from "@mdword/shared";
 import { getHost } from "../host";
 import { buildTurnContext } from "./context";
-import { applyProposal, createAssistantEnv } from "./env";
+import { applyProposal, createAssistantEnv, loadInstructionFiles } from "./env";
+import {
+  conversationKey,
+  indexKey,
+  MAX_CONVERSATIONS,
+  parseIndex,
+  serializeIndex,
+  titleFromThread,
+  type ConversationMeta
+} from "./conversations";
 import { historyFromThread, parseThread, serializeThread, toolLabel, type ThreadItem } from "./thread";
 import { useApp } from "../store";
 
@@ -37,6 +43,8 @@ export interface AssistantSettings {
   /** `null` turns the session cap off. */
   spendCapUsd: number | null;
   privacyOnly: boolean;
+  /** The model may search the web (OpenRouter server tool). Off until the user turns it on. */
+  webSearch: boolean;
   noticeAccepted: boolean;
 }
 
@@ -44,6 +52,7 @@ const defaultSettings: AssistantSettings = {
   modelId: DEFAULT_MODEL_ID,
   spendCapUsd: DEFAULT_CAP_USD,
   privacyOnly: true,
+  webSearch: false,
   noticeAccepted: false
 };
 
@@ -61,6 +70,7 @@ function loadSettings(): AssistantSettings {
             ? parsed.spendCapUsd
             : defaultSettings.spendCapUsd,
       privacyOnly: parsed.privacyOnly !== false,
+      webSearch: parsed.webSearch === true,
       noticeAccepted: parsed.noticeAccepted === true
     };
   } catch {
@@ -74,8 +84,13 @@ export type SignInState = "idle" | "waiting" | "failed" | "cancelled";
 export interface AssistantState {
   settings: AssistantSettings;
   key: AssistantKeyStatus | null;
-  view: "chat" | "settings";
+  view: "chat" | "settings" | "history";
+  conversations: ConversationMeta[];
+  activeId: string | null;
   thread: ThreadItem[];
+  /** Text in the composer; kept here so suggestions can fill it. */
+  composerText: string;
+  setComposerText: (text: string) => void;
   running: boolean;
   sessionCostUsd: number;
   costUnknown: boolean;
@@ -85,7 +100,9 @@ export interface AssistantState {
   signIn: SignInState;
   workspaceKey: string | null;
   init: () => Promise<void>;
-  setView: (view: "chat" | "settings") => void;
+  setView: (view: "chat" | "settings" | "history") => void;
+  openConversation: (id: string) => Promise<void>;
+  deleteConversation: (id: string) => Promise<void>;
   updateSettings: (patch: Partial<AssistantSettings>) => void;
   refreshKey: () => Promise<void>;
   saveKey: (key: string) => Promise<SaveKeyResult>;
@@ -105,6 +122,10 @@ export interface AssistantState {
 let history: ModelMessage[] = [];
 let abort: AbortController | null = null;
 let seq = 0;
+/** Bumped whenever the active conversation changes, so late events of an old turn are dropped. */
+let convGen = 0;
+/** Conversations deleted by the user; a save that was already running must not bring them back. */
+const deletedIds = new Set<string>();
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 const pending = new Map<string, { proposal: EditProposal; resolve: (d: EditDecision) => void }>();
 
@@ -130,15 +151,60 @@ export const useAssistant = create<AssistantState>((set, get) => {
   const patchItem = (id: string, patch: Partial<ThreadItem>) =>
     mutateThread((thread) => thread.map((i) => (i.id === id ? ({ ...i, ...patch } as ThreadItem) : i)));
 
-  const scheduleSave = () => {
+  const saveIndex = async (conversations: ConversationMeta[], activeId: string | null) => {
     const key = get().workspaceKey;
     const host = assistantHost();
     if (!key || !host) return;
+    await host.history.save(indexKey(key), serializeIndex({ conversations, activeId }));
+  };
+
+  /** Writes the active conversation and its index entry. Reads state synchronously. */
+  const saveNow = async () => {
+    const key = get().workspaceKey;
+    const host = assistantHost();
+    const { activeId, thread, conversations } = get();
+    if (!key || !host || !activeId || thread.length === 0 || deletedIds.has(activeId)) return;
+    const previous = conversations.find((c) => c.id === activeId);
+    const meta: ConversationMeta = {
+      id: activeId,
+      title: titleFromThread(thread) || previous?.title || "",
+      updatedAt: Date.now()
+    };
+    const all = [meta, ...conversations.filter((c) => c.id !== activeId)];
+    const next = all.slice(0, MAX_CONVERSATIONS);
+    set({ conversations: next });
+    await host.history.save(conversationKey(key, activeId), serializeThread(thread));
+    if (deletedIds.has(activeId)) {
+      await host.history.clear(conversationKey(key, activeId));
+      return;
+    }
+    await host.history.save(indexKey(key), serializeIndex({ conversations: next, activeId }));
+    // Conversations pushed out of the index would be unreachable: remove their files.
+    for (const dropped of all.slice(MAX_CONVERSATIONS)) await host.history.clear(conversationKey(key, dropped.id));
+  };
+
+  const scheduleSave = () => {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       saveTimer = null;
-      void host.history.save(key, serializeThread(get().thread)).catch(() => undefined);
+      void saveNow().catch(() => undefined);
     }, 400);
+  };
+
+  const flushSave = async () => {
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+    await saveNow().catch(() => undefined);
+  };
+
+  const resetChat = (activeId: string | null, thread: ThreadItem[]) => {
+    convGen += 1;
+    history = historyFromThread(thread);
+    // A superseded turn no longer owns the run lock: it unwinds on its own.
+    abort = null;
+    set({ thread, activeId, running: false, sessionCostUsd: 0, costUnknown: false });
   };
 
   const propose = (proposal: EditProposal, signal: AbortSignal | undefined) =>
@@ -209,7 +275,11 @@ export const useAssistant = create<AssistantState>((set, get) => {
     settings: defaultSettings,
     key: null,
     view: "chat",
+    conversations: [],
+    activeId: null,
     thread: [],
+    composerText: "",
+    setComposerText: (composerText) => set({ composerText }),
     running: false,
     sessionCostUsd: 0,
     costUnknown: false,
@@ -322,51 +392,125 @@ export const useAssistant = create<AssistantState>((set, get) => {
       const host = assistantHost();
       if (get().workspaceKey === workspaceKey) return;
       get().stop();
-      set({ workspaceKey, thread: [], sessionCostUsd: 0, costUnknown: false });
-      history = [];
+      await flushSave();
+      set({ workspaceKey, conversations: [] });
+      resetChat(null, []);
       if (!host) return;
       try {
-        const thread = parseThread(await host.history.load(workspaceKey));
+        let index = parseIndex(await host.history.load(indexKey(workspaceKey)));
+        if (!index) {
+          // Chats saved before conversations existed: one thread per workspace.
+          const legacy = parseThread(await host.history.load(workspaceKey));
+          index = { conversations: [], activeId: null };
+          if (legacy.length > 0) {
+            const id = nextId("c");
+            await host.history.save(conversationKey(workspaceKey, id), serializeThread(legacy));
+            index = {
+              conversations: [{ id, title: titleFromThread(legacy), updatedAt: Date.now() }],
+              activeId: id
+            };
+            await host.history.save(indexKey(workspaceKey), serializeIndex(index));
+            await host.history.clear(workspaceKey);
+          }
+        }
+        const thread = index.activeId
+          ? parseThread(await host.history.load(conversationKey(workspaceKey, index.activeId)))
+          : [];
         if (get().workspaceKey !== workspaceKey) return;
-        set({ thread });
-        history = historyFromThread(thread);
+        set({ conversations: index.conversations });
+        resetChat(thread.length > 0 ? index.activeId : null, thread);
       } catch {
         /* start empty */
       }
     },
+    openConversation: async (id) => {
+      const host = assistantHost();
+      const key = get().workspaceKey;
+      if (!host || !key) return;
+      if (id === get().activeId) return set({ view: "chat" });
+      get().stop();
+      await flushSave();
+      try {
+        const thread = parseThread(await host.history.load(conversationKey(key, id)));
+        if (get().workspaceKey !== key) return;
+        resetChat(id, thread);
+        set({ view: "chat" });
+        await saveIndex(get().conversations, id);
+      } catch {
+        /* keep the current chat */
+      }
+    },
+    deleteConversation: async (id) => {
+      const host = assistantHost();
+      const key = get().workspaceKey;
+      if (!host || !key) return;
+      if (id === get().activeId) {
+        get().stop();
+        if (saveTimer) {
+          clearTimeout(saveTimer);
+          saveTimer = null;
+        }
+        resetChat(null, []);
+      }
+      deletedIds.add(id);
+      const conversations = get().conversations.filter((c) => c.id !== id);
+      set({ conversations });
+      try {
+        await host.history.clear(conversationKey(key, id));
+        await saveIndex(conversations, get().activeId);
+      } catch {
+        /* best effort */
+      }
+    },
     newChat: () => {
       get().stop();
-      history = [];
-      set({ thread: [], sessionCostUsd: 0, costUnknown: false });
-      scheduleSave();
+      void flushSave().then(() => saveIndex(get().conversations, null)).catch(() => undefined);
+      resetChat(null, []);
+      set({ view: "chat" });
     },
     clearHistory: async () => {
       get().stop();
-      history = [];
-      set({ thread: [], sessionCostUsd: 0, costUnknown: false });
+      if (saveTimer) {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+      }
       const key = get().workspaceKey;
-      if (key) await assistantHost()?.history.clear(key);
+      const host = assistantHost();
+      const ids = get().conversations.map((c) => c.id);
+      for (const id of ids) deletedIds.add(id);
+      resetChat(null, []);
+      set({ conversations: [] });
+      if (!key || !host) return;
+      for (const id of ids) await host.history.clear(conversationKey(key, id));
+      await host.history.clear(indexKey(key));
+      await host.history.clear(key);
     },
     stop: () => abort?.abort(),
     send: async (text) => {
       const host = assistantHost();
-      const trimmed = text.trim();
+      // A pasted OpenRouter key is a mistake: never store it or send it on.
+      const trimmed = redactKeys(text.trim());
       const state = get();
       if (!host || !trimmed || state.running || !state.key?.hasKey || !state.settings.noticeAccepted) return;
       const controller = new AbortController();
       abort = controller;
+      if (!get().activeId) set({ activeId: nextId("c") });
+      const gen = convGen;
       set({ running: true });
       mutateThread((thread) => [...thread, { kind: "user", id: nextId("u"), text: trimmed }]);
       useApp.getState().flushPendingEdits();
       const info = state.models?.find((m) => m.id === state.settings.modelId) ?? null;
-      const model = createAssistantModel({
-        apiKey: "host-managed",
-        modelId: state.settings.modelId,
-        privacyOnly: state.settings.privacyOnly,
-        fetch: (input, init) =>
-          host.fetch(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, init)
-      });
       try {
+        // The AI SDK is large: load it on the first message, not with the app.
+        const { createAssistantModel, runAssistantTurn } = await import("@mdword/agent/runtime");
+        const model = createAssistantModel({
+          apiKey: "host-managed",
+          modelId: state.settings.modelId,
+          privacyOnly: state.settings.privacyOnly,
+          webSearch: state.settings.webSearch,
+          fetch: (input, init) =>
+            host.fetch(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, init)
+        });
         const result = await runAssistantTurn({
           model,
           history,
@@ -376,18 +520,27 @@ export const useAssistant = create<AssistantState>((set, get) => {
           pricing: info,
           spentBeforeUsd: get().sessionCostUsd,
           spendCapUsd: state.settings.spendCapUsd,
+          webSearch: state.settings.webSearch,
+          instructions: await loadInstructionFiles(),
           signal: controller.signal,
-          onEvent
+          onEvent: (event) => {
+            if (gen === convGen) onEvent(event);
+          }
         });
-        history = result.history;
+        if (gen === convGen) history = result.history;
+      } catch {
+        if (gen === convGen) mutateThread((thread) => [...thread, { kind: "notice", id: nextId("n"), text: t("error.unknown") }]);
       } finally {
-        for (const [id, entry] of pending) {
-          pending.delete(id);
-          patchItem(id, { status: "discarded" });
-          entry.resolve({ status: "rejected" });
+        // Only the turn that still owns the conversation cleans up shared state.
+        if (gen === convGen) {
+          for (const [id, entry] of pending) {
+            pending.delete(id);
+            patchItem(id, { status: "discarded" });
+            entry.resolve({ status: "rejected" });
+          }
+          if (abort === controller) abort = null;
+          set({ running: false });
         }
-        if (abort === controller) abort = null;
-        set({ running: false });
       }
     },
     resolveEdit: async (id, choice) => {

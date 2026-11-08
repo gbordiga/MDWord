@@ -14,7 +14,7 @@ export function Sheet({
 }: {
   open: boolean;
   onClose: () => void;
-  side?: "bottom" | "left";
+  side?: "bottom" | "left" | "full";
   title: string;
   testId?: string;
   children: ReactNode;
@@ -44,7 +44,9 @@ export function Sheet({
           "absolute flex flex-col bg-white shadow-[0_-8px_40px_rgb(16_24_40_/_18%)]",
           side === "left"
             ? "inset-y-0 left-0 w-[min(100%,22rem)] pt-[env(safe-area-inset-top)]"
-            : "inset-x-0 bottom-0 max-h-[min(85dvh,var(--app-height))] rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
+            : side === "full"
+              ? "inset-x-0 bottom-0 h-[var(--app-height,100dvh)] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+              : "inset-x-0 bottom-0 max-h-[min(85dvh,var(--app-height))] rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
         )}
       >
         {side === "bottom" && (
@@ -52,6 +54,7 @@ export function Sheet({
             <span className="h-1 w-10 rounded-full bg-[#d0d5dd]" />
           </div>
         )}
+        {side === "full" ? null : (
         <header className="flex items-center justify-between gap-2 border-b border-[#e4e7ec] px-3 py-1">
           <h2 className="px-1 text-[15px] font-semibold text-[#1c1f24]">{title}</h2>
           <button
@@ -63,7 +66,8 @@ export function Sheet({
             <X size={20} />
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-auto">{children}</div>
+        )}
+        <div className={cn("min-h-0 flex-1", side === "full" ? "flex flex-col overflow-hidden" : "overflow-auto")}>{children}</div>
       </div>
     </div>
   );

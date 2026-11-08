@@ -1,4 +1,4 @@
-import { OPENROUTER_ORIGIN } from "./openrouter";
+import { OPENROUTER_ORIGIN } from "./origin";
 
 export interface PkcePair {
   verifier: string;

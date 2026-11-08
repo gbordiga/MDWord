@@ -64,10 +64,13 @@ export interface TurnLimits {
   maxSteps: number;
   maxToolChars: number;
   maxConsecutiveFailures: number;
+  /** Abort when the model sends nothing for this long (ms). 0 turns it off. */
+  stallMs: number;
 }
 
 export const defaultLimits: TurnLimits = {
-  maxSteps: 16,
-  maxToolChars: 120_000,
-  maxConsecutiveFailures: 3
+  maxSteps: 500,
+  maxToolChars: 50_000_000,
+  maxConsecutiveFailures: 3,
+  stallMs: 120_000
 };

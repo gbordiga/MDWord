@@ -5,6 +5,8 @@ describe("resolveLeftPanel", () => {
   it("keeps known sidebar panels", () => {
     expect(LEFT_PANELS).not.toContain("backlinks");
     expect(LEFT_PANELS).not.toContain("history");
+    expect(LEFT_PANELS).toEqual(["properties", "outline", "files", "search"]);
+    expect(resolveLeftPanel("properties")).toBe("properties");
     expect(resolveLeftPanel("files")).toBe("files");
   });
 

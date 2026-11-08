@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { historyFromThread, parseThread, serializeThread, toolLabel, type ThreadItem } from "./thread";
+import { groupThread, historyFromThread, parseThread, serializeThread, toolLabel, type ThreadItem } from "./thread";
 
 const thread: ThreadItem[] = [
   { kind: "user", id: "1", text: "fix" },
@@ -36,5 +36,20 @@ describe("assistant thread", () => {
     expect(toolLabel("readFile", { path: "a.md", startLine: 2, endLine: 9 })).toBe("Reading a.md, lines 2 to 9");
     expect(toolLabel("listFiles", {})).toBe("Listing files in the workspace");
     expect(toolLabel("search", { query: "tax" })).toBe("Searching for \u201ctax\u201d");
+  });
+
+  it("groups consecutive tool steps and keeps everything else apart", () => {
+    const tool = (id: string): ThreadItem => ({ kind: "tool", id, name: "readFile", label: id, status: "ok" });
+    const blocks = groupThread([
+      { kind: "user", id: "u", text: "x" },
+      tool("t1"),
+      tool("t2"),
+      { kind: "edit", id: "e", path: "a.md", edits: [], status: "pending" },
+      tool("t3"),
+      { kind: "assistant", id: "a", text: "ok" }
+    ]);
+    expect(blocks.map((b) => b.kind)).toEqual(["item", "work", "item", "work", "item"]);
+    expect(blocks[1]).toMatchObject({ kind: "work", tools: [{ id: "t1" }, { id: "t2" }] });
+    expect(blocks[3]).toMatchObject({ kind: "work", tools: [{ id: "t3" }] });
   });
 });

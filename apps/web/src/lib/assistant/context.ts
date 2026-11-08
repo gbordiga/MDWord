@@ -27,5 +27,7 @@ export function buildTurnContext(): string {
       });
     }
   }
-  return buildContext({ openFile, selectionText: getSelectionText(), outline });
+  // The active document's model is current: send() flushes pending edits first.
+  const frontmatter = useApp.getState().model.head || null;
+  return buildContext({ openFile, selectionText: getSelectionText(), outline, frontmatter });
 }
