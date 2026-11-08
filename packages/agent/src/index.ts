@@ -1,3 +1,4 @@
+export * from "./directives";
 export * from "./edits";
 export * from "./instructions";
 export * from "./messages.en";

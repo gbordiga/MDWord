@@ -1,3 +1,4 @@
+import { unclosedDirectives } from "./directives";
 import { tool } from "ai";
 import { z } from "zod";
 import { applyEdits } from "./edits";
@@ -169,11 +170,12 @@ export function createTools(ctx: ToolContext) {
         const applied = applyEdits(source, edits);
         if (!applied.ok) return account(ctx, fail(applied.message));
 
-        const before = env.diagnostics(source);
+        const check = (text: string) => [...env.diagnostics(text), ...unclosedDirectives(text)];
+        const before = check(source);
         const seen = new Map<string, number>();
         for (const d of before) seen.set(d.message, (seen.get(d.message) ?? 0) + 1);
         const added: string[] = [];
-        for (const d of env.diagnostics(applied.result)) {
+        for (const d of check(applied.result)) {
           if (d.severity !== "error") continue;
           const left = seen.get(d.message) ?? 0;
           if (left > 0) seen.set(d.message, left - 1);

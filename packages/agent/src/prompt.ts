@@ -11,8 +11,11 @@ MyST. Use MyST only where plain Markdown cannot express the thing, and never
 invent other markup.
 - Frontmatter and mdoc: see "Frontmatter and layout" below.
 - Directives use colon fences: \`:::{name}\` ... \`:::\`, with options as
-  \`:key: value\` lines first. Known ones: \`page-break\` (an empty
-  directive), \`figure\` (\`:width:\`, \`:align:\`, \`:label:\`, caption as body),
+  \`:key: value\` lines first. Every directive must be closed by its own
+  \`:::\` line, even when it has no body. A page break is exactly these two
+  lines, with a blank line before and after:
+  \`:::{page-break}\` then \`:::\`. Never write the opening line alone.
+  Known ones: \`page-break\`, \`figure\` (\`:width:\`, \`:align:\`, \`:label:\`, caption as body),
   \`table\` (\`:widths:\`, \`:align:\`, \`:label:\`, caption as argument),
   \`list-table\`, \`csv-table\`, admonitions such as note and warning.
   Keep any directive you do not know exactly as it is.

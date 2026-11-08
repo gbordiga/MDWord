@@ -139,6 +139,18 @@ describe("assistant loop", () => {
     expect(JSON.stringify(result.history)).not.toContain("ISO dates");
   });
 
+  it("refuses an edit that leaves a page break unclosed, but not a closed one", async () => {
+    const { env, proposals } = fakeEnv({ "a.md": "One\n\nTwo\n" });
+    const model = scripted([
+      { calls: [{ name: "editFile", input: { path: "a.md", edits: [{ oldText: "One\n", newText: "One\n\n:::{page-break}\n" }] } }] },
+      { calls: [{ name: "editFile", input: { path: "a.md", edits: [{ oldText: "One\n", newText: "One\n\n:::{page-break}\n:::\n" }] } }] },
+      { text: "ok" }
+    ]);
+    await run(model, env).done;
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]!.after).toContain(":::{page-break}\n:::");
+  });
+
   it("tells the model when the user discards, and does not count it as a failure", async () => {
     const { env } = fakeEnv({ "a.md": "x y" }, () => ({ status: "rejected" }));
     const edit = { name: "editFile", input: { path: "a.md", edits: [{ oldText: "x", newText: "z" }] } };

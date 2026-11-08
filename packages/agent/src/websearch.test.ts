@@ -66,6 +66,12 @@ describe("prompt", () => {
     }
   });
 
+  it("tells the model that every directive, even a page break, needs its closing fence", () => {
+    expect(SYSTEM_PROMPT).toContain("closed by its own");
+    expect(SYSTEM_PROMPT).toContain(":::{page-break}");
+    expect(SYSTEM_PROMPT).toContain("Never write the opening line alone");
+  });
+
   it("shows the frontmatter of the open file in the context", () => {
     const withHead = buildContext({ openFile: "a.md", frontmatter: "---\ntitle: A\n---" });
     expect(withHead).toContain("Frontmatter of the open file:");
