@@ -53,10 +53,14 @@ test("the outline lists every heading and jumps to the one that was clicked", as
   await expect(items.nth(1)).toContainText("Alpha");
 
   await items.nth(2).click();
-  const selectedHeading = await page.evaluate(() => {
-    const node = window.getSelection()?.anchorNode ?? null;
-    const el = node instanceof Element ? node : node?.parentElement ?? null;
-    return el?.closest("h1, h2, h3, h4, h5, h6")?.textContent ?? "";
-  });
-  expect(selectedHeading).toBe("Target");
+  // The browser selection follows the editor selection a moment later on a slow runner.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const node = window.getSelection()?.anchorNode ?? null;
+        const el = node instanceof Element ? node : node?.parentElement ?? null;
+        return el?.closest("h1, h2, h3, h4, h5, h6")?.textContent ?? "";
+      })
+    )
+    .toBe("Target");
 });

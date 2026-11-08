@@ -337,7 +337,7 @@ export function AssistantPanel({ className, onClose }: { className?: string; onC
   };
   const webSearchOn = s.settings.webSearch;
   const waitingForUser = s.thread.some((i) => i.kind === "edit" && i.status === "pending");
-  const lastUser = s.thread.findLast((i) => i.kind === "user")?.id;
+  const lastUser = [...s.thread].reverse().find((i) => i.kind === "user")?.id;
   useEffect(() => {
     attachedRef.current = true;
     setAttached(true);

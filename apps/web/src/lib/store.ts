@@ -548,6 +548,8 @@ export const useApp = create<AppState>((set, get) => {
       } finally {
         set({ busy: null });
       }
+      // A file saved inside the open project shows up in the sidebar.
+      void reloadWorkspace();
       return true;
     }
     const path = tab.path;
@@ -614,7 +616,7 @@ export const useApp = create<AppState>((set, get) => {
   ribbon: "home",
   left: "properties",
   leftOpen: true,
-  rightOpen: false,
+  rightOpen: true,
   rightPanel: "assistant",
   mobileSheet: null,
   paletteOpen: false,
@@ -896,6 +898,8 @@ export const useApp = create<AppState>((set, get) => {
     } finally {
       set({ busy: null });
     }
+    // A file saved inside the open project shows up in the sidebar.
+    void reloadWorkspace();
     await get().loadRecentFiles();
   },
   saveTab: async (tabId) => {

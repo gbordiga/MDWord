@@ -78,7 +78,7 @@ async function openAssistant(page: Page) {
   await page.goto("/");
   const prose = page.locator(".ProseMirror");
   await expect(prose).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId("topbar-assistant").click();
+  // The assistant sidebar is open from the start.
   await expect(page.getByTestId("assistant-panel")).toBeVisible();
   return prose;
 }

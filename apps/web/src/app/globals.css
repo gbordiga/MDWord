@@ -106,11 +106,16 @@ html.keyboard-open .mdword-app {
 }
 
 /* Keyboard focus ring for controls. Programmatic focus on containers
-   (`tabindex="-1"`, e.g. a dialog panel) must not draw one. A control inside a
-   wrapper that draws its own ring opts out with `data-focus-ring="none"`. */
-*:focus-visible:not([tabindex="-1"]):not([data-focus-ring="none"]) {
+   (`tabindex="-1"`, e.g. a dialog panel) must not draw one. */
+*:focus-visible:not([tabindex="-1"]) {
   outline: 2px solid #1d4ed8;
   outline-offset: 2px;
+}
+
+/* A control inside a wrapper that draws its own ring opts out. Kept as its own
+   rule so the selector above keeps its specificity (the editor relies on it). */
+*[data-focus-ring="none"]:focus-visible {
+  outline: none;
 }
 
 .page-inner {

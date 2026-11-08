@@ -400,6 +400,11 @@ export const webHost: HostApi = {
         nativeWritten.add(path || "document.md");
         return;
       }
+      // A file of the open project whose handle was not cached: write it in the folder, never download it.
+      if (folderHandle && folderRoot && path.startsWith(`${folderRoot}/`)) {
+        await writeBytes(path, content);
+        return;
+      }
       download(path || "document.md", content);
     },
     async saveAs(content, suggestedName = "document.md") {
@@ -409,6 +414,32 @@ export const webHost: HostApi = {
         nativeWritten.add(name);
         await shareNativeFile("Save MDWord document", uri);
         return name;
+      }
+      const pick = (window as WindowFs).showSaveFilePicker;
+      if (pick) {
+        try {
+          // With a project open the dialog starts in its folder, and a file saved there joins the project.
+          const handle = await pick({
+            suggestedName,
+            ...(folderHandle ? { startIn: folderHandle } : {}),
+            types: [{ description: "Markdown", accept: { "text/markdown": [".md", ".markdown"] } }]
+          });
+          let path = handle.name;
+          if (folderHandle && folderRoot) {
+            const within = (await (folderHandle as DirHandle & {
+              resolve?: (h: FsHandle) => Promise<string[] | null>;
+            }).resolve?.(handle)) ?? null;
+            if (within && within.length > 0) path = [folderRoot, ...within].join("/");
+          }
+          fileHandles.set(path, handle);
+          await enqueueWrite(() => writeFileHandleRetry(handle, content));
+          fileTexts.set(path, content);
+          fileTexts.set(handle.name, content);
+          return path;
+        } catch (error) {
+          if (isUserAbort(error)) return null;
+          throw error;
+        }
       }
       download(suggestedName, content);
       return suggestedName;

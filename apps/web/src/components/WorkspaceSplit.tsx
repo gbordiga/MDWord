@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { useIsCompact } from "@/hooks/useMediaQuery";
 import { LeftSidebar } from "./LeftSidebar";
+import { assistantSupported } from "@/lib/assistant/store";
 import dynamic from "next/dynamic";
 
 // Loaded when the panel is first opened: it brings the Markdown renderer with it.
@@ -29,7 +30,7 @@ export function WorkspaceSplit({
 }) {
   const compact = useIsCompact();
   const showLeft = leftOpen && !compact;
-  const showRight = rightOpen && !compact;
+  const showRight = rightOpen && !compact && assistantSupported();
   const panelIds = [
     ...(showLeft ? ["mdword-left"] : []),
     "mdword-editor",

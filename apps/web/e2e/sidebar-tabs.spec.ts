@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("Properties is a sidebar tab and the right side holds only the assistant", async ({ page }) => {
+test("Properties is a sidebar tab and the right side holds only the assistant, open from the start", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
 
@@ -8,7 +8,7 @@ test("Properties is a sidebar tab and the right side holds only the assistant", 
   await expect(tabs).toHaveCount(4);
   await expect(page.getByTestId("sidebar-tab-properties")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("prop-title")).toBeVisible();
-  await expect(page.getByTestId("assistant-panel")).toHaveCount(0);
+  await expect(page.getByTestId("assistant-panel")).toBeVisible();
 
   // Only the open tab shows its name; every tab keeps an accessible name.
   await expect(page.getByTestId("sidebar-tab-properties")).toContainText("Properties");
@@ -36,6 +36,12 @@ test("the top bar has only Sidebar and Assistant toggles, and Properties stays i
   await expect(page.getByTestId("topbar-sidebar")).toBeVisible();
   await expect(page.getByTestId("topbar-assistant")).toBeVisible();
   await expect(page.getByTestId("topbar-properties")).toHaveCount(0);
+
+  await expect(page.getByTestId("topbar-assistant")).toHaveAttribute("aria-pressed", "true");
+  await page.getByTestId("topbar-assistant").click();
+  await expect(page.getByTestId("assistant-panel")).toHaveCount(0);
+  await page.getByTestId("topbar-assistant").click();
+  await expect(page.getByTestId("assistant-panel")).toBeVisible();
 
   await page.getByTestId("topbar-sidebar").click();
   await expect(page.getByTestId("prop-title")).toBeHidden();
