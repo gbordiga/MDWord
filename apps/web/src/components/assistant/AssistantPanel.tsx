@@ -1,11 +1,11 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { formatUsd, t } from "@mdword/agent";
 import { cn } from "@mdword/ui";
-import { AlertCircle, Check, ChevronRight, ArrowDown, FileText, Globe, History, Loader2, Plus, Send, Settings, Sparkles, Square, X } from "lucide-react";
+import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, FileText, Globe, History, Loader2, Plus, ScrollText, Settings, Sparkles, Square, X } from "lucide-react";
 import { relativeWorkspacePath } from "@mdword/workspace";
 import { useApp } from "@/lib/store";
 import { groupThread, type ToolItem } from "@/lib/assistant/thread";
@@ -201,53 +201,59 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
     void send(value);
   };
 
+  // The box grows with the text up to about eight lines, then scrolls.
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 168)}px`;
+  }, [text]);
+
+  const canSend = !disabled && text.trim().length > 0;
+
   return (
-    <div className="shrink-0 space-y-1.5 border-t border-[#e4e7ec] p-2">
-      <div className="flex items-center gap-1.5">
-        {fileName ? (
-          <div className="min-w-0 flex-1 truncate text-[11px] text-[#667085]" data-testid="assistant-context">
-            {t("panel.context.file", { name: fileName })}
-          </div>
-        ) : (
-          <div className="flex-1" />
+    <div className="shrink-0 border-t border-[#e4e7ec] bg-[#f8fafc] p-2">
+      <div
+        className={cn(
+          "rounded-xl border bg-white shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20",
+          disabled ? "border-[#e4e7ec] bg-[#f9fafb]" : "border-[#d0d5dd]"
         )}
-        {instructions.length > 0 ? (
-          <span
-            data-testid="assistant-instructions"
-            className="flex max-w-[45%] shrink-0 items-center gap-1 truncate rounded-md bg-[#f2f4f7] px-1.5 py-0.5 text-[11px] text-[#475467]"
-            title={t("panel.instructions.title", { paths: instructions.join(", ") })}
-          >
-            <FileText size={12} className="shrink-0" aria-hidden />
-            <span className="truncate">
-              {t("panel.instructions", { names: instructions.map((p) => p.split("/").pop()).join(", ") })}
-            </span>
-          </span>
+      >
+        {fileName || instructions.length > 0 ? (
+          <div className="flex items-center gap-1.5 px-2.5 pt-2">
+            {fileName ? (
+              <span
+                className="flex min-w-0 items-center gap-1 rounded-md bg-[#f2f4f7] px-1.5 py-0.5 text-[11px] text-[#475467]"
+                data-testid="assistant-context"
+              >
+                <FileText size={12} className="shrink-0" aria-hidden />
+                <span className="truncate">{t("panel.context.file", { name: fileName })}</span>
+              </span>
+            ) : null}
+            {instructions.length > 0 ? (
+              <span
+                data-testid="assistant-instructions"
+                className="flex min-w-0 shrink-0 items-center gap-1 truncate rounded-md bg-[#f2f4f7] px-1.5 py-0.5 text-[11px] text-[#475467]"
+                title={t("panel.instructions.title", { paths: instructions.join(", ") })}
+              >
+                <ScrollText size={12} className="shrink-0" aria-hidden />
+                <span className="truncate">
+                  {t("panel.instructions", { names: instructions.map((p) => p.split("/").pop()).join(", ") })}
+                </span>
+              </span>
+            ) : null}
+          </div>
         ) : null}
-        <button
-          type="button"
-          data-testid="assistant-web-toggle"
-          aria-pressed={webSearch}
-          aria-label={t(webSearch ? "panel.web.on" : "panel.web.off")}
-          title={t(webSearch ? "panel.web.on" : "panel.web.off")}
-          className={cn(
-            "flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]",
-            webSearch ? "bg-[#eef2ff] text-[#3538cd]" : "text-[#667085] hover:bg-[#f2f4f7]"
-          )}
-          onClick={() => updateSettings({ webSearch: !webSearch })}
-        >
-          <Globe size={12} aria-hidden />
-          {webSearch ? <span>{t("panel.web.badge")}</span> : null}
-        </button>
-      </div>
-      <div className="flex items-end gap-1.5">
         <textarea
           ref={inputRef}
           data-testid="assistant-input"
+          data-focus-ring="none"
           aria-label={t("panel.input.placeholder")}
-          rows={2}
+          title={t("panel.input.hint")}
+          rows={1}
           disabled={disabled}
           placeholder={disabled && reason ? reason : t("panel.input.placeholder")}
-          className="min-h-[3.25rem] flex-1 resize-none rounded-md border border-[#d0d5dd] bg-white px-2 py-1.5 text-[13px] max-lg:text-[16px] text-[#1c1f24] focus:border-accent focus:outline-none disabled:bg-[#f9fafb]"
+          className="block max-h-[168px] min-h-[2.75rem] w-full resize-none bg-transparent outline-none focus:outline-none focus-visible:outline-none px-3 py-2.5 text-[13px] leading-5 text-[#1c1f24] placeholder:text-[#98a2b3] focus:outline-none disabled:cursor-not-allowed max-lg:text-[16px]"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -257,32 +263,49 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
             }
           }}
         />
-        {running ? (
+        <div className="flex items-center gap-1.5 px-2 pb-2">
           <button
             type="button"
-            data-testid="assistant-stop"
-            aria-label={t("panel.stop")}
-            title={t("panel.stop")}
-            className="rounded-md border border-[#d0d5dd] p-2 text-[#344054] hover:bg-[#f2f4f7]"
-            onClick={() => stop()}
+            data-testid="assistant-web-toggle"
+            aria-pressed={webSearch}
+            aria-label={t(webSearch ? "panel.web.on" : "panel.web.off")}
+            title={t(webSearch ? "panel.web.on" : "panel.web.off")}
+            className={cn(
+              "flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium transition-colors",
+              webSearch ? "bg-[#eef2ff] text-[#3538cd]" : "text-[#667085] hover:bg-[#f2f4f7]"
+            )}
+            onClick={() => updateSettings({ webSearch: !webSearch })}
           >
-            <Square size={14} />
+            <Globe size={13} aria-hidden />
+            {webSearch ? <span>{t("panel.web.badge")}</span> : null}
           </button>
-        ) : (
-          <button
-            type="button"
-            data-testid="assistant-send"
-            aria-label={t("panel.send")}
-            title={t("panel.send")}
-            disabled={disabled || !text.trim()}
-            className="rounded-md bg-accent p-2 text-white hover:opacity-90 disabled:opacity-40"
-            onClick={submit}
-          >
-            <Send size={14} />
-          </button>
-        )}
+          <span className="flex-1" />
+          {running ? (
+            <button
+              type="button"
+              data-testid="assistant-stop"
+              aria-label={t("panel.stop")}
+              title={t("panel.stop")}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1c1f24] text-white hover:opacity-85"
+              onClick={() => stop()}
+            >
+              <Square size={11} fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              data-testid="assistant-send"
+              aria-label={t("panel.send")}
+              title={t("panel.send")}
+              disabled={!canSend}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-white transition-opacity hover:opacity-90 disabled:bg-[#d0d5dd]"
+              onClick={submit}
+            >
+              <ArrowUp size={16} />
+            </button>
+          )}
+        </div>
       </div>
-      <p className="text-[11px] text-[#667085]">{t("panel.input.hint")}</p>
     </div>
   );
 }
@@ -312,6 +335,7 @@ export function AssistantPanel({ className, onClose }: { className?: string; onC
     attachedRef.current = atEnd;
     setAttached(atEnd);
   };
+  const webSearchOn = s.settings.webSearch;
   const waitingForUser = s.thread.some((i) => i.kind === "edit" && i.status === "pending");
   const lastUser = s.thread.findLast((i) => i.kind === "user")?.id;
   useEffect(() => {
@@ -443,7 +467,7 @@ export function AssistantPanel({ className, onClose }: { className?: string; onC
             {s.running && !waitingForUser ? (
               <div data-testid="assistant-thinking" className="flex items-center gap-1.5 text-[11px] text-[#667085]" role="status">
                 <Loader2 size={12} className="animate-spin" aria-hidden />
-                {t("panel.thinking")}…
+                {t(webSearchOn ? "panel.thinking.web" : "panel.thinking")}…
               </div>
             ) : null}
           </div>

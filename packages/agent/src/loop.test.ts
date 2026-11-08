@@ -10,7 +10,8 @@ import type { AssistantEnv, EditDecision, EditProposal, TurnEvent } from "./type
 type Step =
   | { text: string }
   | { calls: { name: string; input: unknown }[] }
-  | { usage: { input: number; output: number }; text: string };
+  | { usage: { input: number; output: number }; text: string }
+  | { text: string; sources: { url: string; title?: string }[] };
 
 function usage(input = 10, output = 5) {
   return {
@@ -41,6 +42,11 @@ function scripted(steps: Step[]) {
           usage: usage()
         });
       } else {
+        if ("sources" in step) {
+          step.sources.forEach((s, n) =>
+            chunks.push({ type: "source", sourceType: "url", id: `s${n}`, url: s.url, title: s.title })
+          );
+        }
         chunks.push({ type: "text-start", id: "t" });
         chunks.push({ type: "text-delta", id: "t", delta: step.text });
         chunks.push({ type: "text-end", id: "t" });
@@ -149,6 +155,20 @@ describe("assistant loop", () => {
     await run(model, env).done;
     expect(proposals).toHaveLength(1);
     expect(proposals[0]!.after).toContain(":::{page-break}\n:::");
+  });
+
+  it("reports the pages web search used as one event before the answer text", async () => {
+    const { env } = fakeEnv({});
+    const model = scripted([
+      { text: "Answer [a](https://a.com/x)", sources: [{ url: "https://a.com/x", title: "A" }, { url: "https://b.org/y" }] }
+    ]);
+    const { done, events } = run(model, env);
+    await done;
+    const kinds = events.map((e) => e.type);
+    expect(kinds.indexOf("sources")).toBeGreaterThanOrEqual(0);
+    expect(kinds.indexOf("sources")).toBeLessThan(kinds.indexOf("text"));
+    const found = events.find((e) => e.type === "sources") as { sources: { url: string }[] };
+    expect(found.sources.map((s) => s.url)).toEqual(["https://a.com/x", "https://b.org/y"]);
   });
 
   it("tells the model when the user discards, and does not count it as a failure", async () => {

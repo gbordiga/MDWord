@@ -151,11 +151,22 @@ export async function runAssistantTurn(input: TurnInput): Promise<TurnResult> {
     ]
   });
 
+  let pendingSources: { url: string; title?: string }[] = [];
   try {
     for await (const part of result.fullStream) {
       if (part.type === "tool-call") inFlight += 1;
       else if (part.type === "tool-result" || part.type === "tool-error") inFlight = Math.max(0, inFlight - 1);
       arm();
+      // Web search runs inside the model's turn and has no tool call of its own:
+      // the pages it used arrive as source parts, shown once as a step.
+      if (part.type === "source") {
+        if (part.sourceType === "url") pendingSources.push({ url: part.url, title: part.title });
+        continue;
+      }
+      if (pendingSources.length > 0) {
+        input.onEvent({ type: "sources", sources: pendingSources });
+        pendingSources = [];
+      }
       switch (part.type) {
         case "text-delta":
           input.onEvent({ type: "text", text: part.text });

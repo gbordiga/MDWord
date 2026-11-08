@@ -343,3 +343,37 @@ test("on a narrow screen the assistant opens full height from the tab bar and ed
   await expect(sheet).toBeHidden();
   await expect(page.locator(".ProseMirror")).toBeVisible();
 });
+
+test("a web search shows as a step with the sites it used", async ({ page }) => {
+  await withKey(page);
+  const cited = sse([
+    {
+      ...base,
+      choices: [
+        {
+          index: 0,
+          delta: {
+            role: "assistant",
+            content: "It is 3.",
+            annotations: [
+              { type: "url_citation", url_citation: { url: "https://www.example.com/a", title: "Example", content: "", start_index: 0, end_index: 1 } },
+              { type: "url_citation", url_citation: { url: "https://docs.other.org/b", title: "Other", content: "", start_index: 0, end_index: 1 } }
+            ]
+          },
+          finish_reason: null
+        }
+      ]
+    },
+    { ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }] },
+    { ...base, choices: [], usage: { prompt_tokens: 150, completion_tokens: 10, total_tokens: 160, cost: 0.002 } }
+  ]);
+  await mockOpenRouter(page, [cited]);
+  await openAssistant(page);
+  await page.getByTestId("assistant-web-toggle").click();
+  await page.getByTestId("assistant-input").fill("What is the current value?");
+  await page.getByTestId("assistant-send").click();
+  await expect(page.getByTestId("assistant-message").last()).toContainText("It is 3.", { timeout: 15_000 });
+  await page.getByTestId("assistant-work").click();
+  await expect(page.getByTestId("assistant-work")).toContainText("example.com");
+  await expect(page.getByTestId("assistant-work")).toContainText("docs.other.org");
+});

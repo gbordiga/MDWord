@@ -1,6 +1,6 @@
 "use client";
 
-import { FilePlus, FolderOpen, PanelLeft, Redo2, Save, Search, SlidersHorizontal, Sparkles, Undo2 } from "lucide-react";
+import { FilePlus, FolderOpen, PanelLeft, Redo2, Save, Search, Sparkles, Undo2 } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { assistantSupported } from "@/lib/assistant/store";
 import { useEditorUi } from "@/lib/editorUi";
@@ -46,7 +46,6 @@ function QuickBtn({
 export function DesktopTopBar() {
   const leftOpen = useApp((s) => s.leftOpen);
   const rightOpen = useApp((s) => s.rightOpen);
-  const left = useApp((s) => s.left);
   const canUndo = useApp((s) => s.documentUndo.past.length > 0);
   const canRedo = useApp((s) => s.documentUndo.future.length > 0);
   const busy = useApp((s) => s.busy);
@@ -105,19 +104,6 @@ export function DesktopTopBar() {
         >
           <PanelLeft size={14} />
           Sidebar
-        </button>
-        <button
-          type="button"
-          data-testid="topbar-properties"
-          title="Toggle properties"
-          aria-pressed={leftOpen && left === "properties"}
-          className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium ${
-            leftOpen && left === "properties" ? "bg-[#e8eefc] text-accent" : "text-[#344054] hover:bg-[#f2f4f7]"
-          }`}
-          onClick={() => useApp.getState().toggleProperties()}
-        >
-          <SlidersHorizontal size={14} />
-          Properties
         </button>
         {assistantSupported() ? (
           <button

@@ -30,18 +30,15 @@ test("sidebar tabs follow arrow keys and the panel is labelled by the tab", asyn
   await expect(page.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "sidebar-tab-properties");
 });
 
-test("the Properties button toggles the Properties tab, reopening a closed sidebar", async ({ page }) => {
+test("the top bar has only Sidebar and Assistant toggles, and Properties stays in the sidebar", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
-  const button = page.getByTestId("topbar-properties");
-  await expect(button).toHaveAttribute("aria-pressed", "true");
-  await button.click();
-  await expect(page.getByTestId("prop-title")).toBeHidden();
-  await button.click();
-  await expect(page.getByTestId("prop-title")).toBeVisible();
+  await expect(page.getByTestId("topbar-sidebar")).toBeVisible();
+  await expect(page.getByTestId("topbar-assistant")).toBeVisible();
+  await expect(page.getByTestId("topbar-properties")).toHaveCount(0);
 
-  await page.getByTestId("sidebar-tab-outline").click();
-  await expect(button).toHaveAttribute("aria-pressed", "false");
-  await button.click();
-  await expect(page.getByTestId("sidebar-tab-properties")).toHaveAttribute("aria-selected", "true");
+  await page.getByTestId("topbar-sidebar").click();
+  await expect(page.getByTestId("prop-title")).toBeHidden();
+  await page.getByTestId("topbar-sidebar").click();
+  await expect(page.getByTestId("sidebar-tab-properties")).toBeVisible();
 });

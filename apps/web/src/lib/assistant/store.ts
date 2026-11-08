@@ -259,6 +259,26 @@ export const useAssistant = create<AssistantState>((set, get) => {
       case "tool-end":
         patchItem(event.id, { status: event.ok ? "ok" : "error", detail: event.detail });
         break;
+      case "sources": {
+        const sites = [
+          ...new Set(
+            event.sources.map((s) => {
+              try {
+                return new URL(s.url).hostname.replace(/^www\./, "");
+              } catch {
+                return "";
+              }
+            })
+          )
+        ].filter(Boolean);
+        if (sites.length === 0) break;
+        const shown = sites.slice(0, 4).join(", ") + (sites.length > 4 ? ` +${sites.length - 4}` : "");
+        mutateThread((thread) => [
+          ...thread,
+          { kind: "tool", id: nextId("w"), name: "webSearch", label: t("tool.webSearch", { sites: shown }), status: "ok" }
+        ]);
+        break;
+      }
       case "usage":
         if (event.costUsd == null) set({ costUnknown: true });
         else set({ sessionCostUsd: get().sessionCostUsd + event.costUsd });

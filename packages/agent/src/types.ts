@@ -57,6 +57,7 @@ export type TurnEvent =
   | { type: "text"; text: string }
   | { type: "tool-start"; id: string; name: string; input: unknown }
   | { type: "tool-end"; id: string; name: string; ok: boolean; detail?: string }
+  | { type: "sources"; sources: { url: string; title?: string }[] }
   | { type: "usage"; inputTokens: number; outputTokens: number; costUsd: number | null }
   | { type: "stop"; reason: StopReason; message?: string };
 
