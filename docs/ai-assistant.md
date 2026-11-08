@@ -1,8 +1,24 @@
 # AI assistant
 
-Status: **proposed**. Nothing in this document is implemented yet.
+Status: **implemented on `release/ai-assistant` for web and desktop** (steps 1 to 4 and 6 of the work plan). Mobile, the model evaluation, and a real-key smoke test are not done. Section "Implementation notes" lists where the code differs from this design.
 
 An optional assistant panel that reads the open workspace and proposes edits to Markdown files. It runs entirely in the client, uses the user's own OpenRouter account, and never writes without an explicit Apply.
+
+## Implementation notes
+
+Where the shipped code differs from, or decides something the sections below left open:
+
+- **Packages.** `packages/agent` holds the loop (`streamText` from the AI SDK with `stopWhen` conditions, not `useChat`), the four tools, prompt, limits, message catalog, model list, and PKCE helpers. The host implements `AssistantEnv` (`apps/web/src/lib/assistant/env.ts`), so the package never touches files, the store, or the network. The AI SDK is v7 (`ai` 7.0.x); the loop calls the model directly from the client, so no transport class is needed (open item 3 closed).
+- **Panel placement.** The assistant shares the right sidebar with Properties; a top-bar button, a View ribbon button, the command palette, and `Ctrl/Cmd+J` switch to it. Settings live inside the panel (the app has no global settings dialog). Narrow screens do not show it.
+- **Desktop key never reaches the renderer.** The key is encrypted with `safeStorage` in the main process. The renderer's `fetch` is a bridge: `assistant.requestStart` sends method, an allowlisted set of headers, and a string body to the main process, which adds `Authorization`, calls `https://openrouter.ai` (no redirects), and streams the response back as events. Sign in also runs entirely in main (loopback callback on `127.0.0.1`). This replaces the plan in section 11 to hand the key to the renderer. On Linux without a real keyring the key is refused instead of stored in plain text.
+- **Web.** The key is in `localStorage`; sign in redirects to the app URL and the `?code=` is consumed only when a PKCE verifier is pending. Whether `POST /api/v1/auth/keys` allows the web origin (CORS) is unverified without a live sign-in; if it fails, the panel offers the paste-a-key field (open item 5 stays open).
+- **Selection.** The context block carries the selected text (up to 1,500 characters) from the visual editor rather than line numbers, because a visual selection has no reliable source line range. Source-view selection is not passed yet.
+- **No folder open.** The open tabs act as the workspace, named by file name (`Untitled-1.md` for unsaved tabs), so the assistant works on the document in front of the user. `editFile` still cannot create files.
+- **History.** Only the thread is saved (messages, tool lines, edit cards with outcomes). The model history is rebuilt from user and assistant text on load, so file text read by tools is never stored. Pending cards become "discarded" on reload.
+- **Diagnostics check.** Uses `DocumentModel.diagnostics` (`severity: "error" | "warning" | "info"`, optional `line`); an edit is refused only for error diagnostics that were not already present (open item 7 closed).
+- **Cost.** The session cost uses the `cost` OpenRouter reports in usage (`usage: { include: true }`), falling back to token counts times the live model price. The default cap is $3 per session and can be turned off.
+- **Model list.** `packages/agent/src/suggested-models.json` is the data; `scripts/check-model-list.mjs` checks it against the public API (default must be valid; the rest only warn). The picker drops suggested ids that are missing, expired, or lost tool support, using the live list once a key exists.
+- **Not built yet:** mobile (hidden when the host has no assistant API); the pseudo-locale for development; showing which suggested models the privacy toggle makes unavailable (the public endpoints API does not expose provider data policies, so this needs a real request: open item 9 stays open); the 20 to 30 request evaluation (needs a real key; run it before changing the default); a manual confirmation that the production CSP blocks other origins.
 
 ## 1. Goals and non-goals
 
@@ -317,11 +333,11 @@ All assistant interface text is English.
 | --- | --- | --- |
 | 1 | Default model | **Decided:** `qwen/qwen3.8-flash`. The evaluation (section 17) confirms it or proposes a change. |
 | 2 | One-step programmatic replace with a single undo step | **Decided:** one Apply is one undo step, however many edits the card holds (section 8). Implement and test. |
-| 3 | AI SDK transport for a local loop | Open. Read the installed `ai` docs. |
-| 4 | Mobile key plugin and CSP in the webview | Open. Spike on a device. |
+| 3 | AI SDK transport for a local loop | **Closed.** Direct `streamText` from the client; no transport (see Implementation notes). |
+| 4 | Mobile key plugin and CSP in the webview | Open. Mobile is hidden in this release (decided); needs a device spike. |
 | 5 | OpenRouter login: CORS | Open. Spike (section 12). The key is requested without a credit limit; spending is capped inside the app only (decided). |
 | 6 | Chat history storage per platform | **Accepted.** Web: IndexedDB keyed by folder; desktop: app data directory keyed by workspace path; mobile: app storage. |
-| 7 | Diagnostics severity and fields for the edit check | Open. Confirm in `myst-parser` and `layout-engine`. |
+| 7 | Diagnostics severity and fields for the edit check | **Closed.** `severity` is `error`, `warning`, or `info`; only new `error` entries refuse an edit. |
 | 8 | `<html lang="it">` vs English interface | **Out of scope here.** Tracked as a separate task (section 14). |
 | 9 | Privacy toggle (`data_collection`, `zdr`) against single-provider models such as Qwen | Open. Verify with a real request which suggested models stay available with the toggle on, and whether the default must change (section 17). |
 
