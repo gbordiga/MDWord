@@ -54,9 +54,7 @@ Packages export TypeScript source (`src/index.ts`) and are transpiled by Next.js
 
 ## Git
 
-```sh
-git push origin main
-```
+Work on a branch and open a pull request. Do not push directly to `main`. See `CONTRIBUTING.md` and, for agents, `AGENTS.md`.
 
 ## Conventions
 

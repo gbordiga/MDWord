@@ -2,6 +2,7 @@
   "name": "@mdword/desktop",
   "version": "0.1.15",
   "private": true,
+  "license": "MIT",
   "description": "MDWord desktop shell",
   "desktopName": "MDWord",
   "author": "Giacomo Bordiga <gbordiga@gmail.com>",

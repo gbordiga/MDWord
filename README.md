@@ -115,7 +115,7 @@ pnpm build:web
 pnpm dist          # desktop installers
 ```
 
-Node 26+, pnpm. License [MIT](LICENSE).
+Node 26+, pnpm. License [MIT](LICENSE). Third-party code copied into the tree is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -128,5 +128,6 @@ Node 26+, pnpm. License [MIT](LICENSE).
 | `apps/mobile` | Android / iOS shells |
 | `packages/*` | parser, serializer, editor, layout, indexer |
 | `docs/` | product, ADRs, format |
+| `AGENTS.md` | instructions for coding agents |
 
 If a feature cannot live in a structured text file, it does not belong in MDWord.

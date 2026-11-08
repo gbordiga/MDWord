@@ -16,6 +16,8 @@ pnpm --filter @mdword/web exec playwright test   # chromium + mobile
 Record the result of each command you actually run. Do not claim a check that did
 not run.
 
+The table below is the last recorded run, on 2026-11-06, against version 0.1.14, on a machine that still had Node 24. It is not the current release. The product version and the required runtime are in the root `package.json` (`engines.node` is `>=26`). Do not treat this table as today's result.
+
 ## Baseline (2026-11-06, version 0.1.14)
 
 | Check | Result |

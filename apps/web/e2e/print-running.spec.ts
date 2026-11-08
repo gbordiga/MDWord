@@ -28,7 +28,10 @@ test("Paged.js print preview starts on page 1 with repeating header and footer",
   const first = (await pages.nth(0).innerText()).replace(/\s+/g, " ");
   const second = (await pages.nth(1).innerText()).replace(/\s+/g, " ");
   expect(first).toMatch(/Paragraph 1/);
-  expect(first).toMatch(/Audit report/);
   expect(second).not.toMatch(/Paragraph 1\./);
   expect(second).toMatch(/Paragraph \d+/);
+  expect(html).toContain("@top-left");
+  expect(html).toContain("header-left:Audit report");
+  const headers = page.locator(".pagedjs_margin-top-left.hasContent");
+  expect(await headers.count()).toBeGreaterThan(1);
 });

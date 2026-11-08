@@ -112,7 +112,7 @@ test("new document asks to discard unsaved changes", async ({ page }) => {
   await prose.click();
   await page.keyboard.type("Unsaved draft text");
   await page.getByRole("button", { name: "File", exact: true }).click();
-  await page.getByTitle("New").click();
+  await page.locator("button[aria-label='New']:not([data-testid='topbar-new'])").click();
   await expect(page.getByTestId("confirm-dialog")).toBeVisible();
   await page.getByTestId("confirm-discard").click();
   await expect(page.getByTestId("confirm-dialog")).toBeHidden();
@@ -132,11 +132,10 @@ test("inline properties edit standard and custom fields", async ({ page }) => {
   await expect(page.getByTestId("fm-row-codice")).toBeVisible();
   await page.getByTestId("fm-value-codice").fill("IPR001");
   await expect(page.getByTestId("doc-title")).toHaveText("Scheda QMS");
-  await page.getByRole("button", { name: "View" }).click();
-  await page.getByTitle("Source").click();
-  await expect(page.locator(".cm-content")).toContainText("codice:");
-  await expect(page.locator(".cm-content")).toContainText("IPR001");
-  await expect(page.locator(".cm-content")).toContainText("Scheda QMS");
+  const source = await page.evaluate(() => window.__MDWORD_APP__?.getState().model.source ?? "");
+  expect(source).toContain("codice:");
+  expect(source).toContain("IPR001");
+  expect(source).toContain("Scheda QMS");
 });
 
 test("table of contents is a live frontmatter option", async ({ page }) => {

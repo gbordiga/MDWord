@@ -1,5 +1,5 @@
 import { Schema } from "@tiptap/pm/model";
-import { EditorState } from "@tiptap/pm/state";
+import { EditorState, type Transaction } from "@tiptap/pm/state";
 import { history, undo, undoDepth } from "@tiptap/pm/history";
 import { describe, expect, it } from "vitest";
 import { applyFigureSources, collectEditorExternalFigures } from "./importImages";
@@ -22,7 +22,7 @@ function editorWith(doc: ReturnType<typeof schema.node>) {
       return state;
     },
     view: {
-      dispatch(tr: ReturnType<typeof state.tr>) {
+      dispatch(tr: Transaction) {
         state = state.apply(tr);
       }
     }

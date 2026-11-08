@@ -29,4 +29,4 @@ Semantic HTML5: headings, figures with captions, tables, admonitions as `<aside>
 
 ## Consistency
 
-Print CSS uses the same typography cascade as the editor. Fixtures live in `fixtures/print/`.
+Print CSS uses the same typography cascade as the editor. Print inputs are the Markdown files in `fixtures/round-trip/`; `fixtures/print/README.md` describes how they are checked. There is no separate expected-HTML fixture set.

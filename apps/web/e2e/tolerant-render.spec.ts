@@ -17,7 +17,7 @@ test("opens a process document with empty table cells and Italian titolo", async
   const [chooser] = await Promise.all([
     page.waitForEvent("filechooser"),
     page.getByRole("button", { name: "File", exact: true }).click().then(async () => {
-      await page.getByRole("button", { name: "Open", exact: true }).click();
+      await page.locator("button[aria-label='Open']:not([data-testid='topbar-open'])").click();
     })
   ]);
   if (!fixture) {

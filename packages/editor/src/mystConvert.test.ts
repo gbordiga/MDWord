@@ -34,7 +34,8 @@ describe("MyST visual convert", () => {
     const table = astToTiptap(parsed.ast).content?.find((n) => n.type === "table");
     expect(table?.attrs?.caption).toBe("KPI");
     expect(table?.attrs?.widths).toBe(JSON.stringify([20, 80]));
-    expect(table?.content?.[0]?.content?.[0]?.attrs?.colwidth?.[0]).toBeGreaterThan(0);
+    const colwidth = table?.content?.[0]?.content?.[0]?.attrs?.colwidth;
+    expect(Array.isArray(colwidth) ? colwidth[0] : undefined).toBeGreaterThan(0);
   });
 
   it("round-trips inline cite and math through TipTap", () => {

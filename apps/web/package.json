@@ -2,6 +2,7 @@
   "name": "@mdword/web",
   "version": "0.1.15",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "copy-paged": "node ./scripts/copy-paged.mjs",
     "dev": "node ./scripts/free-port.mjs 3000 && node ./scripts/copy-paged.mjs && next dev --webpack --port 3000",

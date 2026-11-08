@@ -3,12 +3,14 @@
 ## Pyramid
 
 1. **Unit** — parser, serializer, schema, cascade, units, wikilinks, slugs, variables, paths
-2. **Round-trip** — fixtures under `fixtures/round-trip/`
-3. **Golden** — serializer snapshots under `fixtures/golden/`
-4. **Property-based** — `fast-check` on units, wikilinks, parse/serialize
+2. **Round-trip** — every `.md` file under `fixtures/round-trip/` (`packages/document-model` reads the directory)
+3. **Real document** — `fixtures/real-world/ipr001.md` in editor and Playwright tests
+4. **Property-based** — `fast-check` on units and wikilinks (`packages/shared`)
 5. **Editor** — TipTap commands (jsdom)
-6. **E2E** — Playwright against the web app; Electron when packaged
+6. **E2E** — Playwright against the web app (Chromium and a phone-sized project)
 7. **Security** — script injection, path traversal, IPC validation
+
+Serializer golden files and PDF screenshot comparison are not in this tree. They are listed under Next in `docs/roadmap.md`. Print inputs are the round-trip fixtures; see `fixtures/print/README.md`.
 
 ## Source-of-truth invariant
 
