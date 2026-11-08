@@ -74,6 +74,10 @@ Citations, equations UI, advanced cross-references, template gallery, DOCX expor
 - **Desktop:** Electron installers for Windows (NSIS `.exe`), macOS (`.dmg`), Linux (`.AppImage` and `.deb`).
 - **Web:** local-first Next.js app on Vercel. Documents never leave the device unless the user exports or saves them. The web app uses the File System Access API where available, with download/upload fallback.
 
+## AI assistant (optional)
+
+A side panel that reads the open workspace and proposes edits to Markdown files. It is off until the user connects their own OpenRouter account, and it never writes without an explicit Apply. One Apply is one undo step. Available on desktop and web; not yet on mobile. See `docs/ai-assistant.md`.
+
 ## Privacy
 
-Fully offline. No document is sent to a server. Telemetry is off. See `docs/security.md`.
+Offline by default. No document is sent to a server, and telemetry is off. The one exception is the AI assistant: once the user connects an OpenRouter key and accepts the privacy notice, their messages and the parts of documents the assistant reads are sent to OpenRouter and the model provider they chose. Nothing is sent without a key. See `docs/security.md`.

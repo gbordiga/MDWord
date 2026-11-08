@@ -155,6 +155,7 @@ export {
   expandFolderPathsForSelection,
   isOpenableWorkspaceFile,
   isSameWorkspacePath,
+  relativeWorkspacePath,
   workspaceFolderName,
   type FileTreeNode
 } from "./tree";

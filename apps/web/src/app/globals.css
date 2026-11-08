@@ -112,6 +112,12 @@ html.keyboard-open .mdword-app {
   outline-offset: 2px;
 }
 
+/* A control inside a wrapper that draws its own ring opts out. Kept as its own
+   rule so the selector above keeps its specificity (the editor relies on it). */
+*[data-focus-ring="none"]:focus-visible {
+  outline: none;
+}
+
 .page-inner {
   cursor: text;
   display: flex;

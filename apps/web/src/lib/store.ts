@@ -79,7 +79,8 @@ export type OpenWorkspaceFileOptions = {
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view" | "image" | "table" | "callout";
 export type { LeftPanel } from "./leftPanel";
 export { LEFT_PANELS, resolveLeftPanel } from "./leftPanel";
-export type MobileSheet = "workspace" | "insert" | "properties" | "more" | null;
+export type RightPanel = "assistant";
+export type MobileSheet = "workspace" | "insert" | "properties" | "assistant" | "more" | null;
 export type ExternalChangePrompt = { tabId: string; path: string; incoming: string };
 export type ExternalConflictChoice = "overwrite" | "reload" | "cancel";
 export type BusyKind = "open" | "save" | "folder" | "export" | "workspace";
@@ -199,6 +200,8 @@ export interface AppState {
   left: LeftPanel;
   leftOpen: boolean;
   rightOpen: boolean;
+  /** What the right sidebar shows when it is open. */
+  rightPanel: RightPanel;
   mobileSheet: MobileSheet;
   paletteOpen: boolean;
   findOpen: boolean;
@@ -269,7 +272,10 @@ export interface AppState {
   replaceFrontmatterModel: (model: DocumentModel) => void;
   setZoom: (zoom: number) => void;
   toggleLeft: () => void;
-  toggleRight: () => void;
+  /** Show or hide the Properties tab of the sidebar (a sheet on narrow screens). */
+  toggleProperties: () => void;
+  /** Show a right-sidebar panel; pressing it again while it is showing closes the sidebar. */
+  showRightPanel: (panel: RightPanel) => void;
   setMobileSheet: (sheet: MobileSheet) => void;
   setPalette: (open: boolean) => void;
   setFind: (open: boolean, query?: string) => void;
@@ -280,6 +286,13 @@ export interface AppState {
   applyRecoveredDraft: (content: string, path: string | null) => Promise<void>;
   undoDocument: () => boolean;
   redoDocument: () => boolean;
+  /**
+   * Apply an assistant edit to a tab as exactly one undo step. The tab becomes
+   * active so the user sees the change. Returns false when the tab is gone.
+   */
+  applyAssistantEdit: (tabId: string, nextSource: string, editId: string) => boolean;
+  /** Current text of the tab open for a path or tab id (flushing pending typing), else null. */
+  readOpenBuffer: (target: string | { tabId: string }) => { tabId: string; source: string } | null;
 }
 
 function modelFrom(source: string, workspaceMdoc?: Mdoc): DocumentModel {
@@ -535,6 +548,8 @@ export const useApp = create<AppState>((set, get) => {
       } finally {
         set({ busy: null });
       }
+      // A file saved inside the open project shows up in the sidebar.
+      void reloadWorkspace();
       return true;
     }
     const path = tab.path;
@@ -599,9 +614,10 @@ export const useApp = create<AppState>((set, get) => {
   view: "document",
   zoom: 1,
   ribbon: "home",
-  left: "files",
+  left: "properties",
   leftOpen: true,
   rightOpen: true,
+  rightPanel: "assistant",
   mobileSheet: null,
   paletteOpen: false,
   findOpen: false,
@@ -882,6 +898,8 @@ export const useApp = create<AppState>((set, get) => {
     } finally {
       set({ busy: null });
     }
+    // A file saved inside the open project shows up in the sidebar.
+    void reloadWorkspace();
     await get().loadRecentFiles();
   },
   saveTab: async (tabId) => {
@@ -1254,7 +1272,25 @@ export const useApp = create<AppState>((set, get) => {
   },
   setZoom: (zoom) => set({ zoom: Math.min(2, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
   toggleLeft: () => set({ leftOpen: !get().leftOpen }),
-  toggleRight: () => set({ rightOpen: !get().rightOpen }),
+  toggleProperties: () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      set({ mobileSheet: get().mobileSheet === "properties" ? null : "properties" });
+      return;
+    }
+    const { leftOpen, left } = get();
+    if (leftOpen && left === "properties") set({ leftOpen: false });
+    else set({ leftOpen: true, left: "properties" });
+  },
+  showRightPanel: (panel) => {
+    // Narrow screens have no sidebar: the assistant opens as a full-height sheet.
+    if (panel === "assistant" && typeof window !== "undefined" && window.innerWidth < 1024) {
+      set({ mobileSheet: get().mobileSheet === "assistant" ? null : "assistant" });
+      return;
+    }
+    const { rightOpen, rightPanel } = get();
+    if (rightOpen && rightPanel === panel) set({ rightOpen: false });
+    else set({ rightOpen: true, rightPanel: panel });
+  },
   setMobileSheet: (mobileSheet) => set({ mobileSheet }),
   setPalette: (paletteOpen) => set({ paletteOpen }),
   setFind: (findOpen, query) => set({ findOpen, findQuery: query ?? get().findQuery }),
@@ -1281,6 +1317,36 @@ export const useApp = create<AppState>((set, get) => {
       draftWrite = null;
     });
     await draftWrite;
+  },
+  applyAssistantEdit: (tabId, nextSource, editId) => {
+    flushVisualEdits();
+    flushSourceEdits();
+    const tab = persistActiveTab().find((entry) => entry.id === tabId);
+    if (!tab) return false;
+    if (tab.id !== get().activeTabId) activateTab(tab);
+    const previous = get().model.source;
+    const model = modelFrom(nextSource, get().workspace?.workspaceMdoc);
+    if (model.source === previous) return true;
+    patchActiveTab({
+      model,
+      dirty: model.source !== get().lastSavedContent,
+      syncGeneration: get().syncGeneration + 1,
+      sourceGeneration: get().sourceGeneration + 1,
+      editGeneration: get().editGeneration + 1,
+      // A kind unique to this edit never coalesces with typing or another edit.
+      documentUndo: recordDocumentChange(get().documentUndo, previous, model.source, `assistant:${editId}`)
+    });
+    return true;
+  },
+  readOpenBuffer: (target) => {
+    flushVisualEdits();
+    flushSourceEdits();
+    const tabs = persistActiveTab();
+    const tab =
+      typeof target === "string"
+        ? tabs.find((entry) => entry.path != null && normalizeTabPath(entry.path) === normalizeTabPath(target))
+        : tabs.find((entry) => entry.id === target.tabId);
+    return tab ? { tabId: tab.id, source: tab.model.source } : null;
   },
   undoDocument: () => {
     flushVisualEdits();

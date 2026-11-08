@@ -104,6 +104,6 @@ test("typing a draft stays unsaved until a manual save", async ({ page }) => {
   await page.waitForTimeout(2000);
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-save-state", "unsaved");
   await expect(page.getByTestId("topbar-sidebar")).toBeVisible();
-  await expect(page.getByTestId("topbar-properties")).toBeVisible();
+  await expect(page.getByTestId("topbar-properties")).toHaveCount(0);
   await expect(prose).toContainText("Manual save draft token");
 });

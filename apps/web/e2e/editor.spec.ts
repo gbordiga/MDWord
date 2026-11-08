@@ -45,3 +45,16 @@ test("applies heading 1 from the Home ribbon", async ({ page }) => {
   const pSize = await prose.locator("p").last().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   expect(h1Size).toBeGreaterThan(pSize);
 });
+
+test("typing in the page draws no focus outline, and the assistant box keeps its own ring only", async ({ page }) => {
+  await page.goto("/");
+  const prose = page.locator(".ProseMirror");
+  await expect(prose).toBeVisible({ timeout: 20_000 });
+  await prose.click();
+  await page.keyboard.type("x");
+  expect(await prose.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("none");
+
+  const input = page.getByTestId("assistant-input");
+  await input.focus();
+  expect(await input.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("none");
+});

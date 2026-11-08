@@ -30,6 +30,7 @@ import {
   Table as TableIcon,
   Underline as UnderlineIcon,
   Scissors,
+  Sparkles,
   Workflow
 } from "lucide-react";
 import { type ReactNode } from "react";
@@ -51,6 +52,10 @@ import { ImportImagesControl } from "./ImportImagesControl";
 import { LeftSidebar } from "./LeftSidebar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { Sheet } from "./Sheet";
+import dynamic from "next/dynamic";
+import { assistantSupported } from "@/lib/assistant/store";
+
+const AssistantPanel = dynamic(() => import("./assistant/AssistantPanel").then((m) => m.AssistantPanel), { ssr: false });
 import { CalloutRibbonTools, ImageRibbonTools } from "./ContextualRibbons";
 import { useMarkdownAssociation } from "./MarkdownAssociationControl";
 
@@ -291,6 +296,11 @@ export function MobileTabBar({ keyboardOpen }: { keyboardOpen: boolean }) {
       >
         <PanelRight size={20} />
       </Tab>
+      {assistantSupported() ? (
+        <Tab label="Assistant" active={sheet === "assistant"} onClick={() => setMobileSheet("assistant")}>
+          <Sparkles size={20} />
+        </Tab>
+      ) : null}
     </nav>
   );
 }
@@ -350,7 +360,10 @@ export function MobileSheets({ editor }: { editor: Editor | null }) {
         <LeftSidebar className="h-full w-full border-r-0" />
       </Sheet>
       <Sheet open={sheet === "properties"} onClose={close} side="bottom" title="Properties" testId="sheet-properties">
-        <PropertiesPanel className="h-auto w-full border-l-0" showHeader={false} />
+        <PropertiesPanel className="h-auto w-full" />
+      </Sheet>
+      <Sheet open={sheet === "assistant"} onClose={close} side="full" title="Assistant" testId="sheet-assistant">
+        <AssistantPanel className="border-l-0" onClose={close} />
       </Sheet>
       <Sheet open={sheet === "insert"} onClose={close} side="bottom" title="Insert" testId="sheet-insert">
         <div className="grid grid-cols-1 gap-1 p-2 pb-4">

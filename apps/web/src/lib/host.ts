@@ -12,18 +12,32 @@ import {
 } from "@mdword/shared";
 import { isNativeApp, openNativeUrl, shareNativeFile, writeNativeDocument } from "./native";
 import { APP_VERSION } from "./appVersion";
+import { createWebAssistantHost } from "./assistant/webHost";
+import { createElectronAssistantHost, type ElectronAssistantBridge } from "./assistant/electronHost";
 
 const DB = "mdword";
 const PREFS = "preferences";
 const RECOVERY = "recovery";
+const ASSISTANT_HISTORY = "assistantHistory";
 
 export function isElectron(): boolean {
   return typeof window !== "undefined" && Boolean((window as Window & { mdword?: HostApi }).mdword);
 }
 
+let electronHost: HostApi | null = null;
+
 export function getHost(): HostApi {
   if (typeof window !== "undefined" && (window as Window & { mdword?: HostApi }).mdword) {
-    return (window as Window & { mdword: HostApi }).mdword;
+    const bridged = (window as Window & { mdword: HostApi }).mdword;
+    if (!electronHost) {
+      // The preload exposes raw request primitives; turn them into `fetch` here,
+      // because a Response cannot cross the context bridge.
+      const bridge = (bridged as { assistant?: unknown }).assistant as ElectronAssistantBridge | undefined;
+      electronHost = bridge
+        ? { ...bridged, assistant: createElectronAssistantHost(bridge) }
+        : bridged;
+    }
+    return electronHost;
   }
   if (isNativeApp()) return capacitorHost;
   return webHost;
@@ -31,10 +45,12 @@ export function getHost(): HostApi {
 
 async function idb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 1);
+    const req = indexedDB.open(DB, 2);
     req.onupgradeneeded = () => {
-      req.result.createObjectStore(PREFS);
-      req.result.createObjectStore(RECOVERY);
+      const db = req.result;
+      for (const name of [PREFS, RECOVERY, ASSISTANT_HISTORY]) {
+        if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -384,6 +400,11 @@ export const webHost: HostApi = {
         nativeWritten.add(path || "document.md");
         return;
       }
+      // A file of the open project whose handle was not cached: write it in the folder, never download it.
+      if (folderHandle && folderRoot && path.startsWith(`${folderRoot}/`)) {
+        await writeBytes(path, content);
+        return;
+      }
       download(path || "document.md", content);
     },
     async saveAs(content, suggestedName = "document.md") {
@@ -393,6 +414,32 @@ export const webHost: HostApi = {
         nativeWritten.add(name);
         await shareNativeFile("Save MDWord document", uri);
         return name;
+      }
+      const pick = (window as WindowFs).showSaveFilePicker;
+      if (pick) {
+        try {
+          // With a project open the dialog starts in its folder, and a file saved there joins the project.
+          const handle = await pick({
+            suggestedName,
+            ...(folderHandle ? { startIn: folderHandle } : {}),
+            types: [{ description: "Markdown", accept: { "text/markdown": [".md", ".markdown"] } }]
+          });
+          let path = handle.name;
+          if (folderHandle && folderRoot) {
+            const within = (await (folderHandle as DirHandle & {
+              resolve?: (h: FsHandle) => Promise<string[] | null>;
+            }).resolve?.(handle)) ?? null;
+            if (within && within.length > 0) path = [folderRoot, ...within].join("/");
+          }
+          fileHandles.set(path, handle);
+          await enqueueWrite(() => writeFileHandleRetry(handle, content));
+          fileTexts.set(path, content);
+          fileTexts.set(handle.name, content);
+          return path;
+        } catch (error) {
+          if (isUserAbort(error)) return null;
+          throw error;
+        }
       }
       download(suggestedName, content);
       return suggestedName;
@@ -622,6 +669,19 @@ export const webHost: HostApi = {
       await this.pdf(html, options);
     }
   },
+  assistant: createWebAssistantHost({
+    getHistory: (key) => idbGet<string>(ASSISTANT_HISTORY, key),
+    setHistory: (key, value) => idbSet(ASSISTANT_HISTORY, key, value),
+    deleteHistory: async (key) => {
+      const db = await idb();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(ASSISTANT_HISTORY, "readwrite");
+        tx.objectStore(ASSISTANT_HISTORY).delete(key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+  }),
   shell: {
     async openExternal(url) {
       if (!/^https?:/i.test(url) && !url.startsWith("mailto:")) return;
@@ -639,6 +699,8 @@ const nativeWritten = new Set<string>();
 const capacitorHost: HostApi = {
   ...webHost,
   platform: "capacitor",
+  // The assistant needs a secure key store that is not built for mobile yet.
+  assistant: undefined,
   app: {
     ...webHost.app,
     async exportDiagnostics() {

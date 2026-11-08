@@ -2,6 +2,7 @@
 
 import { Command } from "cmdk";
 import { useApp } from "@/lib/store";
+import { assistantSupported } from "@/lib/assistant/store";
 import { useMarkdownAssociation } from "./MarkdownAssociationControl";
 import { useEditorUi } from "@/lib/editorUi";
 import { copyDiagnostics } from "@/lib/diagnostics";
@@ -64,6 +65,9 @@ export function CommandPalette({
           </Command.Item>
           <Command.Item onSelect={() => { void actions.saveFile(); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Save</Command.Item>
           <Command.Item onSelect={() => { actions.setView("source"); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Toggle source</Command.Item>
+          {assistantSupported() ? (
+            <Command.Item onSelect={() => { actions.showRightPanel("assistant"); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Toggle assistant</Command.Item>
+          ) : null}
           <Command.Item onSelect={() => { actions.setFind(true); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Find in document</Command.Item>
           <Command.Item onSelect={() => { onInsert("link"); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Insert link</Command.Item>
           <Command.Item onSelect={() => { onInsert("table"); close(); }} className="rounded-lg px-3 py-3 text-[15px] data-[selected=true]:bg-[#e8eefc] lg:py-2 lg:text-[13px]">Insert table</Command.Item>

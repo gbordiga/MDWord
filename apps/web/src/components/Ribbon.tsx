@@ -33,7 +33,8 @@ import {
   ZoomIn,
   ZoomOut,
   PanelLeft,
-  PanelRight,
+  SlidersHorizontal,
+  Sparkles,
   Scissors,
   Workflow,
   RectangleHorizontal,
@@ -43,6 +44,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useApp, type RibbonTab } from "@/lib/store";
+import { assistantSupported } from "@/lib/assistant/store";
 import { FONT_SCALES, MARGIN_PRESETS, matchFontScale, matchMarginPreset } from "@mdword/layout-engine";
 import {
   applyBlockStyle,
@@ -546,9 +548,14 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             <Btn title="Toggle left sidebar" onClick={actions.toggleLeft}>
               <PanelLeft size={16} /> Sidebar
             </Btn>
-            <Btn title="Toggle properties" onClick={actions.toggleRight}>
-              <PanelRight size={16} /> Properties
+            <Btn title="Toggle properties" onClick={actions.toggleProperties}>
+              <SlidersHorizontal size={16} /> Properties
             </Btn>
+            {assistantSupported() ? (
+              <Btn title="Toggle assistant" onClick={() => actions.showRightPanel("assistant")}>
+                <Sparkles size={16} /> Assistant
+              </Btn>
+            ) : null}
           </>
         )}
         {ribbon === "image" && <ImageRibbonTools editor={editor} enabled={inImage} />}

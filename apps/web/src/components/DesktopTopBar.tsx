@@ -1,7 +1,8 @@
 "use client";
 
-import { FilePlus, FolderOpen, PanelLeft, PanelRight, Redo2, Save, Search, Undo2 } from "lucide-react";
+import { FilePlus, FolderOpen, PanelLeft, Redo2, Save, Search, Sparkles, Undo2 } from "lucide-react";
 import { useApp } from "@/lib/store";
+import { assistantSupported } from "@/lib/assistant/store";
 import { useEditorUi } from "@/lib/editorUi";
 import { DocumentTabBar } from "./DocumentTabBar";
 import { OpenProjectMenu } from "./OpenProjectMenu";
@@ -104,19 +105,21 @@ export function DesktopTopBar() {
           <PanelLeft size={14} />
           Sidebar
         </button>
-        <button
-          type="button"
-          data-testid="topbar-properties"
-          title="Toggle properties"
-          aria-pressed={rightOpen}
-          className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium ${
-            rightOpen ? "bg-[#e8eefc] text-accent" : "text-[#344054] hover:bg-[#f2f4f7]"
-          }`}
-          onClick={() => useApp.getState().toggleRight()}
-        >
-          <PanelRight size={14} />
-          Properties
-        </button>
+        {assistantSupported() ? (
+          <button
+            type="button"
+            data-testid="topbar-assistant"
+            title="Toggle assistant"
+            aria-pressed={rightOpen}
+            className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium ${
+              rightOpen ? "bg-[#e8eefc] text-accent" : "text-[#344054] hover:bg-[#f2f4f7]"
+            }`}
+            onClick={() => useApp.getState().showRightPanel("assistant")}
+          >
+            <Sparkles size={14} />
+            Assistant
+          </button>
+        ) : null}
       </div>
       <div className="md-titlebar-caption" aria-hidden />
     </header>

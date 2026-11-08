@@ -27,7 +27,8 @@ Preload exposes a frozen, typed `window.mdword` API. Every IPC handler validates
 - `file://` is not granted to arbitrary Markdown paths
 - Content Security Policy on the static app and on the Electron print window:
   same-origin scripts and inline styles (required by Next.js and Paged.js), images
-  from `self`/`data:`/`blob:`/`http(s)`, `connect-src 'self'` (or `'none'` in print),
+  from `self`/`data:`/`blob:`/`http(s)`, `connect-src 'self' https://openrouter.ai` (or `'none'` in print;
+  openrouter.ai is the only widening, for the optional AI assistant),
   `object-src 'none'`, `base-uri 'self'`, `form-action 'none'`. Development builds
   skip the policy because the dev server needs eval and a websocket.
 - Mermaid renders with `securityLevel: "strict"`
@@ -35,6 +36,20 @@ Preload exposes a frozen, typed `window.mdword` API. Every IPC handler validates
 ## Privacy
 
 Offline by default. No analytics. Diagnostics export excludes document bodies. Recovery files stay in the application data directory.
+
+## AI assistant
+
+Optional; inert until the user connects an OpenRouter key and accepts the privacy notice. Full design in `docs/ai-assistant.md`. Security properties:
+
+- **What leaves the device:** the user's messages and the text that a tool reads (file content, titles, search snippets), sent only to `https://openrouter.ai`. The default routing preference asks OpenRouter to use only providers that do not keep prompts.
+- **Writes need Apply.** The model has four tools: `listFiles`, `search`, `readFile`, `editFile`. There is no network, shell, delete, rename, or create tool. `editFile` only proposes; the user's Apply (revalidated against the current buffer) writes into the open document as one undo step. The user still saves as usual.
+- **Prompt injection:** file text is labelled as data in the prompt; a hostile file can at worst produce a misleading proposal, which the user sees in full before Apply. Paths are confined to the workspace root (no absolute paths, drive letters, `..`).
+- **Key storage:** desktop keeps the key in the main process, encrypted with Electron `safeStorage`, and refuses to store it when the system has no real keyring (Linux `basic_text`). The renderer never receives the key: it sends requests through a main-process proxy that only talks to `https://openrouter.ai`, attaches the stored key, forwards a short header allowlist, and refuses redirects. Web keeps the key in `localStorage`; the CSP limits where a script could send it, and settings suggest a dedicated key with a limit. The key is never logged, never in chat history, diagnostics, or the workspace; error text is redacted.
+- **Web search (opt-in, off by default):** when the user turns it on (composer globe or settings), requests carry OpenRouter's `openrouter:web_search` server tool, at most 3 searches and 15 results per request. The search query leaves OpenRouter for a search provider (Exa unless the model searches natively), which the privacy routing preference does not cover. Results are untrusted data: the system prompt tells the model never to follow instructions found in them, and any edit still needs the user's Apply.
+- **Project instructions:** `AGENTS.md`, `agent.md` or `CLAUDE.md` in the open workspace are sent to the model as part of the system prompt. They are workspace content that may come from a third party, so the prompt ranks them below the Safety and Edit rules, and the panel shows which files apply. They cannot add tools or skip Apply.
+- **Sign in:** OpenRouter PKCE. Desktop runs a one-shot loopback callback server on `127.0.0.1` in the main process; web redirects back to the app URL. No client secret exists.
+- **History:** stored outside the project (desktop app data keyed by a hash of the workspace path; web IndexedDB). It holds messages and edit cards, never file text read by tools.
+- **Not yet available on mobile**, where a secure key store has not been built.
 
 ## Desktop checkpoints
 

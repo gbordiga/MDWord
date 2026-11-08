@@ -1,6 +1,6 @@
 {
   "name": "@mdword/web",
-  "version": "0.1.16",
+  "version": "0.2.0",
   "private": true,
   "license": "MIT",
   "scripts": {
@@ -20,6 +20,7 @@
     "@capacitor/share": "^8.0.3",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.4",
+    "@mdword/agent": "workspace:*",
     "@mdword/document-model": "workspace:*",
     "@mdword/editor": "workspace:*",
     "@mdword/indexer": "workspace:*",
@@ -39,7 +40,9 @@
     "pagedjs": "^0.4.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-markdown": "^10.1.0",
     "react-resizable-panels": "^4.19.0",
+    "remark-gfm": "^4.0.1",
     "zustand": "^5.1.0"
   },
   "devDependencies": {

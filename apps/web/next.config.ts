@@ -39,7 +39,7 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
   assetPrefix: isElectron ? "." : undefined,
   env: {
-    NEXT_PUBLIC_APP_VERSION: process.env.npm_package_version ?? "0.1.16"
+    NEXT_PUBLIC_APP_VERSION: process.env.npm_package_version ?? "0.2.0"
   },
   webpack: (config, { isServer, dev }) => {
     config.resolve.alias = {
@@ -63,6 +63,7 @@ const nextConfig: NextConfig = {
     "@mdword/editor",
     "@mdword/source-editor",
     "@mdword/renderer",
+    "@mdword/agent",
     "@mdword/workspace",
     "@mdword/indexer",
     "@mdword/plugin-sdk",

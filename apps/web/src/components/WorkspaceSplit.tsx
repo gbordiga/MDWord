@@ -4,7 +4,11 @@ import type { ReactNode } from "react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { useIsCompact } from "@/hooks/useMediaQuery";
 import { LeftSidebar } from "./LeftSidebar";
-import { PropertiesPanel } from "./PropertiesPanel";
+import { assistantSupported } from "@/lib/assistant/store";
+import dynamic from "next/dynamic";
+
+// Loaded when the panel is first opened: it brings the Markdown renderer with it.
+const AssistantPanel = dynamic(() => import("./assistant/AssistantPanel").then((m) => m.AssistantPanel), { ssr: false });
 
 function ResizeHandle({ label }: { label: string }) {
   return (
@@ -26,7 +30,7 @@ export function WorkspaceSplit({
 }) {
   const compact = useIsCompact();
   const showLeft = leftOpen && !compact;
-  const showRight = rightOpen && !compact;
+  const showRight = rightOpen && !compact && assistantSupported();
   const panelIds = [
     ...(showLeft ? ["mdword-left"] : []),
     "mdword-editor",
@@ -64,9 +68,9 @@ export function WorkspaceSplit({
         </Panel>
         {showRight ? (
           <>
-            <ResizeHandle label="Resize properties sidebar" />
+            <ResizeHandle label="Resize assistant sidebar" />
             <Panel id="mdword-right" defaultSize="22%" minSize="14%" maxSize="42%" className="min-h-0 min-w-0">
-              <PropertiesPanel className="h-full w-full" />
+              <AssistantPanel className="h-full w-full" />
             </Panel>
           </>
         ) : null}

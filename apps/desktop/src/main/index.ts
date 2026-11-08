@@ -20,6 +20,7 @@ import {
   registerMarkdownAssociation,
   writeMarkdownAssociation
 } from "./fileAssociation";
+import { registerAssistantIpc } from "./assistant";
 import {
   checkForUpdates,
   currentUpdateStatus,
@@ -439,6 +440,7 @@ app.on("window-all-closed", () => {
 });
 
 function registerIpc(): void {
+  registerAssistantIpc();
   const filesOpen = z.object({});
   ipcMain.handle("files.open", async () => {
     const result = await dialog.showOpenDialog({
