@@ -56,6 +56,8 @@ export const TOOL_DESCRIPTIONS = {
   listFiles: "List files and folders in the workspace or in one folder."
 } as const;
 
+const SELECTION_MAX_CHARS = 1500;
+
 export interface OutlineEntry {
   path: string;
   title: string;
@@ -64,7 +66,8 @@ export interface OutlineEntry {
 
 export interface ContextInput {
   openFile?: string | null;
-  selection?: { startLine: number; endLine: number; chars: number } | null;
+  /** Text the user has selected in the editor, if any. */
+  selectionText?: string | null;
   outline?: OutlineEntry[];
   /** Cap on the outline text, in characters. */
   maxOutlineChars?: number;
@@ -74,10 +77,10 @@ export interface ContextInput {
 export function buildContext(input: ContextInput): string {
   const lines: string[] = [];
   lines.push(`Open file: ${input.openFile ?? "(none)"}`);
-  if (input.selection) {
-    lines.push(
-      `Selection: ${input.selection.startLine}-${input.selection.endLine} (${input.selection.chars} characters)`
-    );
+  const selected = input.selectionText?.trim();
+  if (selected) {
+    const shown = selected.length > SELECTION_MAX_CHARS ? `${selected.slice(0, SELECTION_MAX_CHARS)}...` : selected;
+    lines.push(`Selected text (${selected.length} characters):`, "<<<", shown, ">>>");
   }
   const max = input.maxOutlineChars ?? 4000;
   let used = 0;

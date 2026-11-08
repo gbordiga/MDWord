@@ -79,6 +79,7 @@ export type OpenWorkspaceFileOptions = {
 export type RibbonTab = "file" | "home" | "insert" | "layout" | "references" | "view" | "image" | "table" | "callout";
 export type { LeftPanel } from "./leftPanel";
 export { LEFT_PANELS, resolveLeftPanel } from "./leftPanel";
+export type RightPanel = "properties" | "assistant";
 export type MobileSheet = "workspace" | "insert" | "properties" | "more" | null;
 export type ExternalChangePrompt = { tabId: string; path: string; incoming: string };
 export type ExternalConflictChoice = "overwrite" | "reload" | "cancel";
@@ -199,6 +200,8 @@ export interface AppState {
   left: LeftPanel;
   leftOpen: boolean;
   rightOpen: boolean;
+  /** What the right sidebar shows when it is open. */
+  rightPanel: RightPanel;
   mobileSheet: MobileSheet;
   paletteOpen: boolean;
   findOpen: boolean;
@@ -270,6 +273,8 @@ export interface AppState {
   setZoom: (zoom: number) => void;
   toggleLeft: () => void;
   toggleRight: () => void;
+  /** Show a right-sidebar panel; pressing it again while it is showing closes the sidebar. */
+  showRightPanel: (panel: RightPanel) => void;
   setMobileSheet: (sheet: MobileSheet) => void;
   setPalette: (open: boolean) => void;
   setFind: (open: boolean, query?: string) => void;
@@ -285,8 +290,8 @@ export interface AppState {
    * active so the user sees the change. Returns false when the tab is gone.
    */
   applyAssistantEdit: (tabId: string, nextSource: string, editId: string) => boolean;
-  /** Current text of the tab open for `path` (flushing pending typing), else null. */
-  readOpenBuffer: (path: string) => { tabId: string; source: string } | null;
+  /** Current text of the tab open for a path or tab id (flushing pending typing), else null. */
+  readOpenBuffer: (target: string | { tabId: string }) => { tabId: string; source: string } | null;
 }
 
 function modelFrom(source: string, workspaceMdoc?: Mdoc): DocumentModel {
@@ -609,6 +614,7 @@ export const useApp = create<AppState>((set, get) => {
   left: "files",
   leftOpen: true,
   rightOpen: true,
+  rightPanel: "properties",
   mobileSheet: null,
   paletteOpen: false,
   findOpen: false,
@@ -1261,7 +1267,12 @@ export const useApp = create<AppState>((set, get) => {
   },
   setZoom: (zoom) => set({ zoom: Math.min(2, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
   toggleLeft: () => set({ leftOpen: !get().leftOpen }),
-  toggleRight: () => set({ rightOpen: !get().rightOpen }),
+  toggleRight: () => get().showRightPanel("properties"),
+  showRightPanel: (panel) => {
+    const { rightOpen, rightPanel } = get();
+    if (rightOpen && rightPanel === panel) set({ rightOpen: false });
+    else set({ rightOpen: true, rightPanel: panel });
+  },
   setMobileSheet: (mobileSheet) => set({ mobileSheet }),
   setPalette: (paletteOpen) => set({ paletteOpen }),
   setFind: (findOpen, query) => set({ findOpen, findQuery: query ?? get().findQuery }),
@@ -1309,11 +1320,14 @@ export const useApp = create<AppState>((set, get) => {
     });
     return true;
   },
-  readOpenBuffer: (path) => {
+  readOpenBuffer: (target) => {
     flushVisualEdits();
     flushSourceEdits();
-    const wanted = normalizeTabPath(path);
-    const tab = persistActiveTab().find((entry) => entry.path != null && normalizeTabPath(entry.path) === wanted);
+    const tabs = persistActiveTab();
+    const tab =
+      typeof target === "string"
+        ? tabs.find((entry) => entry.path != null && normalizeTabPath(entry.path) === normalizeTabPath(target))
+        : tabs.find((entry) => entry.id === target.tabId);
     return tab ? { tabId: tab.id, source: tab.model.source } : null;
   },
   undoDocument: () => {

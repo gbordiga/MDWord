@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 /**
  * Content Security Policy for the static app. Inline scripts are required by the
  * Next.js bootstrap, so this blocks the channels that matter for a Markdown
- * editor: remote script origins, network exfiltration (`connect-src`), plugin
+ * editor: remote script origins, network exfiltration (`connect-src`, widened only to openrouter.ai for the assistant), plugin
  * objects, form posts and base-tag hijacking. Development is exempt because the
  * dev server needs eval and a websocket.
  */
@@ -36,7 +36,7 @@ const CSP = [
   "style-src 'self' 'unsafe-inline' blob:",
   "img-src 'self' data: blob: https: http: mdword:",
   "font-src 'self' data: blob: https: http:",
-  "connect-src 'self'",
+  "connect-src 'self' https://openrouter.ai",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'none'"

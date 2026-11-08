@@ -12,10 +12,12 @@ import {
 } from "@mdword/shared";
 import { isNativeApp, openNativeUrl, shareNativeFile, writeNativeDocument } from "./native";
 import { APP_VERSION } from "./appVersion";
+import { createWebAssistantHost } from "./assistant/webHost";
 
 const DB = "mdword";
 const PREFS = "preferences";
 const RECOVERY = "recovery";
+const ASSISTANT_HISTORY = "assistantHistory";
 
 export function isElectron(): boolean {
   return typeof window !== "undefined" && Boolean((window as Window & { mdword?: HostApi }).mdword);
@@ -31,10 +33,12 @@ export function getHost(): HostApi {
 
 async function idb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 1);
+    const req = indexedDB.open(DB, 2);
     req.onupgradeneeded = () => {
-      req.result.createObjectStore(PREFS);
-      req.result.createObjectStore(RECOVERY);
+      const db = req.result;
+      for (const name of [PREFS, RECOVERY, ASSISTANT_HISTORY]) {
+        if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -622,6 +626,19 @@ export const webHost: HostApi = {
       await this.pdf(html, options);
     }
   },
+  assistant: createWebAssistantHost({
+    getHistory: (key) => idbGet<string>(ASSISTANT_HISTORY, key),
+    setHistory: (key, value) => idbSet(ASSISTANT_HISTORY, key, value),
+    deleteHistory: async (key) => {
+      const db = await idb();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(ASSISTANT_HISTORY, "readwrite");
+        tx.objectStore(ASSISTANT_HISTORY).delete(key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+  }),
   shell: {
     async openExternal(url) {
       if (!/^https?:/i.test(url) && !url.startsWith("mailto:")) return;
@@ -639,6 +656,8 @@ const nativeWritten = new Set<string>();
 const capacitorHost: HostApi = {
   ...webHost,
   platform: "capacitor",
+  // The assistant needs a secure key store that is not built for mobile yet.
+  assistant: undefined,
   app: {
     ...webHost.app,
     async exportDiagnostics() {

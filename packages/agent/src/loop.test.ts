@@ -335,8 +335,8 @@ describe("prompt and catalog", () => {
 
   it("builds a bounded context block", () => {
     const outline = Array.from({ length: 500 }, (_, i) => ({ path: `f${i}.md`, title: `T${i}`, headings: ["# H"] }));
-    const ctx = buildContext({ openFile: "f1.md", selection: { startLine: 3, endLine: 5, chars: 40 }, outline });
-    expect(ctx).toContain("Selection: 3-5 (40 characters)");
+    const ctx = buildContext({ openFile: "f1.md", selectionText: "pick me" , outline });
+    expect(ctx).toContain("Selected text (7 characters):\n<<<\npick me\n>>>");
     expect(ctx.length).toBeLessThan(4600);
     expect(ctx).toContain("outline shortened");
   });

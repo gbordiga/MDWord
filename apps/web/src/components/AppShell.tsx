@@ -36,6 +36,8 @@ import { saveStatusText } from "@/lib/saveStatus";
 import { APP_VERSION } from "@/lib/appVersion";
 import "@/lib/imagePreview";
 import { installErrorCapture } from "@/lib/errorReporting";
+import { useAssistantBootstrap } from "@/hooks/useAssistantBootstrap";
+import { assistantSupported } from "@/lib/assistant/store";
 
 export function AppShell() {
   const editorRef = useRef<Editor | null>(null);
@@ -74,6 +76,7 @@ function AppShellInner({
   usePeriodicCrashDraft();
   useUnsavedCloseGuard();
   useDesktopCloseGuard(openConfirm);
+  useAssistantBootstrap(editorRef);
 
   useEffect(() => {
     const collapseChrome = () => {
@@ -148,6 +151,11 @@ function AppShellInner({
       if (meta && e.key.toLowerCase() === "u") {
         e.preventDefault();
         editorRef.current?.chain().focus().toggleUnderline().run();
+      }
+      if (meta && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "j" && assistantSupported()) {
+        e.preventDefault();
+        e.stopPropagation();
+        useApp.getState().showRightPanel("assistant");
       }
       if (meta && e.key.toLowerCase() === "k") {
         e.preventDefault();

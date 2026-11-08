@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { useIsCompact } from "@/hooks/useMediaQuery";
 import { LeftSidebar } from "./LeftSidebar";
+import { useApp } from "@/lib/store";
+import { AssistantPanel } from "./assistant/AssistantPanel";
 import { PropertiesPanel } from "./PropertiesPanel";
 
 function ResizeHandle({ label }: { label: string }) {
@@ -25,6 +27,7 @@ export function WorkspaceSplit({
   children: ReactNode;
 }) {
   const compact = useIsCompact();
+  const rightPanel = useApp((s) => s.rightPanel);
   const showLeft = leftOpen && !compact;
   const showRight = rightOpen && !compact;
   const panelIds = [
@@ -64,9 +67,13 @@ export function WorkspaceSplit({
         </Panel>
         {showRight ? (
           <>
-            <ResizeHandle label="Resize properties sidebar" />
+            <ResizeHandle label={rightPanel === "assistant" ? "Resize assistant sidebar" : "Resize properties sidebar"} />
             <Panel id="mdword-right" defaultSize="22%" minSize="14%" maxSize="42%" className="min-h-0 min-w-0">
-              <PropertiesPanel className="h-full w-full" />
+              {rightPanel === "assistant" ? (
+                <AssistantPanel className="h-full w-full" />
+              ) : (
+                <PropertiesPanel className="h-full w-full" />
+              )}
             </Panel>
           </>
         ) : null}

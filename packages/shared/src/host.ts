@@ -75,6 +75,36 @@ export interface DiagnosticsBundle {
   logs: string[];
 }
 
+export interface AssistantKeyStatus {
+  hasKey: boolean;
+  /** Masked form for display, never the key itself. */
+  masked: string | null;
+}
+
+/**
+ * Credentials and history for the AI assistant. The key is only ever used
+ * inside `fetch`, so a host can keep it out of the renderer entirely
+ * (desktop does). Absent on hosts where the assistant is not available.
+ */
+export interface AssistantHostApi {
+  /** "browser" = page storage; "system" = OS-encrypted store in the main process. */
+  keyStorage: "browser" | "system";
+  keyStatus(): Promise<AssistantKeyStatus>;
+  saveKey(key: string): Promise<void>;
+  clearKey(): Promise<void>;
+  /** Request to openrouter.ai with the saved key attached. Other origins are refused. */
+  fetch(url: string, init?: RequestInit): Promise<Response>;
+  /** Desktop: run the whole OpenRouter sign-in outside the renderer. */
+  signIn?(): Promise<{ ok: boolean; cancelled?: boolean }>;
+  cancelSignIn?(): Promise<void>;
+  /** Chat history per workspace, stored outside the project. */
+  history: {
+    load(workspaceKey: string): Promise<string | null>;
+    save(workspaceKey: string, json: string): Promise<void>;
+    clear(workspaceKey: string): Promise<void>;
+  };
+}
+
 export interface HostApi {
   platform: "electron" | "web" | "capacitor";
   files: {
@@ -171,4 +201,5 @@ export interface HostApi {
   shell: {
     openExternal(url: string): Promise<void>;
   };
+  assistant?: AssistantHostApi;
 }

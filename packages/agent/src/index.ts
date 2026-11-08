@@ -9,3 +9,4 @@ export * from "./prompt";
 export * from "./tools";
 export * from "./truncate";
 export * from "./types";
+export type { ModelMessage } from "ai";
