@@ -19,7 +19,8 @@ import {
 } from "@mdword/agent";
 import { looksLikeKey, redactKeys, type AssistantKeyStatus } from "@mdword/shared";
 import { getHost } from "../host";
-import { buildTurnContext } from "./context";
+import { attachedFilesContext, buildTurnContext, mentionFiles } from "./context";
+import { mentionedPaths } from "./mentions";
 import { applyProposal, createAssistantEnv, loadInstructionFiles } from "./env";
 import {
   conversationKey,
@@ -536,7 +537,9 @@ export const useAssistant = create<AssistantState>((set, get) => {
           model,
           history,
           userText: trimmed,
-          context: buildTurnContext(),
+          context: [buildTurnContext(), await attachedFilesContext(mentionedPaths(trimmed, mentionFiles().map((f) => f.rel)))]
+            .filter(Boolean)
+            .join("\n\n"),
           env: createAssistantEnv({ propose }),
           pricing: info,
           spentBeforeUsd: get().sessionCostUsd,
