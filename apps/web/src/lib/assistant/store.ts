@@ -600,6 +600,13 @@ export const useAssistant = create<AssistantState>((set, get) => {
           fetch: (input, init) =>
             host.fetch(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, init)
         });
+        const classifierModel = createAssistantModel({
+          apiKey: "host-managed",
+          modelId: state.settings.modelId,
+          privacyOnly: state.settings.privacyOnly,
+          fetch: (input, init) =>
+            host.fetch(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, init)
+        });
         const mentioned = mentionedPaths(trimmed, mentionFiles().map((f) => f.rel));
         const shellApi = host.shell;
         const root = useApp.getState().workspace?.root;
@@ -618,7 +625,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
             else if (mode === "always") approval = "always";
             else {
               const verdict = await classifyCommand({
-                model,
+                model: classifierModel,
                 command: req.command,
                 shell: req.shell,
                 folder: req.folder,

@@ -88,7 +88,7 @@ describe("checkCommand: what may skip the approval card", () => {
   });
 
   it("refuses credential locations inside the project", () => {
-    for (const c of ["cat .env", "cat app/.env.local", "cat .ssh/id_rsa", "ls .aws", "cat .git-credentials", "cat .npmrc"]) {
+    for (const c of ["cat .env", "cat app/.env.local", "cat .ssh/id_rsa", "ls .aws", "cat .git-credentials", "cat .npmrc", "git show HEAD:.env", "git show HEAD:../x"]) {
       expect(auto(c), c).toBe(false);
     }
     expect(auto("cat environment.md")).toBe(true);

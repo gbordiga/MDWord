@@ -87,8 +87,10 @@ export async function runAssistantTurn(input: TurnInput): Promise<TurnResult> {
     maxToolChars: limits.maxToolChars,
     toolChars: 0,
     stopReason: null,
-    // Project instruction files are text the user did not write in this chat.
-    tainted: (input.instructions?.length ?? 0) > 0
+    // Project instruction files are text the user did not write in this chat. Web
+    // search sources arrive on the stream and can lag a same-step command, so a turn
+    // that may search is tainted from the start.
+    tainted: input.webSearch === true || (input.instructions?.length ?? 0) > 0
   };
   const tools = createTools(ctx);
   const userMessage: ModelMessage = { role: "user", content: input.userText };

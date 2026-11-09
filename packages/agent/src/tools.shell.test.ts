@@ -82,6 +82,20 @@ describe("runCommand tool", () => {
     expect(runCommand.mock.calls[0]![0].tainted).toBe(true);
   });
 
+  it("makes a same-step command wait for an untrusted read still in flight", async () => {
+    const { tools, runCommand } = setup({
+      readFile: async (p: string) => {
+        await new Promise((r) => setTimeout(r, 10));
+        return p === "b.md" ? "B" : null;
+      }
+    });
+    await Promise.all([
+      exec(tools.readFile, { path: "b.md" }),
+      exec(tools.runCommand, { shell: "bash", command: "ls" })
+    ]);
+    expect(runCommand.mock.calls[0]![0].tainted).toBe(true);
+  });
+
   it("taints the turn on search hits from untrusted files, not on trusted ones", async () => {
     const trusted = setup({}, { "a.md": "x" });
     await exec(trusted.tools.search, { query: "x" });

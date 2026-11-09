@@ -145,13 +145,13 @@ const FIND_DENIED = /^-(delete|exec|execdir|ok|okdir|fprint|fprint0|fprintf|fls)
 
 /** Locations that hold secrets, in any spelling, anywhere in an argument. */
 const CREDENTIAL =
-  /(^|[\\/])(\.ssh|\.aws|\.gnupg|\.git-credentials|\.netrc|\.npmrc|\.pypirc|\.docker|\.kube|\.config|appdata|id_rsa|id_ed25519|cookies|login data)([\\/.]|$)|(^|[\\/])\.env(\.[\w.-]*)?$/i;
+  /(^|[\\/:])(\.ssh|\.aws|\.gnupg|\.git-credentials|\.netrc|\.npmrc|\.pypirc|\.docker|\.kube|\.config|appdata|id_rsa|id_ed25519|cookies|login data)([\\/.]|$)|(^|[\\/:])\.env(\.[\w.-]*)?$/i;
 
 function checkPath(text: string, shell: ShellName): string | null {
   if (text === "") return null;
   if (/^[\\/~]/.test(text)) return "path outside the project";
   if (/^[a-z]:/i.test(text)) return "drive or provider path";
-  if (text.split(/[\\/]/).includes("..")) return "parent folder";
+  if (text.split(/[\\/:]/).includes("..")) return "parent folder";
   if (/%[^%\s]+%/.test(text)) return "environment variable";
   if (text.includes("\\\\")) return "network path";
   if (shell === "powershell" && /(^|[^\w])[a-z0-9_]{2,}:[\\/]|::/i.test(text)) return "provider path";
