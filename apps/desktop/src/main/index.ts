@@ -21,6 +21,7 @@ import {
   writeMarkdownAssociation
 } from "./fileAssociation";
 import { registerAssistantIpc } from "./assistant";
+import { killRunningShell, registerShellIpc } from "./shell";
 import {
   checkForUpdates,
   currentUpdateStatus,
@@ -201,6 +202,8 @@ let quitAfterClose = false;
 let closeGuardReady = false;
 let closeRequested = false;
 const allowedRoots = new Set<string>([app.getPath("userData")]);
+/** Folders the user opened as a project. Only these may be the working folder of an assistant command. */
+const projectRoots = new Set<string>();
 const MARKDOWN_EXT = /\.(md|markdown|mdown|mkd)$/i;
 
 function isMarkdownPath(filePath: string): boolean {
@@ -432,6 +435,7 @@ app.whenReady().then(() => {
 });
 
 app.on("before-quit", () => {
+  killRunningShell();
   if (!closeConfirmed) quitAfterClose = true;
 });
 
@@ -441,6 +445,7 @@ app.on("window-all-closed", () => {
 
 function registerIpc(): void {
   registerAssistantIpc();
+  registerShellIpc((root) => projectRoots.has(path.resolve(root)));
   const filesOpen = z.object({});
   ipcMain.handle("files.open", async () => {
     const result = await dialog.showOpenDialog({
@@ -491,6 +496,7 @@ function registerIpc(): void {
     if (result.canceled || !result.filePaths[0]) return null;
     const root = result.filePaths[0];
     allowedRoots.add(root);
+    projectRoots.add(path.resolve(root));
     await addRecentProjectQuietly(root);
     return root;
   });
@@ -502,6 +508,7 @@ function registerIpc(): void {
       throw new Error("This project is not in the recent list");
     }
     allowedRoots.add(resolved);
+    projectRoots.add(resolved);
     await addRecentProjectQuietly(resolved);
     return resolved;
   });

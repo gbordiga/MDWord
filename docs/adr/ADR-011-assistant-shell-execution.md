@@ -35,7 +35,7 @@ Add one optional tool, `runCommand`, to the assistant. It is **desktop only**, *
 - Desktop (Electron) only. The web and mobile hosts have no `runCommand`. The tool is not offered to the model there.
 - Shells: `bash` and, on Windows, PowerShell. The model names the shell in the call. Resolution:
   - Bash on Windows: Git Bash at `%ProgramFiles%\Git\bin\bash.exe`, then `%ProgramFiles(x86)%`, then `%LocalAppData%\Programs\Git`, then `bash.exe` on `PATH` **excluding** `%SystemRoot%\System32` (the WSL launcher hangs). Elsewhere: `/bin/bash`, then `bash` on `PATH`.
-  - PowerShell: `pwsh.exe`, then `powershell.exe`, started with `-NoProfile -NonInteractive -NoLogo -Command`.
+  - PowerShell: `pwsh.exe`, then `powershell.exe`, started with `-NoProfile -NonInteractive -NoLogo` and the script passed as `-EncodedCommand`, which avoids quoting problems between Node and PowerShell. The command text itself is not changed; only a fixed UTF-8 output preamble is added.
   - A missing shell is reported to the model as an error. There is no fallback to another shell.
 - Each call is a **fresh process** (as in mini-swe-agent): no state carries over between calls. The folder is a parameter, not a `cd` in the command. It must be the workspace root or a folder inside it; anything else is refused.
 - No command prefix or profile setup (no `shellCommandPrefix`). Aliases and startup files are not loaded.
@@ -79,7 +79,7 @@ A command can change files without Apply and without an undo step. To keep the M
 
 - Edits to documents still go through `editFile` and Apply. The prompt says so, and the tool description tells the model to use `runCommand` for reading, checking, and generating, not for editing documents.
 - Before and after a command the host records the modification time and size of the workspace files it indexes. Changed files are listed in the thread ("Files changed by the command").
-- A changed file that is open in a tab goes through the existing external-change prompt (overwrite or reload), never a silent replacement.
+- Changed files are listed in the thread and the workspace is refreshed. A changed file that is open in a tab is caught by the existing "file changed on disk" check the next time the user saves it (overwrite or reload), never a silent replacement.
 - A save never re-serializes a document because of a command.
 
 ### Logging and history
@@ -106,8 +106,14 @@ A command can change files without Apply and without an undo step. To keep the M
 - `docs/security.md` and `docs/ai-assistant.md` must be updated when the feature ships: the sentence "no shell tool" becomes "desktop only, off by default, approval required".
 - New IPC handlers in main with schemas and tests. The CSP does not change. The renderer gains no new capability.
 - New security tests in `docs/security-tests.md`: the key never appears in the child environment; a command outside the workspace folder is refused; a denied filter case never reaches automatic approval; a turn that used web search never auto-approves; Stop kills child processes; output is capped.
-- The assistant tool count changes from four to five, and the evaluation set must cover prompt-injection cases that try to trigger `runCommand`.
+- The assistant tool count changes from five to six (`listFiles`, `search`, `readFile`, `editFile`, `writeFile`, `runCommand`), and the evaluation set must cover prompt-injection cases that try to trigger `runCommand`.
 - Mobile and web keep the previous guarantee.
+
+## Known limits
+
+- The filter reads the command text. It cannot see a link or junction that a command follows, and `git` reads repository configuration that can run programs, so a project from an untrusted source should stay on manual approval. The main process refuses a working folder that resolves outside the project, but a command can still follow a link in its arguments.
+- The AI check is a separate model call that is not counted in the session spend cap (it is a few tokens).
+- Turns with project instruction files (`AGENTS.md`, `agent.md`, `CLAUDE.md`) never auto-approve, because there is no way yet to mark them as reviewed.
 
 ## Resolved questions
 

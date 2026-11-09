@@ -1,4 +1,4 @@
-import type { Diagnostic } from "@mdword/shared";
+import type { Diagnostic, ShellName } from "@mdword/shared";
 import type { AppliedEdit } from "./edits";
 
 export interface FileEntry {
@@ -31,6 +31,34 @@ export type EditDecision =
   | { status: "rejected" }
   | { status: "stale"; reason: string };
 
+export interface CommandRequest {
+  shell: ShellName;
+  command: string;
+  /** Folder inside the workspace. Empty for the root. */
+  folder: string;
+  timeoutMs: number;
+  /**
+   * The turn read or searched something the user did not open or mention, used
+   * web search, or carries project instruction files. The automatic modes
+   * must not approve it.
+   */
+  tainted: boolean;
+}
+
+export type CommandOutcome =
+  | { status: "denied" }
+  | {
+      status: "ran";
+      exitCode: number | null;
+      timedOut: boolean;
+      cancelled: boolean;
+      truncated: boolean;
+      output: string;
+      durationMs: number;
+      changed: string[];
+    }
+  | { status: "failed"; reason: string };
+
 /**
  * Everything the agent may do to the outside world. The host application
  * implements it; the agent package never touches files, the store, or the
@@ -46,6 +74,17 @@ export interface AssistantEnv {
   canCreateFiles(): boolean;
   /** Resolves when the user applies or discards. Must honor the abort signal. */
   proposeEdit(proposal: EditProposal, signal: AbortSignal | undefined): Promise<EditDecision>;
+  /**
+   * Whether the user opened or named this file. Reading any other file marks the
+   * turn as tainted for the automatic approval modes. Missing means "not trusted".
+   */
+  isTrustedPath?(path: string): boolean;
+  /**
+   * Desktop only, and only when the user turned commands on for this workspace.
+   * When absent the model is not offered `runCommand`. The host owns approval,
+   * execution limits, and the rule that automatic modes never approve a tainted turn.
+   */
+  runCommand?(request: CommandRequest, signal: AbortSignal | undefined): Promise<CommandOutcome>;
 }
 
 export type StopReason =

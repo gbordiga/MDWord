@@ -10,7 +10,9 @@ import {
 } from "@mdword/agent";
 import { ArrowLeft } from "lucide-react";
 import { getHost } from "@/lib/host";
-import { useAssistant } from "@/lib/assistant/store";
+import { shellModeOf, useAssistant } from "@/lib/assistant/store";
+import { useApp } from "@/lib/store";
+import type { ShellMode } from "@mdword/shared";
 
 const CAPS: (number | null)[] = [1, 3, 5, 10, 25, null];
 const TIERS: Tier[] = ["low", "balanced", "quality"];
@@ -37,6 +39,82 @@ function describeModel(id: string, models: ModelInfo[] | null): string {
     input: formatPerMillion(info.promptPrice),
     output: formatPerMillion(info.completionPrice)
   })}`;
+}
+
+const SHELL_CHOICES: ShellMode[] = ["off", "manual", "ai", "always"];
+
+function ShellSection() {
+  const s = useAssistant();
+  const [asking, setAsking] = useState<ShellMode | null>(null);
+  const hasFolder = useApp((a) => Boolean(a.workspace?.root));
+  const api = getHost().assistant?.shell;
+  const { refreshShell } = s;
+  useEffect(() => {
+    if (api) void refreshShell();
+  }, [api, refreshShell]);
+  const mode = shellModeOf(s);
+  const avail = s.shellAvailability;
+  const noShell = avail != null && !avail.bash && !avail.powershell;
+  if (!api || !hasFolder) {
+    return (
+      <Row label={t("settings.shell")} note={t("settings.shell.unavailable")}>
+        <span />
+      </Row>
+    );
+  }
+  const choose = (next: ShellMode) => {
+    if (next === "ai" || next === "always") setAsking(next);
+    else {
+      setAsking(null);
+      s.setShellMode(next);
+    }
+  };
+  return (
+    <Row label={t("settings.shell")} note={t("settings.shell.note")}>
+      <div role="radiogroup" aria-label={t("settings.shell")} className="space-y-1.5" data-testid="assistant-shell-modes">
+        {SHELL_CHOICES.map((choice) => (
+          <label key={choice} className="flex items-start gap-2 text-[12px] text-[#344054]">
+            <input
+              type="radio"
+              name="assistant-shell-mode"
+              className="mt-0.5"
+              data-testid={`assistant-shell-${choice}`}
+              checked={mode === choice}
+              disabled={choice !== "off" && noShell}
+              onChange={() => choose(choice)}
+            />
+            <span>
+              <span className="font-medium">{t(`settings.shell.${choice}`)}</span>
+              <span className="block text-[11px] text-[#667085]">{t(`settings.shellNote.${choice}`)}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {noShell ? <p className="text-[11px] text-[#b54708]">{t("settings.shell.noShell")}</p> : null}
+      {asking ? (
+        <div className="space-y-2 rounded-lg border border-[#fedf89] bg-[#fffaeb] p-2.5" data-testid="assistant-shell-warning">
+          <h4 className="text-[12px] font-semibold text-[#93370d]">{t("settings.shell.warn.title")}</h4>
+          <p className="text-[11px] leading-snug text-[#93370d]">{t("settings.shell.warn.body")}</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className={buttonClass}
+              data-testid="assistant-shell-confirm"
+              onClick={() => {
+                s.setShellMode(asking);
+                setAsking(null);
+              }}
+            >
+              {t("settings.shell.warn.confirm")}
+            </button>
+            <button type="button" className={buttonClass} onClick={() => setAsking(null)}>
+              {t("settings.shell.warn.cancel")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </Row>
+  );
 }
 
 export function AssistantSettings() {
@@ -244,6 +322,8 @@ export function AssistantSettings() {
             {t("settings.web")}
           </label>
         </Row>
+
+        <ShellSection />
 
         <Row label={t("settings.history")} note={t("settings.history.note")}>
           {confirmClear ? (

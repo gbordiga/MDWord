@@ -80,6 +80,11 @@ const api = {
       ipcRenderer.on("assistant.requestEvent", listener);
       return () => ipcRenderer.removeListener("assistant.requestEvent", listener);
     },
+    shell: {
+      available: () => ipcRenderer.invoke("assistant.shell.available"),
+      run: (request: unknown) => ipcRenderer.invoke("assistant.shell.run", request),
+      cancel: (id: string) => ipcRenderer.invoke("assistant.shell.cancel", id)
+    },
     history: {
       load: (key: string) => ipcRenderer.invoke("assistant.history.load", key),
       save: (key: string, json: string) => ipcRenderer.invoke("assistant.history.save", { key, json }),

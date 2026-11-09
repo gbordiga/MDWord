@@ -1,3 +1,4 @@
+import type { ShellHostApi } from "./shell";
 import type { UpdateStatus } from "./updates";
 
 export type ViewMode = "document" | "source" | "split";
@@ -103,6 +104,8 @@ export interface AssistantHostApi {
     save(workspaceKey: string, json: string): Promise<void>;
     clear(workspaceKey: string): Promise<void>;
   };
+  /** Desktop only. Absent elsewhere, so the model is never offered `runCommand` (ADR-011). */
+  shell?: ShellHostApi;
 }
 
 export interface HostApi {

@@ -53,3 +53,34 @@ describe("assistant thread", () => {
     expect(blocks[3]).toMatchObject({ kind: "work", tools: [{ id: "t3" }] });
   });
 });
+
+describe("saved commands", () => {
+  const base = {
+    kind: "command" as const,
+    id: "c1",
+    shell: "bash" as const,
+    command: "ls",
+    folder: "",
+    approval: "manual" as const
+  };
+
+  it("never stores command output", () => {
+    const json = serializeThread([
+      { ...base, status: "done", exitCode: 0, output: "SECRET FILE TEXT" } as ThreadItem
+    ]);
+    expect(json).not.toContain("SECRET FILE TEXT");
+    expect(parseThread(json)[0]).toMatchObject({ kind: "command", command: "ls", exitCode: 0, status: "done" });
+  });
+
+  it("closes a command that never finished", () => {
+    const [pending, running] = parseThread(
+      serializeThread([{ ...base, status: "pending" }, { ...base, id: "c2", status: "running" }] as ThreadItem[])
+    );
+    expect(pending).toMatchObject({ status: "denied" });
+    expect(running).toMatchObject({ status: "failed" });
+  });
+
+  it("leaves commands out of the model history", () => {
+    expect(historyFromThread([{ ...base, status: "done" } as ThreadItem])).toEqual([]);
+  });
+});

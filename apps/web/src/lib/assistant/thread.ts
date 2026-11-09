@@ -27,6 +27,28 @@ export type ThreadItem =
       create?: boolean;
       status: "pending" | "applied" | "discarded" | "stale";
     }
+  | {
+      kind: "command";
+      id: string;
+      shell: "bash" | "powershell";
+      command: string;
+      /** Folder inside the project; empty for the root. */
+      folder: string;
+      /** Who approved it. Set once it runs or is denied. */
+      approval: "manual" | "ai" | "always";
+      /** Why the card asks, when an automatic mode could not approve it. */
+      why?: { kind: "tainted" } | { kind: "filter" | "ai"; reason: string };
+      status: "pending" | "running" | "done" | "denied" | "failed";
+      exitCode?: number | null;
+      durationMs?: number;
+      timedOut?: boolean;
+      cancelled?: boolean;
+      timeoutMs?: number;
+      changed?: string[];
+      error?: string;
+      /** Memory only. Never saved: history holds no command output (ADR-011). */
+      output?: string;
+    }
   | { kind: "notice"; id: string; text: string };
 
 export type ToolItem = Extract<ThreadItem, { kind: "tool" }>;
@@ -63,6 +85,8 @@ export function toolLabel(name: string, input: unknown): string {
       return t("tool.editFile", { path });
     case "writeFile":
       return t("tool.writeFile", { path });
+    case "runCommand":
+      return t("tool.runCommand");
     default:
       return name;
   }
@@ -87,6 +111,15 @@ export function historyFromThread(thread: ThreadItem[]): ModelMessage[] {
 const VERSION = 1;
 const MAX_ITEMS = 400;
 
+/** A saved command keeps no output, and one that never finished is closed. */
+function settleCommand(item: Extract<ThreadItem, { kind: "command" }>): ThreadItem {
+  const { output: _output, ...rest } = item;
+  void _output;
+  if (item.status === "pending") return { ...rest, status: "denied" };
+  if (item.status === "running") return { ...rest, status: "failed" };
+  return rest;
+}
+
 export function serializeThread(thread: ThreadItem[]): string {
   const settled = thread
     .slice(-MAX_ITEMS)
@@ -95,7 +128,9 @@ export function serializeThread(thread: ThreadItem[]): string {
         ? { ...item, status: "discarded" as const }
         : item.kind === "tool" && item.status === "running"
           ? { ...item, status: "error" as const }
-          : item
+          : item.kind === "command"
+            ? settleCommand(item)
+            : item
     );
   return JSON.stringify({ v: VERSION, thread: settled });
 }
@@ -109,7 +144,7 @@ export function parseThread(json: string | null): ThreadItem[] {
       (item) =>
         item &&
         typeof item.id === "string" &&
-        ["user", "assistant", "tool", "edit", "notice"].includes(item.kind)
+        ["user", "assistant", "tool", "edit", "command", "notice"].includes(item.kind)
     );
   } catch {
     return [];

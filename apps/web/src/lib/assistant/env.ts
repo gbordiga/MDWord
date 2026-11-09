@@ -143,6 +143,23 @@ export function metadataDiagnostics(frontmatter: Record<string, unknown>): Diagn
 
 export interface EnvOptions {
   propose: (proposal: EditProposal, signal: AbortSignal | undefined) => Promise<EditDecision>;
+  /** Files the user named with @ in this message. */
+  mentioned?: readonly string[];
+  /** Present only when commands are on for this workspace (desktop, folder open). */
+  runCommand?: AssistantEnv["runCommand"];
+}
+
+/** Files the user opened in a tab or named in the message. Anything else the model reads taints the turn. */
+function trustedPaths(mentioned: readonly string[]): Set<string> {
+  const state = useApp.getState();
+  const root = state.workspace?.root;
+  const out = new Set(mentioned.map((p) => p.toLowerCase()));
+  if (!root) return out;
+  for (const tab of state.tabs) {
+    const rel = tab.path ? relativeWorkspacePath(tab.path, root) : null;
+    if (rel) out.add(rel.toLowerCase());
+  }
+  return out;
 }
 
 export function createAssistantEnv(options: EnvOptions): AssistantEnv {
@@ -202,7 +219,9 @@ export function createAssistantEnv(options: EnvOptions): AssistantEnv {
       ];
     },
     canCreateFiles: () => Boolean(useApp.getState().workspace?.root),
-    proposeEdit: options.propose
+    proposeEdit: options.propose,
+    isTrustedPath: (path) => trustedPaths(options.mentioned ?? []).has(path.toLowerCase()),
+    ...(options.runCommand ? { runCommand: options.runCommand } : {})
   };
 }
 
