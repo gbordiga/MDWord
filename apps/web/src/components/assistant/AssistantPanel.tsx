@@ -9,9 +9,12 @@ import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, FileText, Globe, 
 import { relativeWorkspacePath } from "@mdword/workspace";
 import { useApp } from "@/lib/store";
 import { groupThread, type ToolItem } from "@/lib/assistant/thread";
-import { safeHref } from "@/lib/assistant/links";
+import { linkifyWikilinks, safeHref, wikiTargetFromHref } from "@/lib/assistant/links";
+import { openWikiTarget } from "@/lib/openEditorLink";
 import { useAssistant } from "@/lib/assistant/store";
+import { mentionFiles } from "@/lib/assistant/context";
 import { instructionPaths } from "@/lib/assistant/env";
+import { activeMention, filterMentionFiles, splitMentions, type MentionSegment } from "@/lib/assistant/mentions";
 import type { ThreadItem } from "@/lib/assistant/thread";
 import { AssistantHistory } from "./AssistantHistory";
 import { AssistantSettings } from "./AssistantSettings";
@@ -42,6 +45,22 @@ function ToolLine({ item }: { item: Extract<ThreadItem, { kind: "tool" }> }) {
 
 const markdownComponents = {
   a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
+    const wiki = wikiTargetFromHref(href);
+    if (wiki) {
+      return (
+        <a
+          href={href}
+          data-testid="assistant-wikilink"
+          className="rounded bg-[#e8eefc] px-1 text-[#1d4ed8] underline"
+          onClick={(event) => {
+            event.preventDefault();
+            openWikiTarget(wiki);
+          }}
+        >
+          {children}
+        </a>
+      );
+    }
     const safe = safeHref(href);
     return safe ? (
       <a href={safe} target="_blank" rel="noopener noreferrer" className="text-accent underline">
@@ -86,7 +105,7 @@ const remarkPlugins = [remarkGfm];
 const Markdown = memo(function Markdown({ text }: { text: string }) {
   return (
     <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
-      {text}
+      {linkifyWikilinks(text)}
     </ReactMarkdown>
   );
 });
@@ -173,6 +192,116 @@ const SUGGESTIONS = [
   { label: "panel.suggest.structure", prompt: "panel.suggest.structure.prompt" }
 ] as const;
 
+const BADGE_CLASS = "rounded-md bg-[#e8eefc] shadow-[0_0_0_2px_#e8eefc] [box-decoration-break:clone]";
+
+function renderSegment(segment: MentionSegment, index: number) {
+  return (
+    <span key={index} className={segment.mention ? BADGE_CLASS : undefined}>
+      {segment.text}
+    </span>
+  );
+}
+
+function MentionMark({ text, query }: { text: string; query: string }) {
+  if (!query) return text;
+  const at = text.toLowerCase().indexOf(query.toLowerCase());
+  if (at < 0) return text;
+  return (
+    <>
+      {text.slice(0, at)}
+      <mark className="bg-transparent font-semibold text-[#1d4ed8]">{text.slice(at, at + query.length)}</mark>
+      {text.slice(at + query.length)}
+    </>
+  );
+}
+
+function MentionMenu({
+  query,
+  choices,
+  active,
+  onHover,
+  onPick
+}: {
+  query: string;
+  choices: { rel: string; title: string }[];
+  active: number;
+  onHover: (index: number) => void;
+  onPick: (rel: string) => void;
+}) {
+  const activeRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest" });
+  }, [active, choices]);
+
+  return (
+    <div
+      id="assistant-mentions"
+      data-testid="assistant-mentions"
+      className="absolute bottom-full left-2 right-2 z-20 mb-2 overflow-hidden rounded-xl border border-[#e4e7ec] bg-white shadow-[0_12px_32px_rgba(16,24,40,0.12)]"
+    >
+      <div className="flex items-center gap-2 border-b border-[#e4e7ec] px-3 py-2">
+        <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#e8eefc] text-[12px] font-semibold text-[#1d4ed8]">@</span>
+        <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-[#344054]">{t("panel.mention.list")}</span>
+        {query ? (
+          <span className="max-w-[40%] truncate rounded-md bg-[#f2f4f7] px-1.5 py-0.5 font-mono text-[11px] text-[#475467]">
+            {query}
+          </span>
+        ) : null}
+      </div>
+      {choices.length === 0 ? (
+        <p className="px-3 py-3 text-[12px] leading-5 text-[#667085]">
+          {query ? t("panel.mention.empty", { query }) : t("panel.mention.empty.all")}
+        </p>
+      ) : (
+        <ul role="listbox" aria-label={t("panel.mention.list")} className="max-h-64 overflow-auto p-1">
+          {choices.map((file, index) => {
+            const selected = index === active;
+            return (
+              <li key={file.rel}>
+                <button
+                  ref={selected ? activeRef : undefined}
+                  id={`assistant-mention-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  data-testid="assistant-mention"
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left",
+                    selected ? "bg-[#e8eefc]" : "hover:bg-[#f8fafc]"
+                  )}
+                  onMouseEnter={() => onHover(index)}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    onPick(file.rel);
+                  }}
+                >
+                  <span
+                    className={cn(
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
+                      selected ? "bg-white text-[#1d4ed8]" : "bg-[#f2f4f7] text-[#667085]"
+                    )}
+                  >
+                    <FileText size={14} aria-hidden />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] text-[#1c1f24]">
+                      <MentionMark text={file.title} query={query} />
+                    </span>
+                    <span className="block truncate text-[11px] text-[#667085]">
+                      <MentionMark text={file.rel} query={query} />
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="border-t border-[#e4e7ec] px-3 py-1.5 text-[11px] text-[#98a2b3]">{t("panel.mention.hint")}</div>
+    </div>
+  );
+}
+
 function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) {
   const text = useAssistant((s) => s.composerText);
   const setText = useAssistant((s) => s.setComposerText);
@@ -190,14 +319,46 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
 
   // Suggestions fill the box and move focus here.
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [cursor, setCursor] = useState(0);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [mentionClosed, setMentionClosed] = useState(false);
   useEffect(() => {
     if (text && document.activeElement !== inputRef.current && !running) inputRef.current?.focus();
   }, [text, running]);
+
+  const backdropRef = useRef<HTMLDivElement | null>(null);
+  const knownFiles = useMemo(() => (workspace ? mentionFiles().map((f) => f.rel) : []), [workspace]);
+  const segments = useMemo(() => splitMentions(text, knownFiles), [text, knownFiles]);
+  const hasBadges = segments.some((s) => s.mention);
+
+  const mention = activeMention(text, cursor);
+  const mentionOpen = Boolean(mention) && !mentionClosed;
+  const mentionChoices = useMemo(
+    () => (mentionOpen && mention && workspace ? filterMentionFiles(mentionFiles(), mention.query) : []),
+    [mentionOpen, mention, workspace]
+  );
+  useEffect(() => {
+    setMentionIndex(0);
+    setMentionClosed(false);
+  }, [mention?.start, mention?.query]);
+
+  const applyMention = (rel: string) => {
+    if (!mention) return;
+    const next = `${text.slice(0, mention.start)}@${rel} ${text.slice(cursor)}`;
+    const caret = mention.start + rel.length + 2;
+    setText(next);
+    setCursor(caret);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(caret, caret);
+    });
+  };
 
   const submit = () => {
     if (disabled || running || !text.trim()) return;
     const value = text;
     setText("");
+    setCursor(0);
     void send(value);
   };
 
@@ -244,26 +405,105 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
             ) : null}
           </div>
         ) : null}
-        <textarea
-          ref={inputRef}
-          data-testid="assistant-input"
-          data-focus-ring="none"
-          aria-label={t("panel.input.placeholder")}
-          title={t("panel.input.hint")}
-          rows={1}
-          disabled={disabled}
-          placeholder={disabled && reason ? reason : t("panel.input.placeholder")}
-          className="block max-h-[168px] min-h-[2.75rem] w-full resize-none bg-transparent outline-none focus:outline-none focus-visible:outline-none px-3 py-2.5 text-[13px] leading-5 text-[#1c1f24] placeholder:text-[#98a2b3] focus:outline-none disabled:cursor-not-allowed max-lg:text-[16px]"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-        />
+        <div className="relative">
+          {mentionOpen && mention ? (
+            <MentionMenu
+              query={mention.query}
+              choices={mentionChoices}
+              active={mentionIndex}
+              onHover={setMentionIndex}
+              onPick={applyMention}
+            />
+          ) : null}
+          {hasBadges ? (
+            <div
+              ref={backdropRef}
+              aria-hidden
+              data-testid="assistant-input-badges"
+              className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-3 py-2.5 text-[13px] leading-5 text-transparent max-lg:text-[16px]"
+            >
+              {segments.map(renderSegment)}
+              {/* A trailing newline would otherwise collapse and shift the badges. */}
+              {"\u200b"}
+            </div>
+          ) : null}
+          <textarea
+            ref={inputRef}
+            data-testid="assistant-input"
+            data-focus-ring="none"
+            aria-label={t("panel.input.placeholder")}
+            aria-expanded={mentionOpen}
+            aria-controls={mentionOpen ? "assistant-mentions" : undefined}
+            aria-activedescendant={mentionOpen && mentionChoices[mentionIndex] ? `assistant-mention-${mentionIndex}` : undefined}
+            title={t("panel.input.hint")}
+            rows={1}
+            disabled={disabled}
+            placeholder={disabled && reason ? reason : t("panel.input.placeholder")}
+            className="relative block max-h-[168px] min-h-[2.75rem] w-full resize-none bg-transparent outline-none focus:outline-none focus-visible:outline-none px-3 py-2.5 text-[13px] leading-5 text-[#1c1f24] placeholder:text-[#98a2b3] focus:outline-none disabled:cursor-not-allowed max-lg:text-[16px]"
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              setCursor(e.target.selectionStart ?? e.target.value.length);
+            }}
+            onSelect={(e) => setCursor(e.currentTarget.selectionStart ?? 0)}
+            onScroll={(e) => {
+              if (backdropRef.current) backdropRef.current.scrollTop = e.currentTarget.scrollTop;
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && mentionOpen) {
+                e.preventDefault();
+                setMentionClosed(true);
+                return;
+              }
+              if (mentionOpen && mentionChoices.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+                e.preventDefault();
+                setMentionIndex((index) =>
+                  e.key === "ArrowDown"
+                    ? (index + 1) % mentionChoices.length
+                    : (index - 1 + mentionChoices.length) % mentionChoices.length
+                );
+                return;
+              }
+              if (mentionOpen && mentionChoices.length > 0 && (e.key === "Enter" || e.key === "Tab") && !e.shiftKey) {
+                e.preventDefault();
+                const choice = mentionChoices[mentionIndex] ?? mentionChoices[0];
+                if (choice) applyMention(choice.rel);
+                return;
+              }
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
+        </div>
         <div className="flex items-center gap-1.5 px-2 pb-2">
+          <button
+            type="button"
+            data-testid="assistant-mention-trigger"
+            aria-label={t("panel.mention.add")}
+            title={t("panel.mention.add")}
+            disabled={disabled || !workspace}
+            className={cn(
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold",
+              mentionOpen ? "bg-[#e8eefc] text-[#1d4ed8]" : "text-[#667085] hover:bg-[#f2f4f7]"
+            )}
+            onClick={() => {
+              const el = inputRef.current;
+              const at = el?.selectionStart ?? text.length;
+              const prefix = at > 0 && !/\s/.test(text[at - 1] ?? "") ? " @" : "@";
+              const next = `${text.slice(0, at)}${prefix}${text.slice(at)}`;
+              const caret = at + prefix.length;
+              setText(next);
+              setCursor(caret);
+              requestAnimationFrame(() => {
+                el?.focus();
+                el?.setSelectionRange(caret, caret);
+              });
+            }}
+          >
+            @
+          </button>
           <button
             type="button"
             data-testid="assistant-web-toggle"
