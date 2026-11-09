@@ -344,7 +344,9 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
 
   const applyMention = (rel: string) => {
     if (!mention) return;
-    const next = `${text.slice(0, mention.start)}@${rel} ${text.slice(cursor)}`;
+    // Replace the whole token, also the part after the caret, so no leftover text stays behind.
+    const after = text.slice(mention.end).replace(/^ /, "");
+    const next = `${text.slice(0, mention.start)}@${rel} ${after}`;
     const caret = mention.start + rel.length + 2;
     setText(next);
     setCursor(caret);
@@ -450,6 +452,8 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
               if (backdropRef.current) backdropRef.current.scrollTop = e.currentTarget.scrollTop;
             }}
             onKeyDown={(e) => {
+              // While an input method composes text, Enter and Tab belong to it.
+              if (e.nativeEvent.isComposing) return;
               if (e.key === "Escape" && mentionOpen) {
                 e.preventDefault();
                 setMentionClosed(true);

@@ -3,13 +3,20 @@ export interface MentionFile {
   title: string;
 }
 
-/** `@query` being typed at the caret, when `@` starts a token. */
-export function activeMention(text: string, cursor: number): { start: number; query: string } | null {
+/**
+ * `@query` being typed at the caret, when `@` starts a token. `end` is the end of the whole token,
+ * so choosing a file replaces the text after the caret too, not only the part before it.
+ */
+export function activeMention(
+  text: string,
+  cursor: number
+): { start: number; end: number; query: string } | null {
   const upto = text.slice(0, cursor);
   const match = upto.match(/(^|\s)@([^\s@]*)$/);
   if (!match) return null;
   const query = match[2] ?? "";
-  return { start: cursor - query.length - 1, query };
+  const tail = text.slice(cursor).match(/^[^\s@]*/)?.[0] ?? "";
+  return { start: cursor - query.length - 1, end: cursor + tail.length, query };
 }
 
 export function filterMentionFiles(files: MentionFile[], query: string): MentionFile[] {
@@ -24,21 +31,50 @@ export interface MentionSegment {
   mention: boolean;
 }
 
+interface MentionHit {
+  start: number;
+  end: number;
+  rel: string;
+}
+
+const AFTER_PATH = /[\s.,;:!?)]/;
+
+/**
+ * Every `@path` in the draft that names a known file. Paths are matched against the list, longest
+ * first, so names with spaces (`notes (2).md`) work and `a.md` does not swallow `a.md.bak`.
+ */
+function findMentions(text: string, known: string[]): MentionHit[] {
+  const byLength = [...known].sort((a, b) => b.length - a.length);
+  const lower = text.toLowerCase();
+  const hits: MentionHit[] = [];
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === "@" && (i === 0 || /\s/.test(text[i - 1] ?? ""))) {
+      const rel = byLength.find((path) => {
+        if (!lower.startsWith(path.toLowerCase(), i + 1)) return false;
+        const next = text[i + 1 + path.length];
+        return next === undefined || AFTER_PATH.test(next);
+      });
+      if (rel) {
+        const end = i + 1 + rel.length;
+        hits.push({ start: i, end, rel });
+        i = end;
+        continue;
+      }
+    }
+    i += 1;
+  }
+  return hits;
+}
+
 /** Split the draft so every `@path` that names a real file can be drawn as a badge. */
 export function splitMentions(text: string, known: string[]): MentionSegment[] {
   const out: MentionSegment[] = [];
   let last = 0;
-  for (const match of text.matchAll(/(^|\s)@(\S+)/g)) {
-    const lead = match[1] ?? "";
-    const raw = match[2] ?? "";
-    const trimmed = raw.replace(/[.,;:!?)]+$/, "");
-    const hit = known.find((path) => path.toLowerCase() === trimmed.toLowerCase());
-    if (!hit) continue;
-    const start = (match.index ?? 0) + lead.length;
-    const end = start + 1 + trimmed.length;
-    if (start > last) out.push({ text: text.slice(last, start), mention: false });
-    out.push({ text: text.slice(start, end), mention: true });
-    last = end;
+  for (const hit of findMentions(text, known)) {
+    if (hit.start > last) out.push({ text: text.slice(last, hit.start), mention: false });
+    out.push({ text: text.slice(hit.start, hit.end), mention: true });
+    last = hit.end;
   }
   if (last < text.length) out.push({ text: text.slice(last), mention: false });
   return out;
@@ -47,10 +83,8 @@ export function splitMentions(text: string, known: string[]): MentionSegment[] {
 /** Workspace paths the user named with `@path` that exist in the folder. */
 export function mentionedPaths(text: string, known: string[]): string[] {
   const found: string[] = [];
-  for (const match of text.matchAll(/(^|\s)@(\S+)/g)) {
-    const raw = (match[2] ?? "").replace(/[.,;:!?)]+$/, "");
-    const hit = known.find((path) => path === raw || path.toLowerCase() === raw.toLowerCase());
-    if (hit && !found.includes(hit)) found.push(hit);
+  for (const hit of findMentions(text, known)) {
+    if (!found.includes(hit.rel)) found.push(hit.rel);
   }
   return found;
 }
