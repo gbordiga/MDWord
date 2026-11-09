@@ -51,6 +51,7 @@ export function scrubEnv(source: Record<string, string | undefined>): Record<str
  * Returns `null` for anything else (absolute paths, `..`, drive letters).
  */
 export function resolveFolder(root: string, folder: string): string | null {
+  if (root.includes("\0") || folder.includes("\0")) return null;
   if (folder === "") return path.resolve(root);
   if (/^[\\/]/.test(folder) || /^[a-z]:/i.test(folder)) return null;
   if (folder.split(/[\\/]/).includes("..")) return null;

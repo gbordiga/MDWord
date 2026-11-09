@@ -39,7 +39,7 @@ describe("resolveFolder", () => {
     expect(resolveFolder(root, "docs/a")).toBe(path.join(root, "docs", "a"));
   });
   it("refuses everything else", () => {
-    for (const f of ["..", "../x", "a/../../x", "/etc", "\\x", "C:/x", "c:\\x", "a/..\\..\\x"]) {
+    for (const f of ["..", "../x", "a/../../x", "/etc", "\\x", "C:/x", "c:\\x", "a/..\\..\\x", "a\0b"]) {
       expect(resolveFolder(root, f), f).toBeNull();
     }
   });

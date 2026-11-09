@@ -130,7 +130,7 @@ function killTree(child: ChildProcess): void {
   }
 }
 
-let running: { id: string; child: ChildProcess; cancel: () => void } | null = null;
+let running: { id: string; cancel: () => void } | null = null;
 
 export async function runShell(
   raw: unknown,
@@ -149,18 +149,39 @@ export async function runShell(
   } catch {
     return { ok: false, error: "bad-folder" };
   }
+  // Reserve synchronously, before any await: two calls in the same turn must not both pass.
   if (running) return { ok: false, error: "busy" };
+  let child: ChildProcess | null = null;
+  let timedOut = false;
+  let cancelled = false;
+  const slot = {
+    id: req.id,
+    cancel: () => {
+      cancelled = true;
+      if (child) killTree(child);
+    }
+  };
+  running = slot;
   const file = await findShell(req.shell);
-  if (!file) return { ok: false, error: "no-shell" };
+  if (!file) {
+    if (running === slot) running = null;
+    return { ok: false, error: "no-shell" };
+  }
+  if (cancelled) {
+    if (running === slot) running = null;
+    return { ok: true, exitCode: null, timedOut: false, cancelled: true, truncated: false, output: "", durationMs: 0, changed: [] };
+  }
 
   const before = await snapshot(root);
   const started = Date.now();
   const tail = new OutputTail(SHELL_MAX_OUTPUT_CHARS);
-  let timedOut = false;
-  let cancelled = false;
 
   return new Promise<ShellRunResult>((resolve) => {
-    let child: ChildProcess;
+    if (cancelled) {
+      if (running === slot) running = null;
+      resolve({ ok: true, exitCode: null, timedOut: false, cancelled: true, truncated: false, output: "", durationMs: 0, changed: [] });
+      return;
+    }
     try {
       child = spawn(file, shellArgs(req.shell, req.command), {
         cwd,
@@ -170,17 +191,13 @@ export async function runShell(
         detached: process.platform !== "win32"
       });
     } catch {
+      if (running === slot) running = null;
       resolve({ ok: false, error: "spawn-failed" });
       return;
     }
-    const cancel = () => {
-      cancelled = true;
-      killTree(child);
-    };
-    running = { id: req.id, child, cancel };
     const timer = setTimeout(() => {
       timedOut = true;
-      killTree(child);
+      if (child) killTree(child);
     }, req.timeoutMs);
 
     const decoders = [new TextDecoder("utf-8"), new TextDecoder("utf-8")];
@@ -192,15 +209,17 @@ export async function runShell(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      running = null;
+      for (const decoder of decoders) tail.push(decoder.decode());
+      const output = tail.value();
       const after = await snapshot(root);
+      if (running === slot) running = null;
       resolve({
         ok: true,
         exitCode,
         timedOut,
         cancelled,
         truncated: tail.truncated,
-        output: tail.value(),
+        output,
         durationMs: Date.now() - started,
         changed: diffSnapshots(before, after)
       });
@@ -209,7 +228,7 @@ export async function runShell(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      running = null;
+      if (running === slot) running = null;
       resolve({ ok: false, error: "spawn-failed" });
     });
     child.on("close", (code) => void finish(code));

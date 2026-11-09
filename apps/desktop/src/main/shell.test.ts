@@ -80,6 +80,14 @@ suite("runShell (bash)", () => {
     expect(await pending).toMatchObject({ ok: true, cancelled: true });
   });
 
+  it("refuses a second command started before the first has spawned", async () => {
+    const firstReq = req("sleep 2");
+    const first = runShell(firstReq, roots());
+    expect(await runShell(req("echo x"), roots())).toEqual({ ok: false, error: "busy" });
+    cancelShell(firstReq.id);
+    await first;
+  });
+
   it("allows one command at a time", async () => {
     const r = req("sleep 2");
     const first = runShell(r, roots());
