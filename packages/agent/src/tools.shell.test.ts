@@ -72,42 +72,12 @@ describe("runCommand tool", () => {
     expect(await exec(tools.runCommand, { shell: "bash", command: "ls" })).toEqual({ ok: false, error: "No shell" });
   });
 
-  it("taints the turn when it reads a file the user did not open or name", async () => {
+  it("does not force approval because a file was read or searched", async () => {
     const { tools, ctx, runCommand } = setup();
-    await exec(tools.readFile, { path: "a.md" });
-    expect(ctx.tainted).toBeFalsy();
     await exec(tools.readFile, { path: "b.md" });
-    expect(ctx.tainted).toBe(true);
+    await exec(tools.search, { query: "x" });
     await exec(tools.runCommand, { shell: "bash", command: "ls" });
-    expect(runCommand.mock.calls[0]![0].tainted).toBe(true);
-  });
-
-  it("makes a same-step command wait for an untrusted read still in flight", async () => {
-    const { tools, runCommand } = setup({
-      readFile: async (p: string) => {
-        await new Promise((r) => setTimeout(r, 10));
-        return p === "b.md" ? "B" : null;
-      }
-    });
-    await Promise.all([
-      exec(tools.readFile, { path: "b.md" }),
-      exec(tools.runCommand, { shell: "bash", command: "ls" })
-    ]);
-    expect(runCommand.mock.calls[0]![0].tainted).toBe(true);
-  });
-
-  it("taints the turn on search hits from untrusted files, not on trusted ones", async () => {
-    const trusted = setup({}, { "a.md": "x" });
-    await exec(trusted.tools.search, { query: "x" });
-    expect(trusted.ctx.tainted).toBeFalsy();
-    const mixed = setup();
-    await exec(mixed.tools.search, { query: "x" });
-    expect(mixed.ctx.tainted).toBe(true);
-  });
-
-  it("treats every file as untrusted when the host cannot tell", async () => {
-    const { tools, ctx } = setup({ isTrustedPath: undefined });
-    await exec(tools.readFile, { path: "a.md" });
-    expect(ctx.tainted).toBe(true);
+    expect(ctx.tainted).toBeFalsy();
+    expect(runCommand.mock.calls[0]![0].tainted).toBe(false);
   });
 });

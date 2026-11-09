@@ -5,10 +5,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { formatUsd, t } from "@mdword/agent";
 import { cn } from "@mdword/ui";
-import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, FileText, Globe, History, Loader2, Plus, ScrollText, Settings, Sparkles, Square, X } from "lucide-react";
+import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, FileText, Globe, History, Loader2, Plus, ScrollText, Settings, Sparkles, Square, Terminal, X } from "lucide-react";
+import type { ShellMode } from "@mdword/shared";
+import { getHost } from "@/lib/host";
 import { relativeWorkspacePath } from "@mdword/workspace";
 import { useApp } from "@/lib/store";
-import { groupThread, type ToolItem } from "@/lib/assistant/thread";
+import { groupThread, type ToolItem, type WorkEntry } from "@/lib/assistant/thread";
 import { linkifyWikilinks, safeHref, wikiTargetFromHref } from "@/lib/assistant/links";
 import { openWikiTarget } from "@/lib/openEditorLink";
 import { shellModeOf, useAssistant } from "@/lib/assistant/store";
@@ -18,7 +20,7 @@ import { activeMention, filterMentionFiles, splitMentions, type MentionSegment }
 import type { ThreadItem } from "@/lib/assistant/thread";
 import { AssistantHistory } from "./AssistantHistory";
 import { AssistantSettings } from "./AssistantSettings";
-import { CommandCard } from "./CommandCard";
+import { CommandCard, CommandStep } from "./CommandCard";
 import { EditCard } from "./EditCard";
 
 const iconButton =
@@ -111,11 +113,24 @@ const Markdown = memo(function Markdown({ text }: { text: string }) {
   );
 });
 
-const WorkGroup = memo(function WorkGroup({ tools }: { tools: ToolItem[] }) {
+function renderEntry(entry: WorkEntry) {
+  return entry.kind === "tool" ? <ToolLine key={entry.id} item={entry} /> : <CommandStep key={entry.id} item={entry} />;
+}
+
+function workLabel(entry: WorkEntry): string {
+  return entry.kind === "tool" ? entry.label : entry.command;
+}
+
+function workFailed(entry: WorkEntry): boolean {
+  if (entry.kind === "tool") return entry.status === "error";
+  return entry.status === "failed" || (entry.status === "done" && (entry.exitCode !== 0 || entry.timedOut === true));
+}
+
+const WorkGroup = memo(function WorkGroup({ entries }: { entries: WorkEntry[] }) {
   const [open, setOpen] = useState(false);
-  const running = tools.some((x) => x.status === "running");
-  const failed = tools.some((x) => x.status === "error");
-  const last = tools.at(-1)!;
+  const running = entries.some((x) => x.status === "running");
+  const failed = entries.some(workFailed);
+  const last = entries.at(-1)!;
   return (
     <div data-testid="assistant-work" data-status={running ? "running" : "done"} className="rounded-md border border-[#e4e7ec] bg-[#f9fafb]">
       <button
@@ -131,15 +146,13 @@ const WorkGroup = memo(function WorkGroup({ tools }: { tools: ToolItem[] }) {
         ) : (
           <Check size={12} className="shrink-0" aria-hidden />
         )}
-        <span className="min-w-0 truncate">{last.label}</span>
-        <span className="ml-auto shrink-0 text-[#667085]">{t("panel.work.steps", { count: tools.length })}</span>
+        <span className="min-w-0 truncate">{workLabel(last)}</span>
+        <span className="ml-auto shrink-0 text-[#667085]">{t("panel.work.steps", { count: entries.length })}</span>
         <ChevronRight size={12} className={cn("shrink-0 transition-transform", open && "rotate-90")} aria-hidden />
       </button>
       {open ? (
         <div className="space-y-1 border-t border-[#e4e7ec] px-2 py-1.5">
-          {tools.map((x) => (
-            <ToolLine key={x.id} item={x} />
-          ))}
+          {entries.map(renderEntry)}
         </div>
       ) : null}
     </div>
@@ -150,7 +163,7 @@ function ThreadView({ thread }: { thread: ThreadItem[] }) {
   return (
     <>
       {groupThread(thread).map((block) => {
-        if (block.kind === "work") return <WorkGroup key={block.id} tools={block.tools} />;
+        if (block.kind === "work") return <WorkGroup key={block.id} entries={block.entries} />;
         const item = block.item;
         switch (item.kind) {
           case "user":
@@ -301,6 +314,96 @@ function MentionMenu({
         </ul>
       )}
       <div className="border-t border-[#e4e7ec] px-3 py-1.5 text-[11px] text-[#98a2b3]">{t("panel.mention.hint")}</div>
+    </div>
+  );
+}
+
+const SHELL_CHOICES: ShellMode[] = ["off", "manual", "ai", "always"];
+
+function ShellModeControl() {
+  const mode = useAssistant((s) => shellModeOf(s));
+  const setShellMode = useAssistant((s) => s.setShellMode);
+  const refreshShell = useAssistant((s) => s.refreshShell);
+  const noShell = useAssistant((s) => s.shellAvailability != null && !s.shellAvailability.bash && !s.shellAvailability.powershell);
+  const [open, setOpen] = useState(false);
+  const [asking, setAsking] = useState<ShellMode | null>(null);
+  if (!getHost().assistant?.shell) return null;
+  const choose = (next: ShellMode) => {
+    if (next === "ai" || next === "always") setAsking(next);
+    else {
+      setAsking(null);
+      setShellMode(next);
+      setOpen(false);
+    }
+  };
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        data-testid="assistant-shell-badge"
+        data-mode={mode}
+        aria-expanded={open}
+        aria-label={t("panel.shell.badge.title")}
+        title={t("panel.shell.badge.title")}
+        className={cn(
+          "flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium",
+          mode === "off" ? "text-[#667085] hover:bg-[#f2f4f7]" : mode === "manual" ? "bg-[#f2f4f7] text-[#344054]" : "bg-[#fffaeb] text-[#b54708]"
+        )}
+        onClick={() => {
+          setOpen((v) => !v);
+          if (!open) void refreshShell();
+        }}
+      >
+        <Terminal size={13} aria-hidden />
+        {mode !== "off" ? <span>{t(`panel.shell.badge.${mode}`)}</span> : null}
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          data-testid="assistant-shell-menu"
+          className="absolute bottom-9 left-0 z-20 w-56 space-y-1 rounded-lg border border-[#e4e7ec] bg-white p-1.5 shadow-lg"
+        >
+          {SHELL_CHOICES.map((choice) => (
+            <button
+              key={choice}
+              type="button"
+              role="menuitemradio"
+              aria-checked={mode === choice}
+              data-testid={`assistant-shell-pick-${choice}`}
+              disabled={choice !== "off" && noShell}
+              className={cn(
+                "block w-full rounded-md px-2 py-1 text-left text-[12px] text-[#344054] hover:bg-[#f2f4f7] disabled:opacity-40",
+                mode === choice && "bg-[#f2f4f7] font-medium"
+              )}
+              onClick={() => choose(choice)}
+            >
+              {t(`settings.shell.${choice}`)}
+            </button>
+          ))}
+          {asking ? (
+            <div className="space-y-1.5 rounded-md border border-[#fedf89] bg-[#fffaeb] p-2" data-testid="assistant-shell-warning">
+              <p className="text-[11px] leading-snug text-[#93370d]">{t("settings.shell.warn.body")}</p>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  className="rounded-md bg-[#1c1f24] px-2 py-1 text-[11px] font-medium text-white"
+                  data-testid="assistant-shell-confirm"
+                  onClick={() => {
+                    setShellMode(asking);
+                    setAsking(null);
+                    setOpen(false);
+                  }}
+                >
+                  {t("settings.shell.warn.confirm")}
+                </button>
+                <button type="button" className="rounded-md px-2 py-1 text-[11px] text-[#344054]" onClick={() => setAsking(null)}>
+                  {t("settings.shell.warn.cancel")}
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -526,6 +629,7 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
             <Globe size={13} aria-hidden />
             {webSearch ? <span>{t("panel.web.badge")}</span> : null}
           </button>
+          {root ? <ShellModeControl /> : null}
           <span className="flex-1" />
           {running ? (
             <button
@@ -584,7 +688,6 @@ export function AssistantPanel({ className, onClose }: { className?: string; onC
   };
   const webSearchOn = s.settings.webSearch;
   const waitingForUser = s.thread.some((i) => (i.kind === "edit" || i.kind === "command") && i.status === "pending");
-  const shellMode = shellModeOf(s);
   const lastUser = [...s.thread].reverse().find((i) => i.kind === "user")?.id;
   useEffect(() => {
     attachedRef.current = true;
@@ -611,19 +714,6 @@ export function AssistantPanel({ className, onClose }: { className?: string; onC
         <>
           <div className="flex shrink-0 items-center gap-1 border-b border-[#e4e7ec] px-3 py-2">
             <h2 className="flex-1 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">{t("panel.title")}</h2>
-            {shellMode !== "off" ? (
-              <span
-                data-testid="assistant-shell-badge"
-                data-mode={shellMode}
-                title={t("panel.shell.badge.title")}
-                className={cn(
-                  "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                  shellMode === "manual" ? "bg-[#f2f4f7] text-[#344054]" : "bg-[#fffaeb] text-[#b54708]"
-                )}
-              >
-                {t(`panel.shell.badge.${shellMode}`)}
-              </span>
-            ) : null}
             {hasKey ? (
               <span className="text-[11px] text-[#667085]" data-testid="assistant-cost">
                 {s.costUnknown && s.sessionCostUsd === 0 ? t("panel.cost.unknown") : t("panel.cost.session", { cost: formatUsd(s.sessionCostUsd) })}
