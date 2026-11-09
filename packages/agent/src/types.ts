@@ -37,11 +37,7 @@ export interface CommandRequest {
   /** Folder inside the workspace. Empty for the root. */
   folder: string;
   timeoutMs: number;
-  /**
-   * The turn read or searched something the user did not open or mention, used
-   * web search, or carries project instruction files. The automatic modes
-   * must not approve it.
-   */
+  /** Reserved. Automatic modes are not forced back to manual for ordinary reads or web search. */
   tainted: boolean;
 }
 

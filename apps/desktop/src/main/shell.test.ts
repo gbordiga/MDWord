@@ -80,21 +80,22 @@ suite("runShell (bash)", () => {
     expect(await pending).toMatchObject({ ok: true, cancelled: true });
   });
 
-  it("refuses a second command started before the first has spawned", async () => {
-    const firstReq = req("sleep 2");
-    const first = runShell(firstReq, roots());
-    expect(await runShell(req("echo x"), roots())).toEqual({ ok: false, error: "busy" });
-    cancelShell(firstReq.id);
+  it("runs several commands at once", async () => {
+    const slow = req("sleep 2");
+    const first = runShell(slow, roots());
+    const second = await runShell(req("echo side"), roots());
+    expect(second.ok && second.output).toContain("side");
+    cancelShell(slow.id);
     await first;
   });
 
-  it("allows one command at a time", async () => {
-    const r = req("sleep 2");
-    const first = runShell(r, roots());
+  it("stops at four commands at once", async () => {
+    const holds = Array.from({ length: 4 }, () => req("sleep 5"));
+    const pending = holds.map((r) => runShell(r, roots()));
     await new Promise((resolve) => setTimeout(resolve, 200));
     expect(await runShell(req("echo x"), roots())).toEqual({ ok: false, error: "busy" });
-    cancelShell(r.id);
-    await first;
+    for (const r of holds) cancelShell(r.id);
+    await Promise.all(pending);
   });
 
   it("reads no standard input", async () => {

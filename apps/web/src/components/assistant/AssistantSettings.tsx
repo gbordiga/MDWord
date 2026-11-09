@@ -17,13 +17,46 @@ import type { ShellMode } from "@mdword/shared";
 const CAPS: (number | null)[] = [1, 3, 5, 10, 25, null];
 const TIERS: Tier[] = ["low", "balanced", "quality"];
 
-function Row({ label, children, note }: { label: string; children: React.ReactNode; note?: string }) {
+function Section({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      {label ? <div className="text-[12px] font-medium text-[#344054]">{label}</div> : null}
-      {children}
-      {note ? <p className="text-[11px] leading-snug text-[#667085]">{note}</p> : null}
-    </div>
+    <section className="space-y-2">
+      {title ? <h3 className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">{title}</h3> : null}
+      <div className="space-y-2 rounded-xl border border-[#e4e7ec] bg-white p-2.5">{children}</div>
+    </section>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange,
+  label,
+  note,
+  testId
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  note: string;
+  testId: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-lg px-1 py-1 hover:bg-[#f9fafb]">
+      <span className="min-w-0 flex-1">
+        <span className="block text-[12px] font-medium text-[#1c1f24]">{label}</span>
+        <span className="mt-0.5 block text-[11px] leading-snug text-[#667085]">{note}</span>
+      </span>
+      <span className="relative mt-0.5 inline-flex h-5 w-9 shrink-0">
+        <input
+          type="checkbox"
+          className="peer sr-only"
+          data-testid={testId}
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span className="absolute inset-0 rounded-full bg-[#d0d5dd] transition-colors peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent" />
+        <span className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-4" />
+      </span>
+    </label>
   );
 }
 
@@ -57,9 +90,9 @@ function ShellSection() {
   const noShell = avail != null && !avail.bash && !avail.powershell;
   if (!api || !hasFolder) {
     return (
-      <Row label={t("settings.shell")} note={t("settings.shell.unavailable")}>
-        <span />
-      </Row>
+      <Section title={t("settings.shell")}>
+        <p className="px-1 text-[11px] leading-snug text-[#667085]">{t("settings.shell.unavailable")}</p>
+      </Section>
     );
   }
   const choose = (next: ShellMode) => {
@@ -70,27 +103,36 @@ function ShellSection() {
     }
   };
   return (
-    <Row label={t("settings.shell")} note={t("settings.shell.note")}>
+    <Section title={t("settings.shell")}>
+      <p className="px-1 text-[11px] leading-snug text-[#667085]">{t("settings.shell.note")}</p>
       <div role="radiogroup" aria-label={t("settings.shell")} className="space-y-1.5" data-testid="assistant-shell-modes">
-        {SHELL_CHOICES.map((choice) => (
-          <label key={choice} className="flex items-start gap-2 text-[12px] text-[#344054]">
-            <input
-              type="radio"
-              name="assistant-shell-mode"
-              className="mt-0.5"
-              data-testid={`assistant-shell-${choice}`}
-              checked={mode === choice}
-              disabled={choice !== "off" && noShell}
-              onChange={() => choose(choice)}
-            />
-            <span>
-              <span className="font-medium">{t(`settings.shell.${choice}`)}</span>
-              <span className="block text-[11px] text-[#667085]">{t(`settings.shellNote.${choice}`)}</span>
-            </span>
-          </label>
-        ))}
+        {SHELL_CHOICES.map((choice) => {
+          const selected = mode === choice;
+          return (
+            <label
+              key={choice}
+              className={`flex cursor-pointer items-start gap-2 rounded-lg border px-2.5 py-2 text-[12px] ${
+                selected ? "border-accent bg-[#f5f8ff]" : "border-[#e4e7ec] hover:bg-[#f9fafb]"
+              } ${choice !== "off" && noShell ? "cursor-not-allowed opacity-50" : ""}`}
+            >
+              <input
+                type="radio"
+                name="assistant-shell-mode"
+                className="mt-0.5 accent-accent"
+                data-testid={`assistant-shell-${choice}`}
+                checked={selected}
+                disabled={choice !== "off" && noShell}
+                onChange={() => choose(choice)}
+              />
+              <span>
+                <span className="font-medium text-[#1c1f24]">{t(`settings.shell.${choice}`)}</span>
+                <span className="block text-[11px] leading-snug text-[#667085]">{t(`settings.shellNote.${choice}`)}</span>
+              </span>
+            </label>
+          );
+        })}
       </div>
-      {noShell ? <p className="text-[11px] text-[#b54708]">{t("settings.shell.noShell")}</p> : null}
+      {noShell ? <p className="px-1 text-[11px] text-[#b54708]">{t("settings.shell.noShell")}</p> : null}
       {asking ? (
         <div className="space-y-2 rounded-lg border border-[#fedf89] bg-[#fffaeb] p-2.5" data-testid="assistant-shell-warning">
           <h4 className="text-[12px] font-semibold text-[#93370d]">{t("settings.shell.warn.title")}</h4>
@@ -98,7 +140,7 @@ function ShellSection() {
           <div className="flex gap-2">
             <button
               type="button"
-              className={buttonClass}
+              className="rounded-md bg-[#1c1f24] px-2.5 py-1.5 text-[12px] font-medium text-white"
               data-testid="assistant-shell-confirm"
               onClick={() => {
                 s.setShellMode(asking);
@@ -113,7 +155,7 @@ function ShellSection() {
           </div>
         </div>
       ) : null}
-    </Row>
+    </Section>
   );
 }
 
@@ -158,7 +200,7 @@ export function AssistantSettings() {
         </button>
         <h2 className="text-[11px] font-semibold uppercase tracking-wide text-[#667085]">{t("settings.title")}</h2>
       </div>
-      <div className="min-h-0 flex-1 space-y-4 overflow-auto p-3">
+      <div className="min-h-0 flex-1 space-y-5 overflow-auto bg-[#f9fafb] p-3">
         {!s.settings.noticeAccepted ? (
           <section className="space-y-2 rounded-lg border border-[#fedf89] bg-[#fffaeb] p-2.5" data-testid="assistant-notice">
             <h3 className="text-[12px] font-semibold text-[#93370d]">{t("settings.notice.title")}</h3>
@@ -174,7 +216,7 @@ export function AssistantSettings() {
           </section>
         ) : null}
 
-        <Row label={t("settings.account")} note={s.key?.hasKey ? t("settings.key.note") : undefined}>
+        <Section title={t("settings.account")}>
           {s.key?.hasKey ? (
             <div className="flex items-center gap-2">
               <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-[#344054]" data-testid="assistant-key-masked">
@@ -249,9 +291,11 @@ export function AssistantSettings() {
               ) : null}
             </div>
           ) : null}
-        </Row>
+          {s.key?.hasKey ? <p className="px-1 text-[11px] leading-snug text-[#667085]">{t("settings.key.note")}</p> : null}
+        </Section>
 
-        <Row label={t("settings.model")} note={s.modelsFailed ? t("settings.model.failed") : undefined}>
+        <Section title={t("settings.model")}>
+          {s.modelsFailed ? <p className="px-1 text-[11px] leading-snug text-[#b54708]">{t("settings.model.failed")}</p> : null}
           <select
             aria-label={t("settings.model")}
             data-testid="assistant-model"
@@ -281,9 +325,8 @@ export function AssistantSettings() {
               </optgroup>
             ) : null}
           </select>
-        </Row>
-
-        <Row label={t("settings.cap")}>
+          <label className="block space-y-1">
+            <span className="px-1 text-[12px] font-medium text-[#344054]">{t("settings.cap")}</span>
           <select
             aria-label={t("settings.cap")}
             data-testid="assistant-cap"
@@ -297,35 +340,30 @@ export function AssistantSettings() {
               </option>
             ))}
           </select>
-        </Row>
-
-        <Row label="" note={t("settings.privacy.note")}>
-          <label className="flex items-center gap-2 text-[12px] text-[#344054]">
-            <input
-              type="checkbox"
-              data-testid="assistant-privacy"
-              checked={s.settings.privacyOnly}
-              onChange={(e) => s.updateSettings({ privacyOnly: e.target.checked })}
-            />
-            {t("settings.privacy")}
           </label>
-        </Row>
+        </Section>
 
-        <Row label="" note={t("settings.web.note")}>
-          <label className="flex items-center gap-2 text-[12px] text-[#344054]">
-            <input
-              type="checkbox"
-              data-testid="assistant-web-search"
-              checked={s.settings.webSearch}
-              onChange={(e) => s.updateSettings({ webSearch: e.target.checked })}
-            />
-            {t("settings.web")}
-          </label>
-        </Row>
+        <Section>
+          <Toggle
+            testId="assistant-privacy"
+            checked={s.settings.privacyOnly}
+            onChange={(checked) => s.updateSettings({ privacyOnly: checked })}
+            label={t("settings.privacy")}
+            note={t("settings.privacy.note")}
+          />
+          <Toggle
+            testId="assistant-web-search"
+            checked={s.settings.webSearch}
+            onChange={(checked) => s.updateSettings({ webSearch: checked })}
+            label={t("settings.web")}
+            note={t("settings.web.note")}
+          />
+        </Section>
 
         <ShellSection />
 
-        <Row label={t("settings.history")} note={t("settings.history.note")}>
+        <Section title={t("settings.history")}>
+          <p className="px-1 text-[11px] leading-snug text-[#667085]">{t("settings.history.note")}</p>
           {confirmClear ? (
             <div className="flex gap-2">
               <button
@@ -348,7 +386,7 @@ export function AssistantSettings() {
               {t("settings.history.clear")}
             </button>
           )}
-        </Row>
+        </Section>
       </div>
     </div>
   );

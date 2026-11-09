@@ -615,25 +615,24 @@ export const useAssistant = create<AssistantState>((set, get) => {
           const mode = shellModeOf(get());
           if (!shellApi || !root || mode === "off") return { status: "failed", reason: t("error.shell.badRoot") };
           const id = nextId("cmd");
-          // The fixed filter always runs. It cannot be turned off, and neither can the taint rule.
+          // "Always" has no model, so the fixed filter decides. "AI" does not use it:
+          // the classifier sees only the command and decides on its own.
           const policy = checkCommand(req.command, req.shell);
           let approval: "manual" | "ai" | "always" = "manual";
           let why: Extract<ThreadItem, { kind: "command" }>["why"];
-          if (mode === "ai" || mode === "always") {
-            if (req.tainted) why = { kind: "tainted" };
-            else if (!policy.auto) why = { kind: "filter", reason: policy.reason };
-            else if (mode === "always") approval = "always";
-            else {
-              const verdict = await classifyCommand({
-                model: classifierModel,
-                command: req.command,
-                shell: req.shell,
-                folder: req.folder,
-                signal
-              });
-              if (verdict.decision === "allow") approval = "ai";
-              else why = { kind: "ai", reason: verdict.reason };
-            }
+          if (mode === "ai") {
+            const verdict = await classifyCommand({
+              model: classifierModel,
+              command: req.command,
+              shell: req.shell,
+              folder: req.folder,
+              signal
+            });
+            if (verdict.decision === "allow") approval = "ai";
+            else why = { kind: "ai", reason: verdict.reason };
+          } else if (mode === "always") {
+            if (policy.auto) approval = "always";
+            else why = { kind: "filter", reason: policy.reason };
           } else if (!policy.auto) {
             why = { kind: "filter", reason: policy.reason };
           }

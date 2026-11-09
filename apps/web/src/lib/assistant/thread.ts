@@ -37,7 +37,7 @@ export type ThreadItem =
       /** Who approved it. Set once it runs or is denied. */
       approval: "manual" | "ai" | "always";
       /** Why the card asks, when an automatic mode could not approve it. */
-      why?: { kind: "tainted" } | { kind: "filter" | "ai"; reason: string };
+      why?: { kind: "filter" | "ai"; reason: string };
       status: "pending" | "running" | "done" | "denied" | "failed";
       exitCode?: number | null;
       durationMs?: number;
@@ -52,16 +52,24 @@ export type ThreadItem =
   | { kind: "notice"; id: string; text: string };
 
 export type ToolItem = Extract<ThreadItem, { kind: "tool" }>;
-export type ThreadBlock = { kind: "work"; id: string; tools: ToolItem[] } | { kind: "item"; item: ThreadItem };
+export type CommandItem = Extract<ThreadItem, { kind: "command" }>;
+/** A step inside the work accordion: a tool, or a command that already left the approval card. */
+export type WorkEntry = ToolItem | CommandItem;
+export type ThreadBlock = { kind: "work"; id: string; entries: WorkEntry[] } | { kind: "item"; item: ThreadItem };
+
+/** A command still waiting for Run or Deny stays a card. Once it runs, it joins the steps. */
+function isWorkEntry(item: ThreadItem): item is WorkEntry {
+  return item.kind === "tool" || (item.kind === "command" && item.status !== "pending" && item.status !== "denied");
+}
 
 /** Consecutive tool steps become one "work" block; anything else stands alone. */
 export function groupThread(thread: ThreadItem[]): ThreadBlock[] {
   const blocks: ThreadBlock[] = [];
   for (const item of thread) {
-    if (item.kind === "tool") {
+    if (isWorkEntry(item)) {
       const last = blocks.at(-1);
-      if (last?.kind === "work") last.tools.push(item);
-      else blocks.push({ kind: "work", id: item.id, tools: [item] });
+      if (last?.kind === "work") last.entries.push(item);
+      else blocks.push({ kind: "work", id: item.id, entries: [item] });
     } else blocks.push({ kind: "item", item });
   }
   return blocks;

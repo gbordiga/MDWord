@@ -1,7 +1,7 @@
 "use client";
 
 import { t } from "@mdword/agent";
-import { Check, Square, TerminalSquare, X } from "lucide-react";
+import { AlertCircle, Check, Loader2, Square, TerminalSquare, X } from "lucide-react";
 import type { ThreadItem } from "@/lib/assistant/thread";
 import { useAssistant } from "@/lib/assistant/store";
 
@@ -10,7 +10,6 @@ type CommandItem = Extract<ThreadItem, { kind: "command" }>;
 function whyText(item: CommandItem): string | null {
   const why = item.why;
   if (!why) return null;
-  if (why.kind === "tainted") return t("command.tainted");
   if (why.kind === "ai") return t("command.aiDenied", { reason: why.reason });
   return t("command.needsYou", { reason: why.reason });
 }
@@ -34,6 +33,44 @@ function summary(item: CommandItem): string {
     default:
       return "";
   }
+}
+
+/** A command that already ran, shown as one row inside the steps accordion. */
+export function CommandStep({ item }: { item: CommandItem }) {
+  const stop = useAssistant((s) => s.stop);
+  const failed = item.status === "failed" || (item.status === "done" && (item.exitCode !== 0 || item.timedOut));
+  return (
+    <div data-testid="assistant-command-step" data-status={item.status} className="text-[11px] text-[#667085]">
+      <div className="flex items-center gap-1.5">
+        {item.status === "running" ? (
+          <Loader2 size={12} className="shrink-0 animate-spin" aria-hidden />
+        ) : failed ? (
+          <AlertCircle size={12} className="shrink-0 text-[#b42318]" aria-hidden />
+        ) : (
+          <Check size={12} className="shrink-0" aria-hidden />
+        )}
+        <span className="min-w-0 flex-1 truncate font-mono" title={item.command}>
+          {item.command}
+        </span>
+        {item.status === "running" ? (
+          <button type="button" className="shrink-0 underline" onClick={() => stop()}>
+            {t("command.stop")}
+          </button>
+        ) : (
+          <span className="shrink-0">{summary(item)}</span>
+        )}
+      </div>
+      {item.changed && item.changed.length > 0 ? (
+        <p className="mt-1 pl-5">{t("command.changed", { files: item.changed.join(", ") })}</p>
+      ) : null}
+      {item.output ? (
+        <details className="mt-1 pl-5">
+          <summary className="cursor-pointer">{t("command.output")}</summary>
+          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all font-mono">{item.output}</pre>
+        </details>
+      ) : null}
+    </div>
+  );
 }
 
 export function CommandCard({ item }: { item: CommandItem }) {

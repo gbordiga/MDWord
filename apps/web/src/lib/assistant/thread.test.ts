@@ -49,8 +49,32 @@ describe("assistant thread", () => {
       { kind: "assistant", id: "a", text: "ok" }
     ]);
     expect(blocks.map((b) => b.kind)).toEqual(["item", "work", "item", "work", "item"]);
-    expect(blocks[1]).toMatchObject({ kind: "work", tools: [{ id: "t1" }, { id: "t2" }] });
-    expect(blocks[3]).toMatchObject({ kind: "work", tools: [{ id: "t3" }] });
+    expect(blocks[1]).toMatchObject({ kind: "work", entries: [{ id: "t1" }, { id: "t2" }] });
+    expect(blocks[3]).toMatchObject({ kind: "work", entries: [{ id: "t3" }] });
+  });
+
+  it("folds a command into the steps once it is approved, and keeps a pending one as its own card", () => {
+    const command = (id: string, status: "pending" | "running" | "done" | "denied"): ThreadItem => ({
+      kind: "command",
+      id,
+      shell: "bash",
+      command: "ls",
+      folder: "",
+      approval: "manual",
+      status
+    });
+    const blocks = groupThread([
+      { kind: "tool", id: "t", name: "readFile", label: "Reading a.md", status: "ok" },
+      command("pending", "pending"),
+      command("running", "running"),
+      command("done", "done"),
+      command("denied", "denied")
+    ]);
+    expect(blocks.map((b) => b.kind)).toEqual(["work", "item", "work", "item"]);
+    expect(blocks[0]).toMatchObject({ entries: [{ id: "t" }] });
+    expect(blocks[1]).toMatchObject({ item: { id: "pending" } });
+    expect(blocks[2]).toMatchObject({ entries: [{ id: "running" }, { id: "done" }] });
+    expect(blocks[3]).toMatchObject({ item: { id: "denied" } });
   });
 });
 

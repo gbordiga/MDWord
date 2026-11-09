@@ -45,7 +45,7 @@ Add one optional tool, `runCommand`, to the assistant. It is **desktop only**, *
 - Commands run only in the **main process**, started from a validated IPC call. The renderer never spawns a process (ADR-006 stays true).
 - The IPC payload is checked with zod: shell name, command string (length cap), optional subfolder, timeout.
 - The child process gets a **scrubbed environment**: an allowlist of variables (`PATH`, `HOME`/`USERPROFILE`, `SystemRoot`, locale, temp). The OpenRouter key, any variable that looks like a secret, and the app's own environment are not passed.
-- Limits: default timeout 60 seconds (hard cap 10 minutes), at most one command at a time, no standard input (interactive programs fail instead of waiting), and Stop or timeout kills the whole process tree (`taskkill /T /F` on Windows, process group on POSIX).
+- Limits: default timeout 60 seconds (hard cap 10 minutes), up to four commands at once (the model may ask for several in one step), no standard input (interactive programs fail instead of waiting), and Stop or timeout kills the whole process tree (`taskkill /T /F` on Windows, process group on POSIX).
 - Output: stdout and stderr merged, kept **in memory only**, capped, and truncated from the start so the tail is kept, with a marker. No output is written to a temp file.
 
 ### Approval
@@ -53,24 +53,24 @@ Add one optional tool, `runCommand`, to the assistant. It is **desktop only**, *
 Three modes, chosen per workspace in settings and stored in user settings, never in the workspace. The active mode is always shown in the assistant header.
 
 1. **Manual** (default; the only mode until the user opts in). Every command shows a card with the exact command, shell, folder and timeout. The user presses Run or Deny. The command is never rewritten between the card and the run.
-2. **Automatic with AI.** Commands that pass the deterministic filter go to a separate classifier call, using the same model as the chat. Anything else is manual.
+2. **Automatic with AI.** A separate call, using the same model as the chat, sees only the command, the shell and the folder, and decides whether that command is safe. It does not see the conversation, files, web results, or the fixed filter. `allow` runs the command. Anything else is manual.
 3. **Always run.** Commands that pass the deterministic filter run with no question and no model call. Anything else is manual.
 
 Enabling mode 2 or 3 needs an explicit confirmation that states: no sandbox, commands run with the user's permissions, prompt injection can lead to a command. Switching back to manual is one click.
 
 Rules shared by all modes:
 
-- **The deterministic filter always runs and cannot be overridden by a model or a setting.** It is modelled on opencode's per-subcommand scanner and **fails closed**: if the command cannot be fully parsed, if no command is found, or if anything unknown appears, the result is manual approval. It splits on `;`, `&&`, `||`, pipes and newlines and checks every part. It forces manual approval for anything that:
+- **The deterministic filter gates "Always run" and explains a manual prompt.** It does not gate the AI check. It is modelled on opencode's per-subcommand scanner and **fails closed**: if the command cannot be fully parsed, if no command is found, or if anything unknown appears, "Always run" falls back to manual approval. It splits on `;`, `&&`, `||`, pipes and newlines and checks every part. It treats as not automatic anything that:
   - uses the network (`curl`, `wget`, `Invoke-WebRequest`, `Invoke-RestMethod`, `ssh`, `scp`, `nc`, package managers, `git push`, `fetch`, `pull`, `clone`), or .NET network types;
   - deletes, moves or overwrites (`rm`, `del`, `Remove-Item`, `mv`, `Move-Item`, `Set-Content`, `Out-File`, `>` and `>>` redirection, `sed -i`, `tee`), or calls .NET or member methods (`[IO.File]::...`, `$x.Delete()`), which are treated as commands, not ignored;
   - touches a path outside the workspace (absolute paths, `..`, `~`, drive letters, `$env:` and `%VAR%` paths, UNC paths);
   - reads credential locations (`.ssh`, `.aws`, `.git-credentials`, `.env`, browser profiles, the app data folder);
   - starts another shell or interpreter with `-c`/`-e`/`-Command`, uses `eval`/`Invoke-Expression`/`iex`, `source`, command substitution, here-strings with code, or encoded payloads (`-EncodedCommand`, `base64 -d`).
-  - Only a short allowlist of read-only programs is accepted without manual approval (`ls`, `dir`, `cat`, `head`, `tail`, `wc`, `grep`, `rg`, `sort` without `-o`, `uniq`, `find` without `-delete`, `-exec*`, `-ok*`, `-fprint*` or `-fls`, `git status|diff|log|show|branch`, `Get-ChildItem`, `Get-Content`, `Select-String`, `Measure-Object`, `Get-Location`, `echo`, `pwd`, `node --version`). Programs that run workspace-defined code, such as package scripts (`pnpm test|typecheck|lint`), are not read-only and are never on the list. Everything else is manual in every mode.
-- **Tainted turns.** Once a turn has used web search, read a file the user did not open or mention, or returned workspace `search` snippets from such a file, modes 2 and 3 are off for the rest of that turn and every command is manual. They are also off for every turn while the system prompt includes project instruction files (`AGENTS.md`, `agent.md`, `CLAUDE.md`) from the workspace, unless the user has reviewed and trusted them.
+  - Only a short allowlist of read-only programs passes the filter (`ls`, `dir`, `cat`, `head`, `tail`, `wc`, `grep`, `rg`, `sort` without `-o`, `uniq`, `find` without `-delete`, `-exec*`, `-ok*`, `-fprint*` or `-fls`, `git status|diff|log|show|branch`, `Get-ChildItem`, `Get-Content`, `Select-String`, `Measure-Object`, `Get-Location`, `echo`, `pwd`, `node --version`). Programs that run workspace-defined code, such as package scripts (`pnpm test|typecheck|lint`), are not on the list. In "Always run" everything else is manual. In the AI mode the classifier decides instead.
+- **No turn-wide veto.** Project instruction files, web search, and reading a file the user did not open do not change the decision. The AI check and the filter look at the command.
 - Every automatic decision (AI or always-run) appears in the thread with the command and which mode approved it.
 - Stop is always available.
-- The classifier (mode 2) sees **only** the command text, the shell and the folder: never file contents, tool output, web results or the conversation. Its answer must match a strict schema (`allow` or `deny`, short reason). Anything else, a timeout or an error is `deny` and falls back to manual approval. The classifier is a convenience that lowers prompts, not a security boundary. The filter and the scrubbed environment are what limit damage.
+- The classifier answer must match a strict schema (`allow` or `deny`, short reason). Anything else, a timeout or an error is `deny` and falls back to manual approval. It is a convenience, not a security boundary. The scrubbed environment still limits damage.
 - No "remember this command" and no allowlist file in the first version.
 
 ### Interaction with the document flow
@@ -105,7 +105,7 @@ A command can change files without Apply and without an undo step. To keep the M
 - A new class of risk exists: a prompt injection can lead to a command running with the user's permissions. Manual approval, the filter, and the scrubbed environment reduce it; they do not remove it. The documentation must say this plainly and not call the feature "safe".
 - `docs/security.md` and `docs/ai-assistant.md` must be updated when the feature ships: the sentence "no shell tool" becomes "desktop only, off by default, approval required".
 - New IPC handlers in main with schemas and tests. The CSP does not change. The renderer gains no new capability.
-- New security tests in `docs/security-tests.md`: the key never appears in the child environment; a command outside the workspace folder is refused; a denied filter case never reaches automatic approval; a turn that used web search never auto-approves; Stop kills child processes; output is capped.
+- New security tests in `docs/security-tests.md`: the key never appears in the child environment; a command outside the workspace folder is refused; a denied filter case never reaches automatic approval; Stop kills child processes; output is capped.
 - The assistant tool count changes from five to six (`listFiles`, `search`, `readFile`, `editFile`, `writeFile`, `runCommand`), and the evaluation set must cover prompt-injection cases that try to trigger `runCommand`.
 - Mobile and web keep the previous guarantee.
 
@@ -113,8 +113,6 @@ A command can change files without Apply and without an undo step. To keep the M
 
 - The filter reads the command text. It cannot see a link or junction that a command follows, and `git` reads repository configuration that can run programs, so a project from an untrusted source should stay on manual approval. The main process refuses a working folder that resolves outside the project, but a command can still follow a link in its arguments.
 - The AI check is a separate model call that is not counted in the session spend cap (it is a few tokens).
-- Turns with project instruction files (`AGENTS.md`, `agent.md`, `CLAUDE.md`) never auto-approve, because there is no way yet to mark them as reviewed.
-
 ## Resolved questions
 
 1. Per-command allow rules: not in v1. If added later, user-level only, never read from the workspace.

@@ -130,7 +130,9 @@ function killTree(child: ChildProcess): void {
   }
 }
 
-let running: { id: string; cancel: () => void } | null = null;
+/** The model often asks for several commands in one step. A few may run together. */
+const MAX_PARALLEL = 4;
+const running = new Map<string, { cancel: () => void }>();
 
 export async function runShell(
   raw: unknown,
@@ -149,26 +151,28 @@ export async function runShell(
   } catch {
     return { ok: false, error: "bad-folder" };
   }
-  // Reserve synchronously, before any await: two calls in the same turn must not both pass.
-  if (running) return { ok: false, error: "busy" };
+  // Reserve synchronously, before any await, so a burst of calls cannot pass the cap.
+  if (running.has(req.id) || running.size >= MAX_PARALLEL) return { ok: false, error: "busy" };
   let child: ChildProcess | null = null;
   let timedOut = false;
   let cancelled = false;
   const slot = {
-    id: req.id,
     cancel: () => {
       cancelled = true;
       if (child) killTree(child);
     }
   };
-  running = slot;
+  running.set(req.id, slot);
+  const release = () => {
+    if (running.get(req.id) === slot) running.delete(req.id);
+  };
   const file = await findShell(req.shell);
   if (!file) {
-    if (running === slot) running = null;
+    release();
     return { ok: false, error: "no-shell" };
   }
   if (cancelled) {
-    if (running === slot) running = null;
+    release();
     return { ok: true, exitCode: null, timedOut: false, cancelled: true, truncated: false, output: "", durationMs: 0, changed: [] };
   }
 
@@ -178,7 +182,7 @@ export async function runShell(
 
   return new Promise<ShellRunResult>((resolve) => {
     if (cancelled) {
-      if (running === slot) running = null;
+      release();
       resolve({ ok: true, exitCode: null, timedOut: false, cancelled: true, truncated: false, output: "", durationMs: 0, changed: [] });
       return;
     }
@@ -191,7 +195,7 @@ export async function runShell(
         detached: process.platform !== "win32"
       });
     } catch {
-      if (running === slot) running = null;
+      release();
       resolve({ ok: false, error: "spawn-failed" });
       return;
     }
@@ -212,7 +216,7 @@ export async function runShell(
       for (const decoder of decoders) tail.push(decoder.decode());
       const output = tail.value();
       const after = await snapshot(root);
-      if (running === slot) running = null;
+      release();
       resolve({
         ok: true,
         exitCode,
@@ -228,7 +232,7 @@ export async function runShell(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      if (running === slot) running = null;
+      release();
       resolve({ ok: false, error: "spawn-failed" });
     });
     child.on("close", (code) => void finish(code));
@@ -236,7 +240,7 @@ export async function runShell(
 }
 
 export function cancelShell(id: string): void {
-  if (running?.id === id) running.cancel();
+  running.get(id)?.cancel();
 }
 
 export async function shellAvailability(): Promise<ShellAvailability> {
@@ -248,7 +252,7 @@ export async function shellAvailability(): Promise<ShellAvailability> {
 
 /** Kill a running command when the app is closing. */
 export function killRunningShell(): void {
-  running?.cancel();
+  for (const slot of running.values()) slot.cancel();
 }
 
 export function registerShellIpc(isProjectRoot: (root: string) => boolean): void {

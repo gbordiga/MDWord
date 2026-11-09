@@ -57,19 +57,6 @@ export function maskDataUrls(text: string): string {
 export function createTools(ctx: ToolContext) {
   const { env } = ctx;
   let editQueue: Promise<unknown> = Promise.resolve();
-  // Tools that may taint the turn after an await. `runCommand` waits for them so
-  // a call made in the same step cannot read the taint bit too early.
-  const taintWork = new Set<Promise<unknown>>();
-  const mayTaint = <A, R>(execute: (args: A) => Promise<R>) => (args: A): Promise<R> => {
-    const work = execute(args);
-    const settled = work.then(
-      () => undefined,
-      () => undefined
-    );
-    taintWork.add(settled);
-    void settled.then(() => taintWork.delete(settled));
-    return work;
-  };
 
   const listFiles = tool({
     description: TOOL_DESCRIPTIONS.listFiles,
@@ -102,16 +89,14 @@ export function createTools(ctx: ToolContext) {
         limit: z.number().int().min(1).max(20).optional()
       })
       .strict(),
-    execute: mayTaint(async ({ query, field, limit }) => {
+    execute: async ({ query, field, limit }) => {
       const hits = await env.search(query, field, limit ?? 8);
-      // Snippets are file text the user did not open or name.
-      if (hits.some((h) => !env.isTrustedPath?.(h.path))) ctx.tainted = true;
       return account(ctx, {
         ok: true as const,
         hits: hits.slice(0, limit ?? 8).map((h) => ({ ...h, snippet: maskDataUrls(h.snippet).slice(0, 400) })),
         note: hits.length === 0 ? "No matches. Try other words or listFiles." : undefined
       });
-    })
+    }
   });
 
   const readFile = tool({
@@ -123,7 +108,7 @@ export function createTools(ctx: ToolContext) {
         endLine: z.number().int().min(1).optional()
       })
       .strict(),
-    execute: mayTaint(async ({ path, startLine, endLine }) => {
+    execute: async ({ path, startLine, endLine }) => {
       const checked = normalizeWorkspacePath(path);
       if (!checked.ok) return account(ctx, fail(checked.reason));
       if (checked.path === "") return account(ctx, fail("Give a file path, not the workspace root."));
@@ -134,7 +119,6 @@ export function createTools(ctx: ToolContext) {
           fail(`The file "${checked.path}" does not exist. Use listFiles or search to find the right path.`)
         );
       }
-      if (!env.isTrustedPath?.(checked.path)) ctx.tainted = true;
       const clean = (text.startsWith("\uFEFF") ? text.slice(1) : text).replace(/\r\n/g, "\n");
       const lines = maskDataUrls(clean).split("\n");
       const total = lines.length;
@@ -167,7 +151,7 @@ export function createTools(ctx: ToolContext) {
         ...(more ? { nextStartLine: to + 1 } : {}),
         content
       });
-    })
+    }
   });
 
   const writeFile = tool({
@@ -344,7 +328,6 @@ export function createTools(ctx: ToolContext) {
       if (!run) return account(ctx, fail("Commands are not available here."));
       const checked = normalizeWorkspacePath(folder ?? "");
       if (!checked.ok) return account(ctx, fail(checked.reason));
-      while (taintWork.size > 0) await Promise.all(taintWork);
       const outcome = await run(
         {
           shell,
