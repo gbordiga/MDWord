@@ -11,13 +11,14 @@ import { useApp } from "@/lib/store";
 import { groupThread, type ToolItem } from "@/lib/assistant/thread";
 import { linkifyWikilinks, safeHref, wikiTargetFromHref } from "@/lib/assistant/links";
 import { openWikiTarget } from "@/lib/openEditorLink";
-import { useAssistant } from "@/lib/assistant/store";
+import { shellModeOf, useAssistant } from "@/lib/assistant/store";
 import { mentionFiles } from "@/lib/assistant/context";
 import { instructionPaths } from "@/lib/assistant/env";
 import { activeMention, filterMentionFiles, splitMentions, type MentionSegment } from "@/lib/assistant/mentions";
 import type { ThreadItem } from "@/lib/assistant/thread";
 import { AssistantHistory } from "./AssistantHistory";
 import { AssistantSettings } from "./AssistantSettings";
+import { CommandCard } from "./CommandCard";
 import { EditCard } from "./EditCard";
 
 const iconButton =
@@ -174,6 +175,8 @@ function ThreadView({ thread }: { thread: ThreadItem[] }) {
             return null;
           case "edit":
             return <EditCard key={item.id} item={item} />;
+          case "command":
+            return <CommandCard key={item.id} item={item} />;
           case "notice":
             return (
               <p key={item.id} role="status" data-testid="assistant-notice-line" className="text-[12px] text-[#b54708]">
@@ -580,7 +583,8 @@ export function AssistantPanel({ className, onClose }: { className?: string; onC
     setAttached(atEnd);
   };
   const webSearchOn = s.settings.webSearch;
-  const waitingForUser = s.thread.some((i) => i.kind === "edit" && i.status === "pending");
+  const waitingForUser = s.thread.some((i) => (i.kind === "edit" || i.kind === "command") && i.status === "pending");
+  const shellMode = shellModeOf(s);
   const lastUser = [...s.thread].reverse().find((i) => i.kind === "user")?.id;
   useEffect(() => {
     attachedRef.current = true;
@@ -607,6 +611,19 @@ export function AssistantPanel({ className, onClose }: { className?: string; onC
         <>
           <div className="flex shrink-0 items-center gap-1 border-b border-[#e4e7ec] px-3 py-2">
             <h2 className="flex-1 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">{t("panel.title")}</h2>
+            {shellMode !== "off" ? (
+              <span
+                data-testid="assistant-shell-badge"
+                data-mode={shellMode}
+                title={t("panel.shell.badge.title")}
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                  shellMode === "manual" ? "bg-[#f2f4f7] text-[#344054]" : "bg-[#fffaeb] text-[#b54708]"
+                )}
+              >
+                {t(`panel.shell.badge.${shellMode}`)}
+              </span>
+            ) : null}
             {hasKey ? (
               <span className="text-[11px] text-[#667085]" data-testid="assistant-cost">
                 {s.costUnknown && s.sessionCostUsd === 0 ? t("panel.cost.unknown") : t("panel.cost.session", { cost: formatUsd(s.sessionCostUsd) })}

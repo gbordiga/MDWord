@@ -86,7 +86,11 @@ export async function runAssistantTurn(input: TurnInput): Promise<TurnResult> {
     signal: input.signal,
     maxToolChars: limits.maxToolChars,
     toolChars: 0,
-    stopReason: null
+    stopReason: null,
+    // Project instruction files are text the user did not write in this chat. Web
+    // search sources arrive on the stream and can lag a same-step command, so a turn
+    // that may search is tainted from the start.
+    tainted: input.webSearch === true || (input.instructions?.length ?? 0) > 0
   };
   const tools = createTools(ctx);
   const userMessage: ModelMessage = { role: "user", content: input.userText };
@@ -139,7 +143,11 @@ export async function runAssistantTurn(input: TurnInput): Promise<TurnResult> {
 
   const result = streamText({
     model: input.model,
-    system: buildSystemPrompt({ webSearch: input.webSearch, instructions: input.instructions }),
+    system: buildSystemPrompt({
+      webSearch: input.webSearch,
+      shell: input.env.runCommand != null,
+      instructions: input.instructions
+    }),
     messages: [...input.history, sent],
     tools,
     abortSignal: stall.signal,
@@ -161,6 +169,7 @@ export async function runAssistantTurn(input: TurnInput): Promise<TurnResult> {
       // the pages it used arrive as source parts, shown once as a step.
       if (part.type === "source") {
         if (part.sourceType === "url") pendingSources.push({ url: part.url, title: part.title });
+        ctx.tainted = true;
         continue;
       }
       if (pendingSources.length > 0) {

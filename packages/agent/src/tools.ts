@@ -4,6 +4,7 @@ import { z } from "zod";
 import { applyEdits } from "./edits";
 import { normalizeWorkspacePath } from "./paths";
 import { TOOL_DESCRIPTIONS } from "./prompt";
+import { SHELL_DEFAULT_TIMEOUT_MS, SHELL_MAX_COMMAND_CHARS, SHELL_MAX_TIMEOUT_MS } from "@mdword/shared";
 import { READ_CHUNK_CHARS, READ_CHUNK_LINES } from "./truncate";
 import type { AssistantEnv, StopReason } from "./types";
 
@@ -14,6 +15,8 @@ export interface ToolContext {
   toolChars: number;
   /** Set when a tool decides the turn must end after the current step. */
   stopReason: StopReason | null;
+  /** Text the user did not write has reached the model this turn (see `CommandRequest.tainted`). */
+  tainted?: boolean;
 }
 
 export type ToolFailure = { ok: false; error: string };
@@ -54,6 +57,19 @@ export function maskDataUrls(text: string): string {
 export function createTools(ctx: ToolContext) {
   const { env } = ctx;
   let editQueue: Promise<unknown> = Promise.resolve();
+  // Tools that may taint the turn after an await. `runCommand` waits for them so
+  // a call made in the same step cannot read the taint bit too early.
+  const taintWork = new Set<Promise<unknown>>();
+  const mayTaint = <A, R>(execute: (args: A) => Promise<R>) => (args: A): Promise<R> => {
+    const work = execute(args);
+    const settled = work.then(
+      () => undefined,
+      () => undefined
+    );
+    taintWork.add(settled);
+    void settled.then(() => taintWork.delete(settled));
+    return work;
+  };
 
   const listFiles = tool({
     description: TOOL_DESCRIPTIONS.listFiles,
@@ -86,14 +102,16 @@ export function createTools(ctx: ToolContext) {
         limit: z.number().int().min(1).max(20).optional()
       })
       .strict(),
-    execute: async ({ query, field, limit }) => {
+    execute: mayTaint(async ({ query, field, limit }) => {
       const hits = await env.search(query, field, limit ?? 8);
+      // Snippets are file text the user did not open or name.
+      if (hits.some((h) => !env.isTrustedPath?.(h.path))) ctx.tainted = true;
       return account(ctx, {
         ok: true as const,
         hits: hits.slice(0, limit ?? 8).map((h) => ({ ...h, snippet: maskDataUrls(h.snippet).slice(0, 400) })),
         note: hits.length === 0 ? "No matches. Try other words or listFiles." : undefined
       });
-    }
+    })
   });
 
   const readFile = tool({
@@ -105,7 +123,7 @@ export function createTools(ctx: ToolContext) {
         endLine: z.number().int().min(1).optional()
       })
       .strict(),
-    execute: async ({ path, startLine, endLine }) => {
+    execute: mayTaint(async ({ path, startLine, endLine }) => {
       const checked = normalizeWorkspacePath(path);
       if (!checked.ok) return account(ctx, fail(checked.reason));
       if (checked.path === "") return account(ctx, fail("Give a file path, not the workspace root."));
@@ -116,6 +134,7 @@ export function createTools(ctx: ToolContext) {
           fail(`The file "${checked.path}" does not exist. Use listFiles or search to find the right path.`)
         );
       }
+      if (!env.isTrustedPath?.(checked.path)) ctx.tainted = true;
       const clean = (text.startsWith("\uFEFF") ? text.slice(1) : text).replace(/\r\n/g, "\n");
       const lines = maskDataUrls(clean).split("\n");
       const total = lines.length;
@@ -148,7 +167,7 @@ export function createTools(ctx: ToolContext) {
         ...(more ? { nextStartLine: to + 1 } : {}),
         content
       });
-    }
+    })
   });
 
   const writeFile = tool({
@@ -310,7 +329,55 @@ export function createTools(ctx: ToolContext) {
     }
   });
 
-  return { listFiles, search, readFile, editFile, writeFile };
+  const runCommand = tool({
+    description: TOOL_DESCRIPTIONS.runCommand,
+    inputSchema: z
+      .object({
+        shell: z.enum(["bash", "powershell"]).describe("Which shell runs the command."),
+        command: z.string().min(1).max(SHELL_MAX_COMMAND_CHARS),
+        folder: z.string().optional().describe("Folder relative to the workspace root. Omit for the root."),
+        timeoutSeconds: z.number().int().min(1).max(SHELL_MAX_TIMEOUT_MS / 1000).optional()
+      })
+      .strict(),
+    execute: async ({ shell, command, folder, timeoutSeconds }) => {
+      const run = env.runCommand;
+      if (!run) return account(ctx, fail("Commands are not available here."));
+      const checked = normalizeWorkspacePath(folder ?? "");
+      if (!checked.ok) return account(ctx, fail(checked.reason));
+      while (taintWork.size > 0) await Promise.all(taintWork);
+      const outcome = await run(
+        {
+          shell,
+          command,
+          folder: checked.path,
+          timeoutMs: timeoutSeconds ? timeoutSeconds * 1000 : SHELL_DEFAULT_TIMEOUT_MS,
+          tainted: ctx.tainted === true
+        },
+        ctx.signal
+      );
+      if (outcome.status === "denied") {
+        return account(ctx, {
+          ok: true as const,
+          status: "denied" as const,
+          message: "The user did not allow this command. Do not run it again; ask what they want instead."
+        });
+      }
+      if (outcome.status === "failed") return account(ctx, fail(outcome.reason));
+      return account(ctx, {
+        ok: true as const,
+        status: "ran" as const,
+        exitCode: outcome.exitCode,
+        timedOut: outcome.timedOut,
+        cancelled: outcome.cancelled,
+        truncated: outcome.truncated,
+        durationMs: outcome.durationMs,
+        changedFiles: outcome.changed.length > 0 ? outcome.changed : undefined,
+        output: outcome.output
+      });
+    }
+  });
+
+  return { listFiles, search, readFile, editFile, writeFile, ...(env.runCommand ? { runCommand } : {}) };
 }
 
 export type AssistantTools = ReturnType<typeof createTools>;

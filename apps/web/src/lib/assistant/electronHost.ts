@@ -1,4 +1,4 @@
-import type { AssistantHostApi } from "@mdword/shared";
+import type { AssistantHostApi, ShellHostApi } from "@mdword/shared";
 
 type RequestEvent =
   | { id: string; type: "chunk"; data: Uint8Array }
@@ -20,6 +20,7 @@ export interface ElectronAssistantBridge {
   requestAbort(id: string): Promise<void>;
   onRequestEvent(handler: (event: RequestEvent) => void): () => void;
   history: AssistantHostApi["history"];
+  shell?: ShellHostApi;
 }
 
 let counter = 0;
@@ -46,6 +47,7 @@ export function createElectronAssistantHost(bridge: ElectronAssistantBridge): As
     signIn: () => bridge.signIn(),
     cancelSignIn: () => bridge.cancelSignIn(),
     history: bridge.history,
+    ...(bridge.shell ? { shell: bridge.shell } : {}),
     async fetch(url, init) {
       counter += 1;
       const id = `req-${Date.now().toString(36)}-${counter}`;

@@ -10,6 +10,9 @@ import {
   parseModelList,
   SUGGESTED_MODELS,
   t,
+  checkCommand,
+  type CommandOutcome,
+  type CommandRequest,
   type EditDecision,
   type EditProposal,
   type ModelInfo,
@@ -17,7 +20,13 @@ import {
   type SuggestedModel,
   type TurnEvent
 } from "@mdword/agent";
-import { looksLikeKey, redactKeys, type AssistantKeyStatus } from "@mdword/shared";
+import {
+  looksLikeKey,
+  redactKeys,
+  type AssistantKeyStatus,
+  type ShellAvailability,
+  type ShellMode
+} from "@mdword/shared";
 import { getHost } from "../host";
 import { attachedFilesContext, buildTurnContext, mentionFiles } from "./context";
 import { mentionedPaths } from "./mentions";
@@ -47,15 +56,35 @@ export interface AssistantSettings {
   /** The model may search the web (OpenRouter server tool). Off until the user turns it on. */
   webSearch: boolean;
   noticeAccepted: boolean;
+  /** Command mode per workspace. Missing means off. User level: a project cannot turn it on. */
+  shell: Record<string, ShellMode>;
 }
+
+const SHELL_MODES: readonly ShellMode[] = ["off", "manual", "ai", "always"];
 
 const defaultSettings: AssistantSettings = {
   modelId: DEFAULT_MODEL_ID,
   spendCapUsd: DEFAULT_CAP_USD,
   privacyOnly: true,
   webSearch: false,
-  noticeAccepted: false
+  noticeAccepted: false,
+  shell: {}
 };
+
+function parseShellModes(value: unknown): Record<string, ShellMode> {
+  const out: Record<string, ShellMode> = {};
+  if (!value || typeof value !== "object") return out;
+  for (const [key, mode] of Object.entries(value as Record<string, unknown>)) {
+    if (SHELL_MODES.includes(mode as ShellMode) && mode !== "off") out[key] = mode as ShellMode;
+  }
+  return out;
+}
+
+/** The command mode of the open workspace. Always `off` where the host cannot run commands. */
+export function shellModeOf(state: Pick<AssistantState, "settings" | "workspaceKey">): ShellMode {
+  if (!getHost().assistant?.shell || !state.workspaceKey) return "off";
+  return state.settings.shell[state.workspaceKey] ?? "off";
+}
 
 function loadSettings(): AssistantSettings {
   try {
@@ -72,7 +101,8 @@ function loadSettings(): AssistantSettings {
             : defaultSettings.spendCapUsd,
       privacyOnly: parsed.privacyOnly !== false,
       webSearch: parsed.webSearch === true,
-      noticeAccepted: parsed.noticeAccepted === true
+      noticeAccepted: parsed.noticeAccepted === true,
+      shell: parseShellModes(parsed.shell)
     };
   } catch {
     return defaultSettings;
@@ -118,6 +148,10 @@ export interface AssistantState {
   send: (text: string) => Promise<void>;
   stop: () => void;
   resolveEdit: (id: string, choice: "apply" | "discard") => Promise<void>;
+  setShellMode: (mode: ShellMode) => void;
+  shellAvailability: ShellAvailability | null;
+  refreshShell: () => Promise<void>;
+  resolveCommand: (id: string, choice: "run" | "deny") => void;
 }
 
 let history: ModelMessage[] = [];
@@ -129,6 +163,15 @@ let convGen = 0;
 const deletedIds = new Set<string>();
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 const pending = new Map<string, { proposal: EditProposal; resolve: (d: EditDecision) => void }>();
+const pendingCommands = new Map<string, (run: boolean) => void>();
+
+const SHELL_ERRORS = {
+  "no-shell": "error.shell.noShell",
+  busy: "error.shell.busy",
+  "bad-folder": "error.shell.badFolder",
+  "bad-root": "error.shell.badRoot",
+  "spawn-failed": "error.shell.spawn"
+} as const;
 
 function nextId(prefix: string): string {
   seq += 1;
@@ -310,6 +353,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
     usableSuggested: SUGGESTED_MODELS,
     signIn: "idle",
     workspaceKey: null,
+    shellAvailability: null,
 
     init: async () => {
       set({ settings: loadSettings() });
@@ -508,6 +552,29 @@ export const useAssistant = create<AssistantState>((set, get) => {
       await host.history.clear(key);
     },
     stop: () => abort?.abort(),
+    setShellMode: (mode) => {
+      const key = get().workspaceKey;
+      if (!key || !getHost().assistant?.shell) return;
+      const shell = { ...get().settings.shell };
+      if (mode === "off") delete shell[key];
+      else shell[key] = mode;
+      get().updateSettings({ shell });
+    },
+    refreshShell: async () => {
+      const api = assistantHost()?.shell;
+      if (!api) return set({ shellAvailability: null });
+      try {
+        set({ shellAvailability: await api.available() });
+      } catch {
+        set({ shellAvailability: { bash: false, powershell: false } });
+      }
+    },
+    resolveCommand: (id, choice) => {
+      const resolve = pendingCommands.get(id);
+      if (!resolve) return;
+      pendingCommands.delete(id);
+      resolve(choice === "run");
+    },
     send: async (text) => {
       const host = assistantHost();
       // A pasted OpenRouter key is a mistake: never store it or send it on.
@@ -524,7 +591,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
       const info = state.models?.find((m) => m.id === state.settings.modelId) ?? null;
       try {
         // The AI SDK is large: load it on the first message, not with the app.
-        const { createAssistantModel, runAssistantTurn } = await import("@mdword/agent/runtime");
+        const { createAssistantModel, runAssistantTurn, classifyCommand } = await import("@mdword/agent/runtime");
         const model = createAssistantModel({
           apiKey: "host-managed",
           modelId: state.settings.modelId,
@@ -533,14 +600,118 @@ export const useAssistant = create<AssistantState>((set, get) => {
           fetch: (input, init) =>
             host.fetch(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, init)
         });
+        const classifierModel = createAssistantModel({
+          apiKey: "host-managed",
+          modelId: state.settings.modelId,
+          privacyOnly: state.settings.privacyOnly,
+          fetch: (input, init) =>
+            host.fetch(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, init)
+        });
+        const mentioned = mentionedPaths(trimmed, mentionFiles().map((f) => f.rel));
+        const shellApi = host.shell;
+        const root = useApp.getState().workspace?.root;
+        const commandsOn = Boolean(shellApi && root && shellModeOf(get()) !== "off");
+        const runCommand = async (req: CommandRequest, signal: AbortSignal | undefined): Promise<CommandOutcome> => {
+          const mode = shellModeOf(get());
+          if (!shellApi || !root || mode === "off") return { status: "failed", reason: t("error.shell.badRoot") };
+          const id = nextId("cmd");
+          // The fixed filter always runs. It cannot be turned off, and neither can the taint rule.
+          const policy = checkCommand(req.command, req.shell);
+          let approval: "manual" | "ai" | "always" = "manual";
+          let why: Extract<ThreadItem, { kind: "command" }>["why"];
+          if (mode === "ai" || mode === "always") {
+            if (req.tainted) why = { kind: "tainted" };
+            else if (!policy.auto) why = { kind: "filter", reason: policy.reason };
+            else if (mode === "always") approval = "always";
+            else {
+              const verdict = await classifyCommand({
+                model: classifierModel,
+                command: req.command,
+                shell: req.shell,
+                folder: req.folder,
+                signal
+              });
+              if (verdict.decision === "allow") approval = "ai";
+              else why = { kind: "ai", reason: verdict.reason };
+            }
+          } else if (!policy.auto) {
+            why = { kind: "filter", reason: policy.reason };
+          }
+          if (signal?.aborted) return { status: "denied" };
+          mutateThread((thread) => [
+            ...thread,
+            {
+              kind: "command",
+              id,
+              shell: req.shell,
+              command: req.command,
+              folder: req.folder,
+              approval,
+              ...(approval === "manual" && mode !== "manual" ? { why } : {}),
+              timeoutMs: req.timeoutMs,
+              status: approval === "manual" ? "pending" : "running"
+            }
+          ]);
+          if (approval === "manual") {
+            const allowed = await new Promise<boolean>((resolve) => {
+              pendingCommands.set(id, resolve);
+              signal?.addEventListener(
+                "abort",
+                () => {
+                  if (pendingCommands.delete(id)) resolve(false);
+                },
+                { once: true }
+              );
+            });
+            if (!allowed) {
+              patchItem(id, { status: "denied" });
+              return { status: "denied" };
+            }
+            patchItem(id, { status: "running" });
+          }
+          const onAbort = () => void shellApi.cancel(id).catch(() => undefined);
+          signal?.addEventListener("abort", onAbort, { once: true });
+          try {
+            const result = await shellApi.run({
+              id,
+              shell: req.shell,
+              command: req.command,
+              root,
+              folder: req.folder,
+              timeoutMs: req.timeoutMs
+            });
+            if (!result.ok) {
+              const reason = t(SHELL_ERRORS[result.error]);
+              patchItem(id, { status: "failed", error: reason });
+              return { status: "failed", reason };
+            }
+            patchItem(id, {
+              status: "done",
+              exitCode: result.exitCode,
+              durationMs: result.durationMs,
+              timedOut: result.timedOut,
+              cancelled: result.cancelled,
+              changed: result.changed,
+              output: result.output
+            });
+            if (result.changed.length > 0) await useApp.getState().refreshWorkspace();
+            return { status: "ran", ...result };
+          } catch {
+            const reason = t("error.shell.spawn");
+            patchItem(id, { status: "failed", error: reason });
+            return { status: "failed", reason };
+          } finally {
+            signal?.removeEventListener("abort", onAbort);
+          }
+        };
         const result = await runAssistantTurn({
           model,
           history,
           userText: trimmed,
-          context: [buildTurnContext(), await attachedFilesContext(mentionedPaths(trimmed, mentionFiles().map((f) => f.rel)))]
+          context: [buildTurnContext(), await attachedFilesContext(mentioned)]
             .filter(Boolean)
             .join("\n\n"),
-          env: createAssistantEnv({ propose }),
+          env: createAssistantEnv({ propose, mentioned, ...(commandsOn ? { runCommand } : {}) }),
           pricing: info,
           spentBeforeUsd: get().sessionCostUsd,
           spendCapUsd: state.settings.spendCapUsd,
@@ -557,6 +728,11 @@ export const useAssistant = create<AssistantState>((set, get) => {
       } finally {
         // Only the turn that still owns the conversation cleans up shared state.
         if (gen === convGen) {
+          for (const [id, resolve] of pendingCommands) {
+            pendingCommands.delete(id);
+            patchItem(id, { status: "denied" });
+            resolve(false);
+          }
           for (const [id, entry] of pending) {
             pending.delete(id);
             patchItem(id, { status: "discarded" });

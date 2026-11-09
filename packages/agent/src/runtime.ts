@@ -6,3 +6,4 @@
 export * from "./loop";
 export * from "./openrouter";
 export * from "./tools";
+export * from "./approval";
