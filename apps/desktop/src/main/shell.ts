@@ -132,7 +132,7 @@ function killTree(child: ChildProcess): void {
 
 /** The model often asks for several commands in one step. A few may run together. */
 const MAX_PARALLEL = 4;
-const running = new Map<string, { cancel: () => void }>();
+const running = new Map<string, { cancel: () => void; overlapped: boolean }>();
 
 export async function runShell(
   raw: unknown,
@@ -157,11 +157,14 @@ export async function runShell(
   let timedOut = false;
   let cancelled = false;
   const slot = {
+    overlapped: running.size > 0,
     cancel: () => {
       cancelled = true;
       if (child) killTree(child);
     }
   };
+  // The snapshots cover the whole project, so files changed by a sibling cannot be told apart.
+  for (const other of running.values()) other.overlapped = true;
   running.set(req.id, slot);
   const release = () => {
     if (running.get(req.id) === slot) running.delete(req.id);
@@ -216,6 +219,7 @@ export async function runShell(
       for (const decoder of decoders) tail.push(decoder.decode());
       const output = tail.value();
       const after = await snapshot(root);
+      const changed = slot.overlapped ? [] : diffSnapshots(before, after);
       release();
       resolve({
         ok: true,
@@ -225,7 +229,7 @@ export async function runShell(
         truncated: tail.truncated,
         output,
         durationMs: Date.now() - started,
-        changed: diffSnapshots(before, after)
+        changed
       });
     };
     child.on("error", () => {
