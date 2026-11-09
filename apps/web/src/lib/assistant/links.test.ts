@@ -19,6 +19,7 @@ describe("linkifyWikilinks", () => {
     expect(linkifyWikilinks("Keep `[[Literal]]` and\n```\n[[Code]]\n```\n")).toBe(
       "Keep `[[Literal]]` and\n```\n[[Code]]\n```\n"
     );
+    expect(linkifyWikilinks("[[Page|a\\b]]")).toBe("[a\\\\b](#wiki:Page)");
     expect(wikiTargetFromHref("#wiki:My%20Page")).toBe("My Page");
     expect(wikiTargetFromHref("https://example.com")).toBeNull();
   });

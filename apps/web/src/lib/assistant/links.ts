@@ -21,7 +21,8 @@ export function linkifyWikilinks(markdown: string): string {
         const parts = parseWikiLinkInner(raw);
         if (parts?.target) {
           const visible = parts.label ?? (parts.section ? `${parts.target} › ${parts.section}` : parts.target);
-          const label = visible.replace(/[\[\]]/g, "\\$&");
+          // Backslash first in the class: it must be escaped too, or `\` could swallow the escape after it.
+          const label = visible.replace(/[\\[\]]/g, "\\$&");
           out += `[${label}](${WIKI_HREF}${encodeURIComponent(parts.target)})`;
           i += raw.length;
           continue;
