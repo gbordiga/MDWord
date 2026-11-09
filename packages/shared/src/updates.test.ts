@@ -9,6 +9,7 @@ describe("updateErrorReason", () => {
   it("extracts an HTTP status", () => {
     expect(updateErrorReason(failure("ERR_UPDATER_HTTP_ERROR", "HttpError: 403 Forbidden"))).toBe("HTTP 403");
     expect(updateErrorReason(failure("ERR_UPDATER_HTTP_ERROR", "statusCode: 503"))).toBe("HTTP 503");
+    expect(updateErrorReason(failure("ERR_UPDATER_HTTP_ERROR", "status: 200"))).toBe("HTTP 200");
     expect(updateErrorReason(failure("ERR_UPDATER_HTTP_ERROR"))).toBe("server error");
     // electron-updater's real shape for a 404 response:
     expect(
