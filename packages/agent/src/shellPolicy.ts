@@ -136,11 +136,10 @@ const PS_PROGRAMS = new Set([
   "rg"
 ]);
 /** Programs both shells can start. Each has its own argument rule below. */
-const EXTERNAL_PROGRAMS = new Set(["git", "pnpm", "node"]);
+const EXTERNAL_PROGRAMS = new Set(["git", "node"]);
 
 const GIT_READ = new Set(["status", "diff", "log", "show", "branch"]);
 const GIT_BRANCH_FLAGS = new Set(["-a", "-r", "-v", "-vv", "--list", "--show-current", "--all", "--remotes"]);
-const PNPM_SCRIPTS = new Set(["test", "typecheck", "lint"]);
 
 const FIND_DENIED = /^-(delete|exec|execdir|ok|okdir|fprint|fprint0|fprintf|fls)$/;
 
@@ -191,9 +190,6 @@ function checkProgram(name: string, args: Token[], shell: ShellName): string | n
       }
       if (sub === "branch" && texts.slice(1).some((a) => !GIT_BRANCH_FLAGS.has(a))) return "git branch changes branches";
       return null;
-    }
-    if (lower === "pnpm") {
-      return texts.length === 1 && PNPM_SCRIPTS.has(texts[0]!) ? null : "pnpm command runs project code";
     }
     return texts.length === 1 && texts[0] === "--version" ? null : "node runs code";
   }

@@ -21,7 +21,6 @@ describe("checkCommand: what may skip the approval card", () => {
       "git diff HEAD~1",
       "git log --oneline -n 5",
       "git branch --list",
-      "pnpm test",
       "node --version"
     ]) {
       expect(auto(c), c).toBe(true);
@@ -54,7 +53,9 @@ describe("checkCommand: what may skip the approval card", () => {
       "git branch -D x",
       "git diff --output=out.txt",
       "pnpm install",
-      "pnpm test --filter x",
+      "pnpm test",
+      "pnpm typecheck",
+      "npm run lint",
       "node -e 'process.exit()'",
       "node script.js"
     ]) {
