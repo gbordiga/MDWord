@@ -257,7 +257,7 @@ function ModelPicker({
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <div className="mt-1.5 flex items-center justify-end gap-3 px-2 text-[10px] text-[#98a2b3]">
+          <div className="relative mt-1.5 flex items-center justify-end gap-3 px-2 text-[10px] text-[#98a2b3]">
             <span className="flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-accent" />
               {t("settings.model.intelligence")}
