@@ -42,7 +42,7 @@ export function compileFind(query: string, options: FindOptions): CompiledFind {
 }
 
 function expand(template: string, m: RegExpExecArray): string {
-  return template.replace(/\$(\$|&|\d{1,2}|<[^>]+>)/g, (whole, token: string) => {
+  return template.replace(/\$(\$|&|\d{1,2}|<[\w$]{1,64}>)/g, (whole, token: string) => {
     if (token === "$") return "$";
     if (token === "&") return m[0];
     if (token.startsWith("<")) return m.groups?.[token.slice(1, -1)] ?? "";
