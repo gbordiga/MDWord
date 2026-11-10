@@ -19,6 +19,14 @@ if (!response.ok) {
 }
 const live = new Map((await response.json()).data.map((m) => [m.id, m]));
 
+// Every suggested model must have a zero-data-retention endpoint, because the list is meant to work with the ZDR setting on.
+const zdrResponse = await fetch("https://openrouter.ai/api/v1/models?zdr=true");
+if (!zdrResponse.ok) {
+  console.error(`Could not read the ZDR model list (${zdrResponse.status}).`);
+  process.exit(2);
+}
+const zdr = new Set((await zdrResponse.json()).data.map((m) => m.id));
+
 const warnings = [];
 let defaultProblem = null;
 for (const entry of list.models) {
@@ -27,6 +35,7 @@ for (const entry of list.models) {
   if (!model) problems.push("not in the live model list");
   else {
     if (!(model.supported_parameters ?? []).includes("tools")) problems.push("no tool calling");
+    if (!zdr.has(entry.id)) problems.push("no zero-data-retention endpoint");
     if (model.expiration_date && Date.parse(model.expiration_date) <= Date.now()) problems.push("expired");
     const cost = turnCost(model, entry.reasoning);
     if (cost > COST_CAP[entry.tier]) problems.push(`estimated cost per turn $${cost.toFixed(4)} breaks the ${entry.tier} tier cap`);

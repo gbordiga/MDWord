@@ -1,15 +1,15 @@
 {
-  "default": "qwen/qwen3.8-flash",
-  "lastVerified": "2026-11-08",
+  "default": "deepseek/deepseek-v4.1-flash-1017",
+  "lastVerified": "2026-11-10",
   "models": [
-    { "id": "qwen/qwen3.8-flash", "tier": "low", "reasoning": "optional", "reason": "Newest Qwen flash model; lowest cost with tool calling. One provider." },
-    { "id": "deepseek/deepseek-v4.1-flash", "tier": "low", "reasoning": "optional", "reason": "Very low price and many hosts. Quality varies by host precision.", "quantizations": ["fp8", "bf16"] },
+    { "id": "deepseek/deepseek-v4.1-flash-1017", "tier": "low", "reasoning": "optional", "reason": "Cheapest suggestion, and many hosts. Strong score for its price." },
+    { "id": "anthropic/claude-haiku-5.5", "tier": "low", "reasoning": "optional", "reason": "Highest score in the low tier. About three times the price of DeepSeek." },
     { "id": "openai/gpt-6-luna", "tier": "low", "reasoning": "optional", "reason": "Low price from OpenAI, Azure, and AWS." },
-    { "id": "google/gemini-3.6-flash", "tier": "balanced", "reasoning": "mandatory", "reason": "Clearly better writing than the low tier. Google only." },
-    { "id": "meta/muse-spark-1.1", "tier": "balanced", "reasoning": "mandatory", "reason": "Strong writing score at a balanced price. One provider." },
-    { "id": "qwen/qwen3.7-max", "tier": "balanced", "reasoning": "optional", "reason": "A Qwen option with optional reasoning. One provider." },
-    { "id": "anthropic/claude-sonnet-5.5", "tier": "quality", "reasoning": "mandatory", "reason": "Highest writing score of the suggested models." },
-    { "id": "google/gemini-4-argon", "tier": "quality", "reasoning": "mandatory", "reason": "Top writing score with a very large output limit. Google only." },
-    { "id": "qwen/qwen3.8-max-0902", "tier": "quality", "reasoning": "mandatory", "reason": "Top-tier Qwen at a lower price than the other quality models. One provider." }
+    { "id": "openai/gpt-6.1-terra", "tier": "balanced", "reasoning": "optional", "reason": "Close to the quality tier for a balanced price, with optional reasoning." },
+    { "id": "tencent/hy4", "tier": "balanced", "reasoning": "optional", "reason": "Low cost for its score, with optional reasoning." },
+    { "id": "meta/muse-spark-1.3", "tier": "balanced", "reasoning": "mandatory", "reason": "Strong coding and agentic scores at a balanced price." },
+    { "id": "anthropic/claude-sonnet-5.5", "tier": "quality", "reasoning": "mandatory", "reason": "Highest writing score of the earlier suggestions; strong overall." },
+    { "id": "openai/gpt-6.1-sol", "tier": "quality", "reasoning": "mandatory", "reason": "Matches Sonnet 5.5 on the intelligence index at the same price." },
+    { "id": "google/gemini-4-argon", "tier": "quality", "reasoning": "mandatory", "reason": "Top writing score with a very large output limit." }
   ]
 }
