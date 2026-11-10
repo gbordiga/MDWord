@@ -1,15 +1,15 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { AlertTriangle, ChevronDown, FileText, Frame, ListTree, PanelTop, Ruler, Tags, type LucideIcon } from "lucide-react";
 import { FONT_SCALES, matchFontScale, matchMarginPreset } from "@mdword/layout-engine";
 import { documentDate, documentTitle, documentTitleKey } from "@mdword/shared";
+import { listCustomFrontmatterKeys } from "@mdword/document-model";
 import { useApp } from "@/lib/store";
 import { FrontmatterEditor } from "./FrontmatterEditor";
 import { MarginEditor } from "./MarginEditor";
 
-const fieldClass =
-  "mt-1 w-full rounded-md border border-[#e4e7ec] bg-white px-3 py-2 text-[16px] lg:px-2 lg:py-1.5 lg:text-[13px]";
+import { Check, Field, InfoHint, fieldClass } from "./propertyUi";
 
 const RUNNING_FIELDS = [
   { group: "header", field: "left", label: "Left" },
@@ -23,6 +23,8 @@ const RUNNING_FIELDS = [
 function PropertySection({
   id,
   title,
+  icon: Icon,
+  tip,
   hint,
   defaultOpen,
   testIds,
@@ -30,6 +32,10 @@ function PropertySection({
 }: {
   id: string;
   title: string;
+  icon: LucideIcon;
+  /** What the section does, shown in a tooltip instead of on the page. */
+  tip?: string;
+  /** Current value, shown on the closed header. */
   hint?: string;
   defaultOpen?: boolean;
   testIds?: boolean;
@@ -41,30 +47,23 @@ function PropertySection({
       className="group border-b border-[#e4e7ec] last:border-b-0"
       open={defaultOpen}
     >
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 hover:bg-[#f8fafc] [&::-webkit-details-marker]:hidden">
-        <ChevronDown
-          size={14}
-          aria-hidden
-          className="shrink-0 text-[#98a2b3] transition-transform duration-150 group-open:rotate-180"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block text-[12px] font-semibold text-[#1c1f24]">{title}</span>
+      <summary className="flex cursor-pointer list-none items-center gap-2 border-b border-transparent bg-[#f2f4f7] px-3 py-2 transition-colors hover:bg-[#eaecf0] group-open:border-[#e4e7ec] [&::-webkit-details-marker]:hidden">
+        <Icon size={14} aria-hidden className="shrink-0 text-[#667085]" />
+        <span className="text-[12px] font-semibold text-[#1c1f24]">{title}</span>
+        {tip ? <InfoHint text={tip} /> : null}
+        <span className="ml-auto flex min-w-0 items-center gap-1.5">
           {hint ? (
-            <span className="mt-0.5 block truncate text-[11px] text-[#667085] group-open:hidden">{hint}</span>
+            <span className="min-w-0 truncate text-[11px] font-normal text-[#667085] group-open:hidden">{hint}</span>
           ) : null}
+          <ChevronDown
+            size={14}
+            aria-hidden
+            className="shrink-0 text-[#98a2b3] transition-transform duration-150 group-open:rotate-180"
+          />
         </span>
       </summary>
-      <div className="space-y-2.5 px-3 pb-3">{children}</div>
+      <div className="space-y-3 px-3 py-3">{children}</div>
     </details>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block text-[11px] font-medium text-[#667085]">
-      {label}
-      {children}
-    </label>
   );
 }
 
@@ -104,13 +103,11 @@ export function DocumentProperties({
 
   return (
     <div>
-      <p className="px-3 pb-2 pt-1 text-[12px] leading-snug text-[#667085]">
-        Saved in this document. Fields, page, margins, header, footer and contents all travel with the
-        file.
-      </p>
       <PropertySection
         id="document"
         title="Document"
+        icon={FileText}
+        tip="Saved in this document. Fields, page, margins, header, footer and contents all travel with the file."
         hint={title || "Untitled"}
         defaultOpen
         testIds={testIds}
@@ -123,20 +120,6 @@ export function DocumentProperties({
             onChange={(e) => patchFrontmatter({ [titleKey]: e.target.value })}
           />
         </Field>
-        <label className="flex items-center gap-2 text-[12px] text-[#344054]">
-          <input
-            type="checkbox"
-            data-testid={testIds ? "prop-show-title" : "fm-show-title"}
-            checked={Boolean(model.resolvedMdoc.masthead?.title)}
-            onChange={(e) =>
-              patchMdoc({
-                ...mdoc,
-                masthead: { ...model.resolvedMdoc.masthead, title: e.target.checked }
-              })
-            }
-          />
-          Show title in the document
-        </label>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Date">
             <input
@@ -155,26 +138,34 @@ export function DocumentProperties({
             />
           </Field>
         </div>
-        <label className="flex items-center gap-2 text-[12px] text-[#344054]">
-          <input
-            type="checkbox"
-            data-testid={testIds ? "prop-show-date" : "fm-show-date"}
-            checked={Boolean(model.resolvedMdoc.masthead?.date)}
-            onChange={(e) =>
-              patchMdoc({
-                ...mdoc,
-                masthead: { ...model.resolvedMdoc.masthead, date: e.target.checked }
-              })
+        <div className="grid grid-cols-2 gap-2 rounded-lg bg-[#f9fafb] px-2.5 py-0.5">
+          <Check
+            label="Show title"
+            hint="Show the title at the top of the document."
+            testId={testIds ? "prop-show-title" : "fm-show-title"}
+            checked={Boolean(model.resolvedMdoc.masthead?.title)}
+            onChange={(checked) =>
+              patchMdoc({ ...mdoc, masthead: { ...model.resolvedMdoc.masthead, title: checked } })
             }
           />
-          Show date in the document
-        </label>
+          <Check
+            label="Show date"
+            hint="Show the date under the title."
+            testId={testIds ? "prop-show-date" : "fm-show-date"}
+            checked={Boolean(model.resolvedMdoc.masthead?.date)}
+            onChange={(checked) =>
+              patchMdoc({ ...mdoc, masthead: { ...model.resolvedMdoc.masthead, date: checked } })
+            }
+          />
+        </div>
       </PropertySection>
 
       <PropertySection
         id="custom"
         title="Custom properties"
-        hint="Extra fields stored with this file"
+        icon={Tags}
+        tip="Extra fields stored in the file's front matter."
+        hint={`${listCustomFrontmatterKeys(model).length || "None"}`}
         defaultOpen={variant === "inline" ? true : undefined}
         testIds={testIds}
       >
@@ -184,6 +175,7 @@ export function DocumentProperties({
       <PropertySection
         id="page"
         title="Page"
+        icon={Frame}
         hint={`${pageSize} · ${orientation === "landscape" ? "Landscape" : "Portrait"}`}
         defaultOpen
         testIds={testIds}
@@ -249,6 +241,8 @@ export function DocumentProperties({
       <PropertySection
         id="margins"
         title="Margins"
+        icon={Ruler}
+        tip="Drag the markers on the rulers, or type millimetres."
         hint={marginPreset === "custom" ? "Custom" : `${marginPreset.charAt(0).toUpperCase()}${marginPreset.slice(1)}`}
         testIds={testIds}
       >
@@ -259,12 +253,9 @@ export function DocumentProperties({
         />
       </PropertySection>
 
-      <PropertySection id="running" title="Header and footer" hint={headerPreview || "Page numbers and title"} testIds={testIds}>
-        <p className="text-[12px] leading-snug text-[#667085]">
-          Shown on each page and in PDF. Tokens: {"{{page}}"}, {"{{pages}}"}, {"{{title}}"}, {"{{date}}"}.
-        </p>
+      <PropertySection id="running" title="Header and footer" icon={PanelTop} tip="Shown on each page and in PDF. Tokens: {{page}}, {{pages}}, {{title}}, {{date}}." hint={headerPreview || "Page numbers and title"} testIds={testIds}>
         <p className="text-[11px] font-semibold uppercase tracking-wide text-[#667085]">Header</p>
-        <div className="grid grid-cols-1 gap-2">
+        <div className="grid grid-cols-3 gap-1.5">
           {RUNNING_FIELDS.filter((f) => f.group === "header").map(({ group, field, label }) => (
             <Field key={`${group}-${field}`} label={label}>
               <input
@@ -285,8 +276,8 @@ export function DocumentProperties({
             </Field>
           ))}
         </div>
-        <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">Footer</p>
-        <div className="grid grid-cols-1 gap-2">
+        <p className="border-t border-[#eaecf0] pt-3 text-[11px] font-semibold uppercase tracking-wide text-[#667085]">Footer</p>
+        <div className="grid grid-cols-3 gap-1.5">
           {RUNNING_FIELDS.filter((f) => f.group === "footer").map(({ group, field, label }) => (
             <Field key={`${group}-${field}`} label={label}>
               <input
@@ -309,22 +300,14 @@ export function DocumentProperties({
         </div>
       </PropertySection>
 
-      <PropertySection id="toc" title="Table of contents" hint={tocEnabled ? `On · depth ${tocDepth}` : "Off"} testIds={testIds}>
-        <label className="flex min-h-11 items-start gap-2 text-[13px] text-[#1c1f24]">
-          <input
-            type="checkbox"
-            data-testid={testIds ? "prop-toc" : undefined}
-            className="mt-1"
-            checked={tocEnabled}
-            onChange={() =>
-              patchMdoc({
-                ...mdoc,
-                toc: { enabled: !tocEnabled, depth: tocDepth }
-              })
-            }
-          />
-          Show a live table of contents from headings
-        </label>
+      <PropertySection id="toc" title="Table of contents" icon={ListTree} tip="A live table of contents built from the headings." hint={tocEnabled ? `On · depth ${tocDepth}` : "Off"} testIds={testIds}>
+        <Check
+          label="Show table of contents"
+          hint="Builds a live table of contents from the headings."
+          testId={testIds ? "prop-toc" : undefined}
+          checked={tocEnabled}
+          onChange={() => patchMdoc({ ...mdoc, toc: { enabled: !tocEnabled, depth: tocDepth } })}
+        />
         {tocEnabled ? (
           <Field label="Heading depth">
             <select
@@ -351,6 +334,7 @@ export function DocumentProperties({
         <PropertySection
           id="diagnostics"
           title="Diagnostics"
+          icon={AlertTriangle}
           hint={`${model.diagnostics.length} ${model.diagnostics.length === 1 ? "issue" : "issues"}`}
           defaultOpen
           testIds

@@ -19,7 +19,11 @@ export function Tooltip({ label, shortcut, keys, children }: { label: string; sh
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       const rect = ref.current?.getBoundingClientRect();
-      if (rect) setPos({ x: rect.left + rect.width / 2, y: rect.bottom + 8 });
+      if (!rect) return;
+      // Long descriptions wrap in a 16rem box: keep its edges inside the window.
+      const half = label.length > 40 ? 136 : 0;
+      const x = Math.min(Math.max(rect.left + rect.width / 2, half + 8), window.innerWidth - half - 8);
+      setPos({ x, y: rect.bottom + 8 });
     }, delay);
   };
   const hide = () => {
@@ -46,7 +50,7 @@ export function Tooltip({ label, shortcut, keys, children }: { label: string; sh
               role="tooltip"
               data-testid="tooltip"
               style={{ left: pos.x, top: pos.y }}
-              className="pointer-events-none fixed z-[100] flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-lg bg-[#1c1f24] px-2.5 py-1.5 text-[12px] font-medium text-white shadow-lg"
+              className={`pointer-events-none fixed z-[100] flex -translate-x-1/2 items-center gap-2 rounded-lg bg-[#1c1f24] px-2.5 py-1.5 text-[12px] font-medium text-white shadow-lg ${label.length > 40 ? "w-max max-w-[16rem] whitespace-normal leading-snug" : "whitespace-nowrap"}`}
             >
               {label}
               {chips.length ? (

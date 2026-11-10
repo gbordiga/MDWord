@@ -22,10 +22,10 @@ import {
 import { documentDate } from "@mdword/shared";
 import { useApp } from "@/lib/store";
 
-const fieldClass =
-  "w-full rounded-md border border-[#e4e7ec] bg-white px-2 py-1.5 text-[13px] outline-hidden focus:border-[#2f6fed]";
+import { InfoHint, fieldClass, labelClass } from "./propertyUi";
+
 const keyClass =
-  "w-full rounded-md border border-transparent bg-transparent px-1 py-1 font-mono text-[12px] text-[#344054] outline-hidden hover:border-[#e4e7ec] focus:border-[#2f6fed]";
+  "w-full rounded-md border border-transparent bg-transparent px-1 py-1 font-mono text-[12px] font-medium text-[#344054] outline-none hover:border-[#d0d5dd] focus:border-accent";
 
 function commitModel(
   next: ReturnType<typeof setFrontmatterValues>
@@ -189,7 +189,7 @@ export function FrontmatterEditor({
   return (
     <div className="space-y-2" data-testid={testIdScope === "inline" ? "frontmatter-editor" : "properties-fields"}>
       {keys.length === 0 ? (
-        <p className="text-[12px] text-[#667085]">No custom properties yet. Add a field to store it with this document.</p>
+        <p className="rounded-lg border border-dashed border-[#d0d5dd] px-3 py-2.5 text-center text-[12px] text-[#667085]">No custom properties yet</p>
       ) : (
         <ul className="space-y-2">
           {keys.map((key) => (
@@ -223,7 +223,7 @@ export function FrontmatterEditor({
                     );
                   }}
                 />
-                <p className="px-1 text-[10px] text-[#98a2b3]">{frontmatterLabel(key)}</p>
+                <p className="px-1 text-[11px] text-[#98a2b3]">{frontmatterLabel(key)}</p>
               </div>
               <FieldValue fieldKey={key} value={model.frontmatter[key]} testIdScope={testIdScope} />
               <button
@@ -244,13 +244,13 @@ export function FrontmatterEditor({
         </ul>
       )}
 
-      <div className="flex flex-wrap items-end gap-2 border-t border-[#e4e7ec] pt-2">
-        <label className="min-w-[8rem] flex-1 text-[11px] font-medium text-[#667085]">
-          New property
+      <div className="flex flex-wrap items-end gap-2 border-t border-[#eaecf0] pt-3">
+        <label className={`${labelClass} min-w-[8rem] flex-1`}>
+          <span className="mb-1 flex items-center gap-1">New property<InfoHint text="Stored with this document. Pick a suggested name or type your own." /></span>
           <input
             data-testid={testIdScope === "inline" ? "fm-new-key" : undefined}
             list={`fm-suggested-keys-${testIdScope}`}
-            className={`${fieldClass} mt-1`}
+            className={fieldClass}
             placeholder="custom_key"
             value={draftKey}
             onChange={(event) => setDraftKey(event.target.value)}
@@ -267,10 +267,10 @@ export function FrontmatterEditor({
             <option key={key} value={key} />
           ))}
         </datalist>
-        <label className="text-[11px] font-medium text-[#667085]">
-          Type
+        <label className={labelClass}>
+          <span className="mb-1 block">Type</span>
           <select
-            className={`${fieldClass} mt-1 w-[7.5rem]`}
+            className={`${fieldClass} w-[7.5rem]`}
             value={draftKind}
             onChange={(event) => setDraftKind(event.target.value as FrontmatterValueKind)}
           >
@@ -283,7 +283,7 @@ export function FrontmatterEditor({
         <button
           type="button"
           data-testid={testIdScope === "inline" ? "fm-add" : undefined}
-          className="inline-flex h-8 items-center gap-1 rounded-md bg-[#e8eefc] px-2.5 text-[12px] font-medium text-[#1d4ed8] hover:bg-[#d6e2fb]"
+          className="inline-flex h-8 items-center gap-1 rounded-lg bg-accent px-3 text-[12px] font-medium text-white hover:opacity-90 disabled:bg-[#d0d5dd] max-lg:h-10"
           onClick={() => add(draftKey, draftKind)}
           disabled={!isFrontmatterKey(draftKey.trim()) || isDocumentPropertyKey(draftKey.trim())}
         >

@@ -2,8 +2,7 @@
 
 import { MARGIN_PRESETS, matchMarginPreset, type Mdoc } from "@mdword/layout-engine";
 
-const fieldClass =
-  "mt-1 w-full rounded-md border border-[#e4e7ec] px-3 py-2 text-[16px] lg:px-2 lg:py-1 lg:text-[13px]";
+import { Field, fieldClass } from "./propertyUi";
 
 export function MarginEditor({
   mdoc,
@@ -18,8 +17,7 @@ export function MarginEditor({
 
   return (
     <div data-testid="margin-editor">
-      <label className="mb-2 block text-[11px] font-medium text-[#667085]">
-        Preset
+      <Field label="Preset">
         <select
           aria-label="Margin preset"
           data-testid="margin-preset"
@@ -37,12 +35,10 @@ export function MarginEditor({
           ))}
           <option value="custom">Custom</option>
         </select>
-      </label>
-      <p className="mb-2 text-[12px] text-[#667085]">Drag the markers on the rulers, or type millimetres.</p>
-      <div className="grid grid-cols-2 gap-2">
+      </Field>
+      <div className="mt-2.5 grid grid-cols-2 gap-2">
         {(["top", "bottom", "left", "right"] as const).map((side) => (
-          <label key={side} className="block capitalize text-[11px] font-medium text-[#667085]">
-            {side}
+          <Field key={side} label={`${side[0]!.toUpperCase()}${side.slice(1)}`}>
             <input
               data-testid={`prop-margin-${side}`}
               className={fieldClass}
@@ -57,7 +53,7 @@ export function MarginEditor({
                 })
               }
             />
-          </label>
+          </Field>
         ))}
       </div>
     </div>
