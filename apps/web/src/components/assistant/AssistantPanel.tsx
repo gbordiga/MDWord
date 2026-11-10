@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { formatUsd, t } from "@mdword/agent";
 import { cn } from "@mdword/ui";
-import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, FileText, Globe, History, Loader2, Plus, ScrollText, Settings, Sparkles, Square, Terminal, X } from "lucide-react";
+import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, CornerDownRight, FileText, Globe, History, Loader2, Plus, ScrollText, Settings, Sparkles, Square, Terminal, X } from "lucide-react";
 import type { ShellMode } from "@mdword/shared";
 import { getHost } from "@/lib/host";
 import { relativeWorkspacePath } from "@mdword/workspace";
@@ -419,6 +419,10 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
   const running = useAssistant((s) => s.running);
   const send = useAssistant((s) => s.send);
   const stop = useAssistant((s) => s.stop);
+  const queue = useAssistant((s) => s.queue);
+  const enqueue = useAssistant((s) => s.enqueue);
+  const unqueue = useAssistant((s) => s.unqueue);
+  const steer = useAssistant((s) => s.steer);
   const webSearch = useAssistant((s) => s.settings.webSearch);
   const updateSettings = useAssistant((s) => s.updateSettings);
   const path = useApp((s) => s.path);
@@ -468,11 +472,12 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
   };
 
   const submit = () => {
-    if (disabled || running || !text.trim()) return;
+    if (disabled || !text.trim()) return;
     const value = text;
     setText("");
     setCursor(0);
-    void send(value);
+    if (running) enqueue(value);
+    else void send(value);
   };
 
   // The box grows with the text up to about eight lines, then scrolls.
@@ -493,6 +498,34 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
           disabled ? "border-[#e4e7ec] bg-[#f9fafb]" : "border-[#d0d5dd]"
         )}
       >
+        {queue.length > 0 ? (
+          <ul aria-label={t("panel.queue.list")} data-testid="assistant-queue" className="space-y-1 border-b border-[#eaecf0] p-1.5">
+            {queue.map((q) => (
+              <li key={q.id} data-testid="assistant-queued" className="flex items-center gap-1.5 rounded-md bg-[#f2f4f7] py-1 pl-2 pr-1 text-[12px] text-[#344054]">
+                <span className="min-w-0 flex-1 truncate">{q.text}</span>
+                <button
+                  type="button"
+                  data-testid="assistant-steer"
+                  aria-label={t("panel.queue.steer")}
+                  title={t("panel.queue.steer")}
+                  className="rounded p-1 text-[#667085] hover:bg-white hover:text-accent"
+                  onClick={() => steer(q.id)}
+                >
+                  <CornerDownRight size={13} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  aria-label={t("panel.queue.remove")}
+                  title={t("panel.queue.remove")}
+                  className="rounded p-1 text-[#667085] hover:bg-white hover:text-[#1c1f24]"
+                  onClick={() => unqueue(q.id)}
+                >
+                  <X size={13} aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {fileName || instructions.length > 0 ? (
           <div className="flex items-center gap-1.5 px-2.5 pt-2">
             {fileName ? (
@@ -636,6 +669,18 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
           </button>
           {root ? <ShellModeControl /> : null}
           <span className="flex-1" />
+          {running && canSend ? (
+            <button
+              type="button"
+              data-testid="assistant-enqueue"
+              aria-label={t("panel.queue")}
+              title={t("panel.queue")}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-white hover:opacity-90"
+              onClick={submit}
+            >
+              <ArrowUp size={16} />
+            </button>
+          ) : null}
           {running ? (
             <button
               type="button"
