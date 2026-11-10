@@ -504,7 +504,7 @@ export function renderPrintDocument(options: {
     @page {
       size: ${pageWidth}mm ${pageHeight}mm;
       margin: ${marginTop} ${marginRight} ${marginBottom} ${marginLeft};
-      ${escape(pageBoxes)}
+      ${pageBoxes}
     }
     html, body {
       font-family: ${bodyFont};

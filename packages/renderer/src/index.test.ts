@@ -165,6 +165,20 @@ describe("running header and footer", () => {
     expect(templates.footerTemplate).toContain("2026-01-01");
     expect(html).toMatch(/@top-left/);
     expect(html).not.toContain("print-running-header");
+    // The margin box text is real CSS: HTML-escaped quotes would make the browser drop it.
+    expect(html).toContain('@top-left { content: "Audit";');
+    expect(html).not.toContain("&quot;Audit");
+  });
+
+  it("keeps header text from breaking out of the style element", () => {
+    const html = renderPrintDocument({
+      ast: { type: "root", children: [] },
+      mdoc: { version: 1, header: { left: 'x"; } </style><script>alert(1)</script>' } },
+      title: "T"
+    });
+    const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+    expect(style).not.toContain("<script");
+    expect(html).not.toContain("<script>alert(1)");
   });
 
   it("writes title and date into the document body", () => {
