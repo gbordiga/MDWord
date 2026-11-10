@@ -151,6 +151,12 @@ function AppShellInner({
         e.preventDefault();
         confirmIfDirty(() => useApp.getState().newDocument());
       }
+      if (meta && e.shiftKey && !e.altKey && e.code === "KeyO") {
+        e.preventDefault();
+        e.stopPropagation();
+        void useApp.getState().openFolder();
+        return;
+      }
       if (meta && e.key.toLowerCase() === "o") {
         e.preventDefault();
         void useApp.getState().openFile();

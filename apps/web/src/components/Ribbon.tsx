@@ -2,7 +2,7 @@
 
 import type { Editor } from "@tiptap/react";
 import { Tooltip } from "@/components/Tooltip";
-import type { ShortcutId } from "@/lib/shortcuts";
+import { shortcutKeys, type ShortcutId } from "@/lib/shortcuts";
 import {
   Bold,
   Italic,
@@ -275,6 +275,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
         )}
         {ribbon === "home" && (
           <>
+            <Tooltip label="Paragraph style" keys={[...shortcutKeys("heading1").slice(0, -1), "1–3"]}>
             <select
               aria-label="Style"
               data-testid="ribbon-style"
@@ -288,6 +289,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
               <option value="3">Heading 3</option>
               <option value="4">Heading 4</option>
             </select>
+            </Tooltip>
             <Divider />
             <Btn
               title="Bold" shortcut="bold"

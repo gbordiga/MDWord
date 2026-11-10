@@ -3,7 +3,7 @@ export type ShortcutId =
   | "bold" | "italic" | "underline" | "strike" | "code" | "subscript" | "superscript"
   | "bulletList" | "orderedList" | "quote" | "codeBlock" | "link"
   | "heading1" | "heading2" | "heading3"
-  | "undo" | "redo" | "save" | "saveAs" | "new" | "open" | "print" | "find" | "palette" | "assistant";
+  | "undo" | "redo" | "save" | "saveAs" | "new" | "open" | "openProject" | "print" | "find" | "palette" | "assistant";
 
 interface Shortcut {
   /** KeyboardEvent.code, so Alt and non-US layouts do not change the match. */
@@ -35,6 +35,7 @@ export const SHORTCUTS: Record<ShortcutId, Shortcut> = {
   save: { code: "KeyS", key: "S" },
   saveAs: { code: "KeyS", shift: true, key: "S" },
   new: { code: "KeyN", key: "N" },
+  openProject: { code: "KeyO", shift: true, key: "O" },
   open: { code: "KeyO", key: "O" },
   print: { code: "KeyP", key: "P" },
   find: { code: "KeyF", key: "F" },
