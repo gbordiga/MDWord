@@ -677,3 +677,30 @@ ${ref.definition}
     expect(again.content?.[0]?.attrs?.src).toBe(src);
   });
 });
+
+describe("figure around a mermaid diagram", () => {
+  const md =
+    ":::{figure}\n:align: center\n:label: fig-x\n\n```mermaid\ngraph TD\n  A-->B\n```\n\nCaption *here*.\n:::\n\nafter\n";
+
+  it("shows the diagram with its caption instead of dropping the figure", () => {
+    const doc = astToTiptap(parseMarkdown(md).ast as never);
+    const node = doc.content?.[0];
+    expect(node?.type).toBe("mermaid");
+    expect(String(node?.attrs?.source)).toContain("A-->B");
+    expect(node?.attrs?.label).toBe("fig-x");
+    expect(JSON.stringify(node?.attrs?.caption)).toContain("here");
+  });
+
+  it("writes the figure wrapper, label and caption back", () => {
+    const doc = astToTiptap(parseMarkdown(md).ast as never);
+    const out = serializeMarkdown({ ast: tiptapToAst(doc as never) as never });
+    expect(out).toContain("```mermaid");
+    expect(out).toContain("A-->B");
+    expect(out).toContain("fig-x");
+    expect(out).toContain("Caption");
+    expect(out).toContain(":::{figure}");
+    expect(out).toContain(":align: center");
+    expect(out).toContain("*here*");
+    expect(out.trimEnd().endsWith("after")).toBe(true);
+  });
+});

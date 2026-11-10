@@ -447,17 +447,21 @@ function astBlock(node: TiptapNode, inTable = false): GenericNode {
 
       };
 
-    case "mermaid":
-
-      return {
-
-        type: "code",
-
-        lang: "mermaid",
-
-        value: String(node.attrs?.source ?? "")
-
+    case "mermaid": {
+      const code: GenericNode = { type: "code", lang: "mermaid", value: String(node.attrs?.source ?? "") };
+      const caption = Array.isArray(node.attrs?.caption) ? (node.attrs.caption as TiptapNode[]) : [];
+      const label = node.attrs?.label ? String(node.attrs.label) : "";
+      const align = node.attrs?.align ? String(node.attrs.align) : "";
+      if (!caption.length && !label && !align) return code;
+      const container: GenericNode = {
+        type: "container",
+        kind: "figure",
+        children: [code, ...(caption.length ? [{ type: "caption", children: caption.flatMap(astInline) }] : [])]
       };
+      if (label) container.label = label;
+      if (align) container.align = align;
+      return container;
+    }
 
     case "horizontalRule":
 

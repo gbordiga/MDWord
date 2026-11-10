@@ -472,8 +472,34 @@ function consumeLooseFigure(nodes: GenericNode[], start: number): { node: Tiptap
   return { node: fig, next: Math.max(end, start + 1) };
 }
 
+function findMermaidNode(node: GenericNode): GenericNode | null {
+  for (const child of node.children ?? []) {
+    if ((child.type === "code" || child.type === "codeBlock") && isMermaidLanguage(child.lang)) return child;
+    if (child.type === "container") {
+      const nested = findMermaidNode(child);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
 function figureFromDirective(node: GenericNode): TiptapNode {
   const options = (node.options ?? {}) as Record<string, unknown>;
+  // A figure around a diagram: keep the diagram, its caption, label and alignment.
+  const diagram = findMermaidNode(node);
+  if (diagram) {
+    const caption = captionFromNodes(node.children?.filter((child) => child !== diagram));
+    const label = options.label ?? node.label;
+    return {
+      type: "mermaid",
+      attrs: {
+        source: mermaidSourceFromNode(diagram),
+        caption: caption?.content ?? null,
+        label: label ? String(label) : null,
+        align: options.align ? String(options.align) : null
+      }
+    };
+  }
   const image = findImageNode(node);
   const rawValue = typeof node.value === "string" ? node.value.trim() : "";
   const caption =

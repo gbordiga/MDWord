@@ -201,6 +201,35 @@ function flattenEmbeddedImages(node: GenericNode): GenericNode {
   return { ...node, children: node.children.map(flattenEmbeddedImages) };
 }
 
+/**
+ * myst-to-md writes a figure from its image and drops anything else. A figure around a
+ * diagram is written here as plain text, so the fence, the label and the caption stay.
+ */
+function rawMermaidFigures(node: GenericNode): GenericNode {
+  if (node.type === "container" && node.kind === "figure") {
+    const code = (node.children ?? []).find((c) => c.type === "code" && c.lang === "mermaid");
+    if (code) {
+      const source = String(code.value ?? "");
+      const longest = Math.max(2, ...(source.match(/`+/g) ?? []).map((run) => run.length));
+      const fence = "`".repeat(longest + 1);
+      const caption = (node.children ?? []).find((c) => c.type === "caption");
+      const captionText = caption?.children?.length
+        ? serializeBody({ type: "root", children: [{ type: "paragraph", children: caption.children }] })
+        : "";
+      const options = [
+        node.align ? `:align: ${String(node.align)}` : "",
+        node.label ? `:label: ${String(node.label)}` : ""
+      ].filter(Boolean);
+      const lines = [":::{figure}", ...options, "", `${fence}mermaid`, source, fence];
+      if (captionText) lines.push("", captionText);
+      lines.push(":::");
+      return { type: "html", value: lines.join("\n") };
+    }
+  }
+  if (!node.children) return node;
+  return { ...node, children: node.children.map(rawMermaidFigures) };
+}
+
 function figureHasImage(node: GenericNode): boolean {
   if (isImageLike(node)) return Boolean(imageNodeUrl(node));
   return (node.children ?? []).some(figureHasImage);
@@ -226,7 +255,7 @@ function serializeBody(ast: GenericNode): string {
   const normalized = structuredClone(
     flattenEmbeddedImages(
       flattenEmptyFigures(
-        padTableColumns(unwrapFigureDirectives(promotePipeParagraphs(resolveImageReferences(ast))))
+        padTableColumns(rawMermaidFigures(unwrapFigureDirectives(promotePipeParagraphs(resolveImageReferences(ast)))))
       )
     )
   );

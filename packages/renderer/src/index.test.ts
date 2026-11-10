@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { withTableMeta } from "@mdword/shared";
+import { parseMarkdown } from "@mdword/myst-parser";
 import { astToHtml, collectTocItems, headerFooterFromHtml, renderPrintDocument } from "./index";
 
 describe("renderer security", () => {
@@ -256,5 +257,16 @@ describe("running header and footer", () => {
     });
     expect(html).toMatch(/table-layout:\s*auto/);
     expect(html).toMatch(/th p,\s*td p \{ margin: 0; \}/);
+  });
+});
+
+describe("figure around a mermaid diagram", () => {
+  it("prints the diagram and its caption, not an empty image", () => {
+    const md = ":::{figure}\n:label: fig-x\n\n```mermaid\ngraph TD\n  A-->B\n```\n\nCaption *here*.\n:::\n";
+    const html = astToHtml(parseMarkdown(md).ast as never);
+    expect(html).toContain('<pre class="mermaid">');
+    expect(html).toContain("A--&gt;B");
+    expect(html).toContain("<figcaption>Caption <em>here</em>.</figcaption>");
+    expect(html).not.toContain("<img");
   });
 });
