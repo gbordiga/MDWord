@@ -132,8 +132,9 @@ test("a proposed edit changes nothing until Apply, and Apply is one undo step", 
   await expect(prose).not.toContainText("Hello there");
 
   expect(requests[0]!.headers.authorization).toBe(`Bearer ${KEY}`);
-  const provider = requests[0]!.body.provider as { data_collection?: string } | undefined;
+  const provider = requests[0]!.body.provider as { data_collection?: string; zdr?: boolean } | undefined;
   expect(provider?.data_collection).toBe("deny");
+  expect(provider?.zdr).toBeUndefined();
   const tools = (requests[0]!.body.tools as { function: { name: string } }[]).map((t) => t.function.name).sort();
   expect(tools).toEqual(["editFile", "listFiles", "readFile", "search", "writeFile"]);
   expect(JSON.stringify(requests[0]!.body.messages)).toContain("Make the greeting friendlier");

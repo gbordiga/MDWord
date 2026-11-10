@@ -121,6 +121,13 @@ export const messagesEn = {
   "settings.model.all": "All models",
   "settings.model.failed": "Could not load the model list. Suggested models are still available.",
   "settings.model.price": "{input} in / {output} out per million tokens",
+  "settings.model.search": "Search models",
+  "settings.model.intelligence": "Intelligence",
+  "settings.model.cost": "Cost",
+  "settings.model.scoreNote": "Intelligence is the Artificial Analysis index reported by OpenRouter. Paler bars are estimated from the coding or agentic index. Cost is the price of a typical turn.",
+  "settings.model.noScore": "No intelligence score",
+  "settings.model.estimated": "Intelligence: about {value} (estimated from other benchmarks)",
+  "settings.model.empty": "No model matches that search.",
   "settings.tier.low": "Low cost",
   "settings.tier.balanced": "Balanced",
   "settings.tier.quality": "Quality",
@@ -130,6 +137,9 @@ export const messagesEn = {
   "settings.privacy": "Only use providers that do not keep my prompts",
   "settings.privacy.note":
     "Sends a routing preference to OpenRouter. Some models have only one provider and may become unavailable.",
+  "settings.zdr": "Zero data retention only",
+  "settings.zdr.note":
+    "Stricter: only endpoints that keep nothing after answering. The model list shows only models that have one, so fewer models are available.",
   "settings.web": "Let the assistant search the web",
   "settings.web.note":
     "Off by default. When on, the model can send a short search query through OpenRouter: to the model's own provider if it has built-in search, otherwise to a search service (Exa). The model writes the query, and the privacy setting above does not cover search services. Each search is billed by OpenRouter, roughly $0.001 to $0.015, on top of the model.",
