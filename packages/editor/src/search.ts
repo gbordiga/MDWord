@@ -1,25 +1,36 @@
+import { DEFAULT_FIND_OPTIONS, compileFind, findInText, type FindOptions } from "@mdword/shared";
+
 export interface TextChunk {
   pos: number;
   text: string;
+  /** False for text that is not a real text node (a diagram source): found, never replaced. */
+  replaceable?: boolean;
 }
 
 export interface SearchMatch {
   from: number;
   to: number;
+  replacement?: string;
+  replaceable?: boolean;
 }
 
-export function collectSearchMatches(chunks: TextChunk[], query: string): SearchMatch[] {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return [];
+export function collectSearchMatches(
+  chunks: TextChunk[],
+  query: string,
+  options: FindOptions = DEFAULT_FIND_OPTIONS,
+  replace = ""
+): SearchMatch[] {
+  const compiled = compileFind(query, options);
+  if (!compiled || !compiled.ok) return [];
   const matches: SearchMatch[] = [];
   for (const chunk of chunks) {
-    const lower = chunk.text.toLowerCase();
-    let start = 0;
-    while (start < lower.length) {
-      const idx = lower.indexOf(needle, start);
-      if (idx < 0) break;
-      matches.push({ from: chunk.pos + idx, to: chunk.pos + idx + needle.length });
-      start = idx + 1;
+    for (const m of findInText(chunk.text, compiled.re, replace, options.regex)) {
+      matches.push({
+        from: chunk.pos + m.from,
+        to: chunk.pos + m.to,
+        replacement: m.replacement,
+        replaceable: chunk.replaceable !== false
+      });
     }
   }
   return matches;

@@ -65,10 +65,10 @@ export async function hydrateMermaidHtml(html: string): Promise<string> {
   return `${doctype}${doc.documentElement.outerHTML}`;
 }
 
-export function mermaidFigureHtml(source: string): string {
+export function mermaidFigureHtml(source: string, captionHtml = ""): string {
   const escaped = source
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  return `<figure class="md-mermaid"><pre class="mermaid">${escaped}</pre></figure>`;
+  return `<figure class="md-mermaid"><pre class="mermaid">${escaped}</pre>${captionHtml ? `<figcaption>${captionHtml}</figcaption>` : ""}</figure>`;
 }

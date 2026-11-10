@@ -53,12 +53,18 @@ export type ThreadItem =
 
 export type ToolItem = Extract<ThreadItem, { kind: "tool" }>;
 export type CommandItem = Extract<ThreadItem, { kind: "command" }>;
-/** A step inside the work accordion: a tool, or a command that already left the approval card. */
-export type WorkEntry = ToolItem | CommandItem;
+export type EditItem = Extract<ThreadItem, { kind: "edit" }>;
+/** A step inside the work accordion: a tool, a command that already left the approval card, or an applied edit. */
+export type WorkEntry = ToolItem | CommandItem | EditItem;
 export type ThreadBlock = { kind: "work"; id: string; entries: WorkEntry[] } | { kind: "item"; item: ThreadItem };
 
-/** A command still waiting for Run or Deny stays a card. Once it runs, it joins the steps. */
+/**
+ * A command still waiting for Run or Deny stays a card; once it runs, it joins the steps.
+ * An edit stays a card while it waits, and when it is discarded or no longer applies;
+ * once it is applied to the document, it joins the steps.
+ */
 function isWorkEntry(item: ThreadItem): item is WorkEntry {
+  if (item.kind === "edit") return item.status === "applied";
   return item.kind === "tool" || (item.kind === "command" && item.status !== "pending" && item.status !== "denied");
 }
 

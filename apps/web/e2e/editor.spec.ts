@@ -24,7 +24,7 @@ test("switches to source mode and keeps markdown", async ({ page }) => {
   const prose = page.locator(".ProseMirror");
   await expect(prose).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: "View" }).click();
-  await page.getByTitle("Source").click();
+  await page.getByLabel("Source", { exact: true }).click();
   await expect(page.getByTestId("source-editor")).toBeVisible();
   await expect(page.locator(".cm-editor")).toBeVisible();
 });
@@ -36,11 +36,13 @@ test("applies heading 1 from the Home ribbon", async ({ page }) => {
   await prose.click();
   await page.keyboard.type("Titolo");
   await page.getByRole("button", { name: "Home" }).click();
-  await page.getByTestId("ribbon-style").selectOption("1");
+  await page.getByTestId("ribbon-style").click();
+  await page.getByTestId("style-option-1").click();
   await expect(prose.locator("h1")).toContainText("Titolo");
   const h1Size = await prose.locator("h1").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   await page.keyboard.press("Enter");
-  await page.getByTestId("ribbon-style").selectOption("p");
+  await page.getByTestId("ribbon-style").click();
+  await page.getByTestId("style-option-p").click();
   await page.keyboard.type("Corpo");
   const pSize = await prose.locator("p").last().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   expect(h1Size).toBeGreaterThan(pSize);

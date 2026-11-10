@@ -2,6 +2,7 @@ import type { Editor } from "@tiptap/core";
 import type { Node as ProseNode } from "@tiptap/pm/model";
 import { NodeSelection } from "@tiptap/pm/state";
 import { renderMermaidSvg } from "@mdword/renderer";
+import { mermaidCaptionText } from "./mermaidCaption";
 
 function selectNodeAt(editor: Editor, getPos: (() => number | undefined) | boolean): void {
   if (typeof getPos !== "function") return;
@@ -37,6 +38,7 @@ export function createMermaidView({
   const label = document.createElement("span");
   const editBtn = document.createElement("button");
   const preview = document.createElement("div");
+  const figcaption = document.createElement("figcaption");
   const editorBox = document.createElement("div");
   const textarea = document.createElement("textarea");
   const actions = document.createElement("div");
@@ -67,7 +69,14 @@ export function createMermaidView({
   actions.append(doneBtn, cancelBtn);
   editorBox.append(textarea, actions);
   toolbar.append(label, editBtn);
-  dom.append(toolbar, preview, editorBox);
+  figcaption.className = "md-mermaid-caption";
+  figcaption.dataset.testid = "mermaid-caption";
+  const showCaption = () => {
+    const text = mermaidCaptionText(current.attrs.caption);
+    figcaption.textContent = text;
+    figcaption.hidden = !text;
+  };
+  dom.append(toolbar, preview, editorBox, figcaption);
 
   const setSelected = (next: boolean) => {
     selected = next;
@@ -79,7 +88,7 @@ export function createMermaidView({
     const pos = getPos();
     if (typeof pos !== "number") return;
     editor.chain().focus().command(({ tr }) => {
-      tr.setNodeMarkup(pos, undefined, { source });
+      tr.setNodeMarkup(pos, undefined, { ...current.attrs, source });
       return true;
     }).run();
   };
@@ -163,6 +172,7 @@ export function createMermaidView({
     selectNodeAt(editor, getPos);
   });
 
+  showCaption();
   void render(String(current.attrs.source ?? ""));
 
   return {
@@ -172,6 +182,7 @@ export function createMermaidView({
       const next = String(updated.attrs.source ?? "");
       const prev = String(current.attrs.source ?? "");
       current = updated;
+      showCaption();
       if (!editing && next !== prev) void render(next);
       return true;
     },

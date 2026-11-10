@@ -24,11 +24,12 @@ test("outline jumps to a heading", async ({ page }) => {
   await prose.click();
   await page.keyboard.type("Jump here");
   await page.getByRole("button", { name: "Home" }).click();
-  await page.getByTestId("ribbon-style").selectOption("1");
+  await page.getByTestId("ribbon-style").click();
+  await page.getByTestId("style-option-1").click();
   await page.getByRole("button", { name: "View" }).click();
-  await expect(page.getByTitle("Backlinks")).toHaveCount(0);
+  await expect(page.getByLabel("Backlinks", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "backlinks", exact: true })).toHaveCount(0);
-  await page.getByTitle("Outline").click();
+  await page.getByLabel("Outline", { exact: true }).click();
   await expect(page.getByTestId("outline-item").filter({ hasText: "Jump here" })).toBeVisible();
   await page.getByTestId("outline-item").filter({ hasText: "Jump here" }).click();
   await expect(prose.locator("h1")).toContainText("Jump here");
@@ -145,7 +146,8 @@ test("table of contents is a live frontmatter option", async ({ page }) => {
   await prose.click();
   await page.keyboard.type("Chapter");
   await page.getByRole("button", { name: "Home" }).click();
-  await page.getByTestId("ribbon-style").selectOption("1");
+  await page.getByTestId("ribbon-style").click();
+  await page.getByTestId("style-option-1").click();
   await page.getByRole("button", { name: "References" }).click();
   await expect(page.getByTestId("insert-toc")).toContainText("Table of contents");
   await page.getByTestId("insert-toc").click();

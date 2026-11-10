@@ -53,6 +53,25 @@ describe("assistant thread", () => {
     expect(blocks[3]).toMatchObject({ kind: "work", entries: [{ id: "t3" }] });
   });
 
+  it("folds an edit into the steps once it is applied, and keeps the other states as cards", () => {
+    const edit = (id: string, status: "pending" | "applied" | "discarded" | "stale"): ThreadItem => ({
+      kind: "edit",
+      id,
+      path: "a.md",
+      edits: [{ line: 1, oldText: "a", newText: "b" }],
+      status
+    });
+    const blocks = groupThread([
+      { kind: "tool", id: "t", name: "editFile", label: "Proposing an edit to a.md", status: "ok" },
+      edit("pending", "pending"),
+      edit("applied", "applied"),
+      edit("discarded", "discarded"),
+      edit("stale", "stale")
+    ]);
+    expect(blocks.map((b) => b.kind)).toEqual(["work", "item", "work", "item", "item"]);
+    expect(blocks[2]).toMatchObject({ entries: [{ id: "applied" }] });
+  });
+
   it("folds a command into the steps once it is approved, and keeps a pending one as its own card", () => {
     const command = (id: string, status: "pending" | "running" | "done" | "denied"): ThreadItem => ({
       kind: "command",

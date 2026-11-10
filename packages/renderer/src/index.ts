@@ -89,7 +89,32 @@ function findImage(node: GenericNode): GenericNode | undefined {
   return undefined;
 }
 
+function findMermaid(node: GenericNode): GenericNode | undefined {
+  for (const child of node.children ?? []) {
+    if (isMermaidAstNode(child)) return child;
+    const nested = child.type === "container" ? findMermaid(child) : undefined;
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
 function renderFigure(node: GenericNode): string {
+  // A figure around a diagram prints the diagram with its caption, not an empty image.
+  const diagram = findMermaid(node);
+  if (diagram && !findImage(node)) {
+    const bits: string[] = [];
+    const walk = (n: GenericNode) => {
+      if (n === diagram) return;
+      if (n.type === "caption" || n.type === "paragraph") {
+        const text = renderNodes(n.children).trim();
+        if (text) bits.push(text);
+        return;
+      }
+      n.children?.forEach(walk);
+    };
+    (node.children ?? []).forEach(walk);
+    return mermaidFigureHtml(mermaidSourceFromNode(diagram), bits.join(" "));
+  }
   const image = findImage(node) ?? node;
   const options = (node.options ?? {}) as Record<string, unknown>;
   const width = image.width ?? options.width;
@@ -479,7 +504,7 @@ export function renderPrintDocument(options: {
     @page {
       size: ${pageWidth}mm ${pageHeight}mm;
       margin: ${marginTop} ${marginRight} ${marginBottom} ${marginLeft};
-      ${escape(pageBoxes)}
+      ${pageBoxes}
     }
     html, body {
       font-family: ${bodyFont};

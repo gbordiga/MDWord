@@ -15,6 +15,16 @@ function hasPageToken(template: string): boolean {
   return /\{\{\s*pages?\s*\}\}/.test(template);
 }
 
+/**
+ * A CSS string literal that is also safe inside an HTML <style> element. The characters
+ * that could end the element or the string (< > & " \\ and newlines) become CSS escapes,
+ * so the text never needs HTML escaping, which would break the declaration.
+ */
+export function cssString(text: string): string {
+  const escaped = text.replace(/[\\"<>&\n\r]/g, (ch) => `\\${ch.charCodeAt(0).toString(16)} `);
+  return `"${escaped}"`;
+}
+
 /** Resolve metadata, then turn remaining page tokens into CSS counter() expressions. */
 export function cssContentValue(template: string, vars?: RunningVars): string | null {
   if (!template) return null;
@@ -25,7 +35,7 @@ export function cssContentValue(template: string, vars?: RunningVars): string | 
     .map((part) => {
       if (part === "{{page}}") return "counter(page)";
       if (part === "{{pages}}") return "counter(pages)";
-      return JSON.stringify(part);
+      return cssString(part);
     })
     .join(" ");
 }

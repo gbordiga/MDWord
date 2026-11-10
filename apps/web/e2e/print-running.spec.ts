@@ -11,7 +11,7 @@ test("Paged.js print preview starts on page 1 with repeating header and footer",
     )
   );
   await page.getByRole("button", { name: "File", exact: true }).click();
-  await page.getByTitle("Export PDF").click();
+  await page.getByLabel("Export PDF", { exact: true }).click();
   await page.waitForFunction(
     () => Boolean((window as Window & { __MDWORD_LAST_EXPORT_HTML__?: string }).__MDWORD_LAST_EXPORT_HTML__)
   );
@@ -34,4 +34,10 @@ test("Paged.js print preview starts on page 1 with repeating header and footer",
   expect(html).toContain("header-left:Audit report");
   const headers = page.locator(".pagedjs_margin-top-left.hasContent");
   expect(await headers.count()).toBeGreaterThan(1);
+  // The text must really be drawn: an invalid content value leaves the box empty in the PDF.
+  const drawn = await page.evaluate(() => {
+    const box = document.querySelector(".pagedjs_margin-top-left .pagedjs_margin-content");
+    return box ? getComputedStyle(box, "::after").content : "";
+  });
+  expect(drawn).toContain("Audit report");
 });

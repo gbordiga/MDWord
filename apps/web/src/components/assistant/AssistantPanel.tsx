@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { formatUsd, t } from "@mdword/agent";
 import { cn } from "@mdword/ui";
-import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, FileText, Globe, History, Loader2, Plus, ScrollText, Settings, Sparkles, Square, Terminal, X } from "lucide-react";
+import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, CornerDownRight, FileText, Globe, History, Loader2, Plus, ScrollText, Settings, Sparkles, Square, Terminal, X } from "lucide-react";
 import type { ShellMode } from "@mdword/shared";
 import { getHost } from "@/lib/host";
 import { relativeWorkspacePath } from "@mdword/workspace";
@@ -21,7 +21,7 @@ import type { ThreadItem } from "@/lib/assistant/thread";
 import { AssistantHistory } from "./AssistantHistory";
 import { AssistantSettings } from "./AssistantSettings";
 import { CommandCard, CommandStep } from "./CommandCard";
-import { EditCard } from "./EditCard";
+import { EditCard, EditStep } from "./EditCard";
 
 const iconButton =
   "rounded-md p-1 text-[#667085] hover:bg-[#f2f4f7] hover:text-[#1c1f24] disabled:opacity-40";
@@ -114,15 +114,20 @@ const Markdown = memo(function Markdown({ text }: { text: string }) {
 });
 
 function renderEntry(entry: WorkEntry) {
-  return entry.kind === "tool" ? <ToolLine key={entry.id} item={entry} /> : <CommandStep key={entry.id} item={entry} />;
+  if (entry.kind === "tool") return <ToolLine key={entry.id} item={entry} />;
+  if (entry.kind === "edit") return <EditStep key={entry.id} item={entry} />;
+  return <CommandStep key={entry.id} item={entry} />;
 }
 
 function workLabel(entry: WorkEntry): string {
-  return entry.kind === "tool" ? entry.label : entry.command;
+  if (entry.kind === "tool") return entry.label;
+  if (entry.kind === "edit") return t(entry.create ? "edit.step.created" : "edit.step.applied", { path: entry.path });
+  return entry.command;
 }
 
 function workFailed(entry: WorkEntry): boolean {
   if (entry.kind === "tool") return entry.status === "error";
+  if (entry.kind === "edit") return false;
   return entry.status === "failed" || (entry.status === "done" && (entry.exitCode !== 0 || entry.timedOut === true));
 }
 
@@ -414,6 +419,10 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
   const running = useAssistant((s) => s.running);
   const send = useAssistant((s) => s.send);
   const stop = useAssistant((s) => s.stop);
+  const queue = useAssistant((s) => s.queue);
+  const enqueue = useAssistant((s) => s.enqueue);
+  const unqueue = useAssistant((s) => s.unqueue);
+  const steer = useAssistant((s) => s.steer);
   const webSearch = useAssistant((s) => s.settings.webSearch);
   const updateSettings = useAssistant((s) => s.updateSettings);
   const path = useApp((s) => s.path);
@@ -463,20 +472,37 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
   };
 
   const submit = () => {
-    if (disabled || running || !text.trim()) return;
+    if (disabled || !text.trim()) return;
     const value = text;
     setText("");
     setCursor(0);
-    void send(value);
+    if (running) enqueue(value);
+    else void send(value);
   };
 
-  // The box grows with the text up to about eight lines, then scrolls.
-  useLayoutEffect(() => {
+  // The box grows with the text up to about eight lines, then scrolls. It is measured again
+  // when its width changes: while the panel opens or closes the box is briefly narrow, and
+  // text (or the placeholder) wraps into many lines that would otherwise stay as its height.
+  const fitHeight = () => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 168)}px`;
-  }, [text]);
+  };
+  useLayoutEffect(fitHeight, [text, disabled]);
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let width = el.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (el.clientWidth === width) return;
+      width = el.clientWidth;
+      fitHeight();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const canSend = !disabled && text.trim().length > 0;
 
@@ -488,6 +514,34 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
           disabled ? "border-[#e4e7ec] bg-[#f9fafb]" : "border-[#d0d5dd]"
         )}
       >
+        {queue.length > 0 ? (
+          <ul aria-label={t("panel.queue.list")} data-testid="assistant-queue" className="space-y-1 border-b border-[#eaecf0] p-1.5">
+            {queue.map((q) => (
+              <li key={q.id} data-testid="assistant-queued" className="flex items-center gap-1.5 rounded-md bg-[#f2f4f7] py-1 pl-2 pr-1 text-[12px] text-[#344054]">
+                <span className="min-w-0 flex-1 truncate">{q.text}</span>
+                <button
+                  type="button"
+                  data-testid="assistant-steer"
+                  aria-label={t("panel.queue.steer")}
+                  title={t("panel.queue.steer")}
+                  className="rounded p-1 text-[#667085] hover:bg-white hover:text-accent"
+                  onClick={() => steer(q.id)}
+                >
+                  <CornerDownRight size={13} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  aria-label={t("panel.queue.remove")}
+                  title={t("panel.queue.remove")}
+                  className="rounded p-1 text-[#667085] hover:bg-white hover:text-[#1c1f24]"
+                  onClick={() => unqueue(q.id)}
+                >
+                  <X size={13} aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {fileName || instructions.length > 0 ? (
           <div className="flex items-center gap-1.5 px-2.5 pt-2">
             {fileName ? (
@@ -631,6 +685,18 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
           </button>
           {root ? <ShellModeControl /> : null}
           <span className="flex-1" />
+          {running && canSend ? (
+            <button
+              type="button"
+              data-testid="assistant-enqueue"
+              aria-label={t("panel.queue")}
+              title={t("panel.queue")}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-white hover:opacity-90"
+              onClick={submit}
+            >
+              <ArrowUp size={16} />
+            </button>
+          ) : null}
           {running ? (
             <button
               type="button"

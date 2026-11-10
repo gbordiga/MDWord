@@ -122,7 +122,8 @@ test("a proposed edit changes nothing until Apply, and Apply is one undo step", 
 
   await page.getByTestId("assistant-apply").click();
   await expect(prose).toContainText("Hello there");
-  await expect(card).toHaveAttribute("data-status", "applied");
+  await expect(card).toHaveCount(0);
+  await expect(page.getByTestId("assistant-work").last()).toContainText("Applied the edit");
   await expect(page.getByTestId("assistant-message")).toContainText("I changed the greeting.", { timeout: 15_000 });
   await expect(page.getByTestId("assistant-cost")).toContainText("$0.0009");
 
@@ -323,7 +324,8 @@ test("the model can edit frontmatter and mdoc, and invalid layout is refused", a
   const second = JSON.stringify(requests[1]!.body.messages);
   expect(second).toContain("mdoc.margins.top");
   await page.getByTestId("assistant-apply").click();
-  await expect(card).toHaveAttribute("data-status", "applied");
+  await expect(card).toHaveCount(0);
+  await expect(page.getByTestId("assistant-work").last()).toContainText("Applied the edit");
 });
 
 test("on a narrow screen the assistant opens full height from the tab bar and edits work", async ({ page }) => {
@@ -351,7 +353,8 @@ test("on a narrow screen the assistant opens full height from the tab bar and ed
   });
   expect(overflow).toEqual({ panel: false, doc: false });
   await page.getByTestId("assistant-apply").click();
-  await expect(card).toHaveAttribute("data-status", "applied");
+  await expect(card).toHaveCount(0);
+  await expect(page.getByTestId("assistant-work").last()).toContainText("Applied the edit");
   await expect(page.getByTestId("assistant-message").last()).toContainText("Done.", { timeout: 15_000 });
 
   await page.getByTestId("assistant-close").click();

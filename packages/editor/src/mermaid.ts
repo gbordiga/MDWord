@@ -2,6 +2,7 @@ import { Node, mergeAttributes } from "@tiptap/core";
 import { Plugin, type Transaction } from "@tiptap/pm/state";
 import { isMermaidLanguage } from "@mdword/shared";
 import { createMermaidView } from "./mermaidView";
+import { mermaidCaptionText } from "./mermaidCaption";
 
 export const DEFAULT_MERMAID_SOURCE = "flowchart TB\n  A[Start] --> B[End]";
 
@@ -26,7 +27,11 @@ export const Mermaid = Node.create({
         default: "",
         parseHTML: (el) => el.querySelector("pre")?.textContent ?? el.getAttribute("data-source") ?? "",
         renderHTML: () => ({})
-      }
+      },
+      // Set when the diagram sits in a MyST figure: inline caption nodes, label and alignment.
+      caption: { default: null, rendered: false },
+      label: { default: null, rendered: false },
+      align: { default: null, rendered: false }
     };
   },
   parseHTML() {
@@ -40,12 +45,14 @@ export const Mermaid = Node.create({
       }
     ];
   },
-  renderHTML({ HTMLAttributes }) {
+  renderHTML({ node, HTMLAttributes }) {
+    const caption = mermaidCaptionText(node.attrs.caption);
     return [
       "figure",
       mergeAttributes({ class: "md-mermaid", "data-testid": "doc-mermaid" }, HTMLAttributes),
-      ["pre", { class: "mermaid" }, String(HTMLAttributes.source ?? "")]
-    ];
+      ["pre", { class: "mermaid" }, String(HTMLAttributes.source ?? "")],
+      ...(caption ? [["figcaption", {}, caption]] : [])
+    ] as never;
   },
   addNodeView() {
     return createMermaidView;

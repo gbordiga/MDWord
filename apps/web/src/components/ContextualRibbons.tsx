@@ -38,6 +38,7 @@ import {
   setTableWidthsAuto,
   setTableWidthsEqual
 } from "@/lib/editorCommands";
+import { Tooltip } from "./Tooltip";
 import { FigureTextInput, FigureWidthInput } from "./FigureAttrInputs";
 
 function Tool({
@@ -56,9 +57,9 @@ function Tool({
   children: ReactNode;
 }) {
   return (
+    <Tooltip label={title}>
     <button
       type="button"
-      title={title}
       aria-label={title}
       aria-pressed={pressed}
       data-testid={testId}
@@ -71,6 +72,7 @@ function Tool({
     >
       {children}
     </button>
+    </Tooltip>
   );
 }
 

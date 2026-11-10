@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { ChevronDown, Clock, Folder } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { Spinner } from "./Spinner";
+import { Tooltip } from "./Tooltip";
 
 function projectName(projectPath: string): string {
   const last = projectPath.split("/").pop() ?? projectPath;
@@ -46,9 +47,9 @@ export function OpenProjectMenu({
 
   return (
     <div ref={rootRef} className="relative">
+      <Tooltip label="Open project" shortcut="openProject">
       <button
         type="button"
-        title="Open project"
         aria-label="Open project"
         aria-expanded={open}
         data-testid={compact ? "topbar-open-folder" : undefined}
@@ -68,6 +69,7 @@ export function OpenProjectMenu({
         {compact ? null : "Open project"}
         <ChevronDown size={compact ? 12 : 14} />
       </button>
+      </Tooltip>
       {open
         ? createPortal(
         <div

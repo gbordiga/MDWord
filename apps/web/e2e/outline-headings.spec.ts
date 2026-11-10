@@ -45,7 +45,7 @@ test("the outline lists every heading and jumps to the one that was clicked", as
   await expect(prose.locator("h2", { hasText: "Target" })).toBeVisible();
 
   await page.getByRole("button", { name: "View" }).click();
-  await page.getByTitle("Outline", { exact: true }).click();
+  await page.getByLabel("Outline", { exact: true }).click();
 
   const items = page.getByTestId("outline-item");
   await expect(items).toHaveCount(3);

@@ -1,5 +1,6 @@
 import { getMarkRange } from "@tiptap/core";
 import type { Editor } from "@tiptap/react";
+import { DEFAULT_FIND_OPTIONS, compileFind, type FindOptions } from "@mdword/shared";
 import {
   collectSearchMatches,
   DEFAULT_MERMAID_SOURCE,
@@ -205,25 +206,33 @@ export function setCalloutTitle(editor: Editor, title?: string): void {
   editor.chain().focus().updateAttributes("callout", { title: value.trim() || null }).run();
 }
 
-function textChunks(editor: Editor): { pos: number; text: string }[] {
-  const chunks: { pos: number; text: string }[] = [];
+function textChunks(editor: Editor): { pos: number; text: string; replaceable?: boolean }[] {
+  const chunks: { pos: number; text: string; replaceable?: boolean }[] = [];
   editor.state.doc.descendants((node, pos) => {
     if (node.isText && node.text) chunks.push({ pos, text: node.text });
     if (node.type.name === "mermaid") {
       const source = String(node.attrs.source ?? "");
-      if (source) chunks.push({ pos: pos + 1, text: source });
+      if (source) chunks.push({ pos: pos + 1, text: source, replaceable: false });
     }
   });
   return chunks;
 }
 
+export type FindResult = { count: number; index: number; error?: string };
+
 export function findInDocument(
   editor: Editor,
   query: string,
   direction: 1 | -1,
-  options?: { focus?: boolean; from?: "caret-end" | "caret-start" }
-): { count: number; index: number } {
-  const matches = collectSearchMatches(textChunks(editor), query);
+  options?: { focus?: boolean; from?: "caret-end" | "caret-start"; find?: FindOptions }
+): FindResult {
+  const find = options?.find ?? DEFAULT_FIND_OPTIONS;
+  const compiled = compileFind(query, find);
+  if (compiled && !compiled.ok) {
+    editor.commands.clearSearchHighlight();
+    return { count: 0, index: -1, error: compiled.error };
+  }
+  const matches = collectSearchMatches(textChunks(editor), query, find);
   if (!matches.length) {
     editor.commands.clearSearchHighlight();
     return { count: 0, index: -1 };
@@ -245,4 +254,35 @@ export function findInDocument(
       .run();
   }
   return { count: matches.length, index };
+}
+
+/** Replace the match under the selection (or the next one), then move on. */
+export function replaceInDocument(editor: Editor, query: string, replace: string, find: FindOptions): FindResult {
+  const matches = collectSearchMatches(textChunks(editor), query, find, replace);
+  const { from, to } = editor.state.selection;
+  const current = matches.find((m) => m.from === from && m.to === to && m.replaceable);
+  if (current) {
+    const text = current.replacement ?? replace;
+    editor
+      .chain()
+      .focus()
+      .command(({ tr }) => {
+        tr.insertText(text, current.from, current.to);
+        return true;
+      })
+      .run();
+  }
+  return findInDocument(editor, query, 1, { focus: false, from: "caret-end", find });
+}
+
+/** Replace every match in one undo step. Returns how many were replaced. */
+export function replaceAllInDocument(editor: Editor, query: string, replace: string, find: FindOptions): number {
+  const matches = collectSearchMatches(textChunks(editor), query, find, replace).filter((m) => m.replaceable);
+  if (!matches.length) return 0;
+  const { tr } = editor.state;
+  // From the end, so earlier positions stay valid while text changes length.
+  for (const m of [...matches].reverse()) tr.insertText(m.replacement ?? replace, m.from, m.to);
+  editor.view.dispatch(tr);
+  editor.commands.clearSearchHighlight();
+  return matches.length;
 }

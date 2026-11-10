@@ -9,7 +9,7 @@ describe("document search", () => {
 
   it("finds case-insensitive matches across chunks", () => {
     const matches = collectSearchMatches(chunks, "hello");
-    expect(matches).toEqual([
+    expect(matches).toMatchObject([
       { from: 1, to: 6 },
       { from: 20, to: 25 }
     ]);

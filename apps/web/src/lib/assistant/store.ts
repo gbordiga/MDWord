@@ -127,6 +127,8 @@ export interface AssistantState {
   composerText: string;
   setComposerText: (text: string) => void;
   running: boolean;
+  /** Messages typed while a turn runs; they go out one by one when it ends. */
+  queue: { id: string; text: string }[];
   sessionCostUsd: number;
   costUnknown: boolean;
   models: ModelInfo[] | null;
@@ -151,6 +153,10 @@ export interface AssistantState {
   clearHistory: () => Promise<void>;
   send: (text: string) => Promise<void>;
   stop: () => void;
+  enqueue: (text: string) => void;
+  unqueue: (id: string) => void;
+  /** Interrupt the running turn and send this queued message next. */
+  steer: (id: string) => void;
   resolveEdit: (id: string, choice: "apply" | "discard") => Promise<void>;
   setShellMode: (mode: ShellMode) => void;
   shellAvailability: ShellAvailability | null;
@@ -160,6 +166,7 @@ export interface AssistantState {
 
 let history: ModelMessage[] = [];
 let abort: AbortController | null = null;
+let steerNext: string | null = null;
 let seq = 0;
 /** Bumped whenever the active conversation changes, so late events of an old turn are dropped. */
 let convGen = 0;
@@ -249,10 +256,11 @@ export const useAssistant = create<AssistantState>((set, get) => {
 
   const resetChat = (activeId: string | null, thread: ThreadItem[]) => {
     convGen += 1;
+    steerNext = null;
     history = historyFromThread(thread);
     // A superseded turn no longer owns the run lock: it unwinds on its own.
     abort = null;
-    set({ thread, activeId, running: false, sessionCostUsd: 0, costUnknown: false });
+    set({ thread, activeId, running: false, queue: [], sessionCostUsd: 0, costUnknown: false });
   };
 
   const propose = (proposal: EditProposal, signal: AbortSignal | undefined) =>
@@ -350,6 +358,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
     composerText: "",
     setComposerText: (composerText) => set({ composerText }),
     running: false,
+    queue: [],
     sessionCostUsd: 0,
     costUnknown: false,
     models: null,
@@ -561,6 +570,24 @@ export const useAssistant = create<AssistantState>((set, get) => {
       await host.history.clear(key);
     },
     stop: () => abort?.abort(),
+    enqueue: (text) => {
+      const trimmed = redactKeys(text.trim());
+      if (!trimmed) return;
+      set((s) => ({ queue: [...s.queue, { id: nextId("q"), text: trimmed }] }));
+    },
+    unqueue: (id) => set((s) => ({ queue: s.queue.filter((q) => q.id !== id) })),
+    steer: (id) => {
+      const item = get().queue.find((q) => q.id === id);
+      if (!item) return;
+      // The steered message jumps the line and goes out as soon as the turn unwinds.
+      steerNext = item.text;
+      set((s) => ({ queue: s.queue.filter((q) => q.id !== id) }));
+      if (abort) abort.abort();
+      else {
+        steerNext = null;
+        void get().send(item.text);
+      }
+    },
     setShellMode: (mode) => {
       const key = get().workspaceKey;
       if (!key || !getHost().assistant?.shell) return;
@@ -750,6 +777,13 @@ export const useAssistant = create<AssistantState>((set, get) => {
           }
           if (abort === controller) abort = null;
           set({ running: false });
+          // Steering sends its message at once. A normal finish sends the next queued one;
+          // a manual stop keeps the queue so nothing goes out unasked.
+          const steered = steerNext;
+          steerNext = null;
+          const next = steered ?? (controller.signal.aborted ? undefined : get().queue[0]?.text);
+          if (steered === null && next !== undefined) set((s) => ({ queue: s.queue.slice(1) }));
+          if (next !== undefined) queueMicrotask(() => gen === convGen && void get().send(next));
         }
       }
     },
