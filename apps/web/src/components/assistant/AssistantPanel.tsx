@@ -480,13 +480,29 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
     else void send(value);
   };
 
-  // The box grows with the text up to about eight lines, then scrolls.
-  useLayoutEffect(() => {
+  // The box grows with the text up to about eight lines, then scrolls. It is measured again
+  // when its width changes: while the panel opens or closes the box is briefly narrow, and
+  // text (or the placeholder) wraps into many lines that would otherwise stay as its height.
+  const fitHeight = () => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 168)}px`;
-  }, [text]);
+  };
+  useLayoutEffect(fitHeight, [text, disabled]);
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let width = el.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (el.clientWidth === width) return;
+      width = el.clientWidth;
+      fitHeight();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const canSend = !disabled && text.trim().length > 0;
 
