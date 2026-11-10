@@ -8,7 +8,10 @@ import { OPENROUTER_ORIGIN } from "./origin";
 export interface ModelSelection {
   apiKey: string;
   modelId: string;
+  /** Send `data_collection: deny`. */
   privacyOnly: boolean;
+  /** Send `zdr: true` (zero data retention endpoints only). */
+  zdrOnly?: boolean;
   /** Custom fetch (desktop routes calls through the main process). */
   fetch?: typeof fetch;
   /** Let the model search the web through OpenRouter's server tool. */
@@ -57,7 +60,7 @@ export function createAssistantModel(selection: ModelSelection): LanguageModel {
         : {})
   });
   const suggested = SUGGESTED_MODELS.find((m) => m.id === selection.modelId);
-  const routing = routingPreferences(selection.privacyOnly, suggested);
+  const routing = routingPreferences({ noTraining: selection.privacyOnly, zdr: selection.zdrOnly === true }, suggested);
   return provider(selection.modelId, {
     usage: { include: true },
     ...(routing ? { provider: routing } : {})

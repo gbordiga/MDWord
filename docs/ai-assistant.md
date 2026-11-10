@@ -356,7 +356,7 @@ All assistant interface text is English.
 
 ### Suggested list
 
-Shown first in the model picker; **All models** shows the full OpenRouter list. Ids, prices, and provider data below were read from OpenRouter's public models and endpoints API on 2026-11-08. They are a snapshot: the app reads live values at runtime.
+Shown first in the model picker; the rest of the OpenRouter list (newest model of each line only) follows. **Since 2026-11-10 every suggested model has a zero-data-retention endpoint** (checked by `scripts/check-model-list.mjs`), so the list stays usable with **Zero data retention only** on. The tables below are the earlier, pre-ZDR evaluation and are kept for the reasoning; `packages/agent/src/suggested-models.json` is the current list. Ids, prices, and provider data below were read from OpenRouter's public models and endpoints API on 2026-11-08. They are a snapshot: the app reads live values at runtime.
 
 #### Inclusion criteria
 

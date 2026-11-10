@@ -7,6 +7,7 @@ import {
   buildAuthUrl,
   exchangeCode,
   DEFAULT_MODEL_ID,
+  modelsListUrl,
   parseModelList,
   SUGGESTED_MODELS,
   t,
@@ -45,7 +46,6 @@ import { useApp } from "../store";
 
 const SETTINGS_KEY = "mdword.assistant.settings";
 export const VERIFIER_KEY = "mdword.assistant.pkceVerifier";
-const MODELS_URL = "https://openrouter.ai/api/v1/models";
 const DEFAULT_CAP_USD = 3;
 
 export interface AssistantSettings {
@@ -53,6 +53,8 @@ export interface AssistantSettings {
   /** `null` turns the session cap off. */
   spendCapUsd: number | null;
   privacyOnly: boolean;
+  /** Only route to zero-data-retention endpoints; the model list is filtered to match. */
+  zdrOnly: boolean;
   /** The model may search the web (OpenRouter server tool). Off until the user turns it on. */
   webSearch: boolean;
   noticeAccepted: boolean;
@@ -66,6 +68,7 @@ const defaultSettings: AssistantSettings = {
   modelId: DEFAULT_MODEL_ID,
   spendCapUsd: DEFAULT_CAP_USD,
   privacyOnly: true,
+  zdrOnly: false,
   webSearch: false,
   noticeAccepted: false,
   shell: {}
@@ -100,6 +103,7 @@ function loadSettings(): AssistantSettings {
             ? parsed.spendCapUsd
             : defaultSettings.spendCapUsd,
       privacyOnly: parsed.privacyOnly !== false,
+      zdrOnly: parsed.zdrOnly === true,
       webSearch: parsed.webSearch === true,
       noticeAccepted: parsed.noticeAccepted === true,
       shell: parseShellModes(parsed.shell)
@@ -361,8 +365,10 @@ export const useAssistant = create<AssistantState>((set, get) => {
     },
     setView: (view) => set({ view }),
     updateSettings: (patch) => {
-      const settings = { ...get().settings, ...patch };
-      set({ settings });
+      const previous = get().settings;
+      const settings = { ...previous, ...patch };
+      const privacyChanged = patch.zdrOnly !== undefined && patch.zdrOnly !== previous.zdrOnly;
+      set({ settings, ...(privacyChanged ? { models: null, modelsFailed: false } : {}) });
       try {
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
       } catch {
@@ -440,10 +446,12 @@ export const useAssistant = create<AssistantState>((set, get) => {
     loadModels: async () => {
       const host = assistantHost();
       if (!host) return;
+      const zdrOnly = get().settings.zdrOnly;
       try {
-        const response = await host.fetch(MODELS_URL);
+        const response = await host.fetch(modelsListUrl(zdrOnly));
         if (!response.ok) throw new Error(String(response.status));
         const models = parseModelList(await response.json());
+        if (get().settings.zdrOnly !== zdrOnly) return;
         if (models.length === 0) throw new Error("empty");
         set({
           models,
@@ -451,6 +459,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
           usableSuggested: checkSuggested(SUGGESTED_MODELS, models).usable
         });
       } catch {
+        if (get().settings.zdrOnly !== zdrOnly) return;
         set({ modelsFailed: true, usableSuggested: SUGGESTED_MODELS });
       }
     },
@@ -596,6 +605,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
           apiKey: "host-managed",
           modelId: state.settings.modelId,
           privacyOnly: state.settings.privacyOnly,
+          zdrOnly: state.settings.zdrOnly,
           webSearch: state.settings.webSearch,
           fetch: (input, init) =>
             host.fetch(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, init)
@@ -604,6 +614,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
           apiKey: "host-managed",
           modelId: state.settings.modelId,
           privacyOnly: state.settings.privacyOnly,
+          zdrOnly: state.settings.zdrOnly,
           fetch: (input, init) =>
             host.fetch(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, init)
         });
