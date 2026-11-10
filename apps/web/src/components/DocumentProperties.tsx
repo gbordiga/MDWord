@@ -241,8 +241,7 @@ export function DocumentProperties({
         title="Page"
         icon={Frame}
         hint={`${pageSize} · ${orientation === "landscape" ? "Landscape" : "Portrait"}`}
-        defaultOpen
-        testIds={testIds}
+                testIds={testIds}
       >
         <div className="grid grid-cols-2 gap-2">
           <Field label="Size">
