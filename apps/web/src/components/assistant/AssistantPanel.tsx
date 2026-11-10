@@ -21,7 +21,7 @@ import type { ThreadItem } from "@/lib/assistant/thread";
 import { AssistantHistory } from "./AssistantHistory";
 import { AssistantSettings } from "./AssistantSettings";
 import { CommandCard, CommandStep } from "./CommandCard";
-import { EditCard } from "./EditCard";
+import { EditCard, EditStep } from "./EditCard";
 
 const iconButton =
   "rounded-md p-1 text-[#667085] hover:bg-[#f2f4f7] hover:text-[#1c1f24] disabled:opacity-40";
@@ -114,15 +114,20 @@ const Markdown = memo(function Markdown({ text }: { text: string }) {
 });
 
 function renderEntry(entry: WorkEntry) {
-  return entry.kind === "tool" ? <ToolLine key={entry.id} item={entry} /> : <CommandStep key={entry.id} item={entry} />;
+  if (entry.kind === "tool") return <ToolLine key={entry.id} item={entry} />;
+  if (entry.kind === "edit") return <EditStep key={entry.id} item={entry} />;
+  return <CommandStep key={entry.id} item={entry} />;
 }
 
 function workLabel(entry: WorkEntry): string {
-  return entry.kind === "tool" ? entry.label : entry.command;
+  if (entry.kind === "tool") return entry.label;
+  if (entry.kind === "edit") return t(entry.create ? "edit.step.created" : "edit.step.applied", { path: entry.path });
+  return entry.command;
 }
 
 function workFailed(entry: WorkEntry): boolean {
   if (entry.kind === "tool") return entry.status === "error";
+  if (entry.kind === "edit") return false;
   return entry.status === "failed" || (entry.status === "done" && (entry.exitCode !== 0 || entry.timedOut === true));
 }
 

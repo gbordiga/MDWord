@@ -78,6 +78,8 @@ export const messagesEn = {
   "edit.createFailed": "The file could not be created. Nothing was written.",
   "edit.apply": "Apply",
   "edit.discard": "Discard",
+  "edit.step.applied": "Applied the edit to {path}",
+  "edit.step.created": "Created {path}",
   "edit.applied": "Applied. You can undo it with one step.",
   "edit.discarded": "Discarded",
   "edit.stale": "The document changed, so this edit no longer applies. Nothing was written.",

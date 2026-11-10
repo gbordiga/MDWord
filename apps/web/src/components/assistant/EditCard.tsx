@@ -23,6 +23,32 @@ function Block({ kind, text }: { kind: "remove" | "add"; text: string }) {
   );
 }
 
+/** An edit that was applied, shown as one row inside the steps accordion. */
+export function EditStep({ item }: { item: EditItem }) {
+  const create = item.create === true;
+  return (
+    <div data-testid="assistant-edit-step" data-status={item.status} className="text-[11px] text-[#667085]">
+      <details>
+        <summary className="flex cursor-pointer items-center gap-1.5">
+          <Check size={12} className="shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1 truncate" title={item.path}>
+            {t(create ? "edit.step.created" : "edit.step.applied", { path: item.path })}
+          </span>
+          <span className="shrink-0">{create ? t("edit.card.new") : t("edit.card.summary", { count: item.edits.length })}</span>
+        </summary>
+        <div className="mt-1 space-y-2 pl-5 text-[12px]">
+          {item.edits.map((edit, index) => (
+            <div key={index} className="space-y-1">
+              {create ? null : <Block kind="remove" text={edit.oldText} />}
+              <Block kind="add" text={edit.newText} />
+            </div>
+          ))}
+        </div>
+      </details>
+    </div>
+  );
+}
+
 export function EditCard({ item }: { item: EditItem }) {
   const resolve = useAssistant((s) => s.resolveEdit);
   const pending = item.status === "pending";
