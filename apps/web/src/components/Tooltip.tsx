@@ -9,7 +9,8 @@ import { shortcutKeys, type ShortcutId } from "@/lib/shortcuts";
  * coordinates in a portal, so a scrolling ribbon never clips it. It shows after a short
  * delay on hover and at once on keyboard focus.
  */
-export function Tooltip({ label, shortcut, children }: { label: string; shortcut?: ShortcutId; children: ReactNode }) {
+export function Tooltip({ label, shortcut, keys, children }: { label: string; shortcut?: ShortcutId; keys?: string[]; children: ReactNode }) {
+  const chips = keys ?? (shortcut ? shortcutKeys(shortcut) : []);
   const ref = useRef<HTMLSpanElement | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
@@ -48,9 +49,9 @@ export function Tooltip({ label, shortcut, children }: { label: string; shortcut
               className="pointer-events-none fixed z-[100] flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-lg bg-[#1c1f24] px-2.5 py-1.5 text-[12px] font-medium text-white shadow-lg"
             >
               {label}
-              {shortcut ? (
+              {chips.length ? (
                 <span className="flex items-center gap-0.5">
-                  {shortcutKeys(shortcut).map((k, i) => (
+                  {chips.map((k, i) => (
                     <kbd key={i} className="rounded bg-white/15 px-1.5 py-px font-sans text-[11px] font-medium text-white/90">
                       {k}
                     </kbd>

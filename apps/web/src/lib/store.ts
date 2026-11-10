@@ -206,6 +206,9 @@ export interface AppState {
   paletteOpen: boolean;
   findOpen: boolean;
   findQuery: string;
+  /** The replace row of the find panel. */
+  findReplaceOpen: boolean;
+  setFindReplaceOpen: (open: boolean) => void;
   workspace: WorkspaceState | null;
   externalDialog: ExternalChangePrompt | null;
   /** Paths the host itself listed as recent and is allowed to reopen. */
@@ -622,6 +625,8 @@ export const useApp = create<AppState>((set, get) => {
   paletteOpen: false,
   findOpen: false,
   findQuery: "",
+  findReplaceOpen: false,
+  setFindReplaceOpen: (findReplaceOpen) => set({ findReplaceOpen }),
   workspace: null,
   externalDialog: null,
   recentFiles: [],

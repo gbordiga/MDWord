@@ -138,6 +138,15 @@ function AppShellInner({
           input?.select();
         }, 0);
       }
+      if (meta && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "h") {
+        e.preventDefault();
+        e.stopPropagation();
+        const selected = editorRef.current ? selectionText(editorRef.current).trim() : "";
+        const app = useApp.getState();
+        app.setFind(true, selected && selected.length <= 80 ? selected : undefined);
+        app.setFindReplaceOpen(true);
+        return;
+      }
       if (meta && e.key.toLowerCase() === "n") {
         e.preventDefault();
         confirmIfDirty(() => useApp.getState().newDocument());
@@ -278,10 +287,10 @@ function AppShellInner({
       <DesktopTopBar />
       <Ribbon editor={editor} />
       <MobileFormatBar editor={editor} />
-      <FindBar />
       <ErrorBanner />
       <UpdateBanner />
       <div className="relative flex min-h-0 min-w-0 flex-1">
+        <FindBar />
         <WorkspaceSplit leftOpen={leftOpen} rightOpen={rightOpen}>
           <div
             className={`flex h-full min-h-0 min-w-0 ${

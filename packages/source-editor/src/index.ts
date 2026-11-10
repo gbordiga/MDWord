@@ -3,6 +3,7 @@ import { Decoration, EditorView, keymap, lineNumbers, highlightActiveLine, type 
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { yaml } from "@codemirror/lang-yaml";
+import { DEFAULT_FIND_OPTIONS, compileFind, findInText, type FindOptions } from "@mdword/shared";
 import { highlightSelectionMatches } from "@codemirror/search";
 import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
 import { dataUrlFold, setImagePayloads, setSourceAnnotation, stubEmbeddedImagesForDisplay } from "./dataUrlFold";
@@ -96,46 +97,65 @@ export function setSource(view: EditorView, doc: string, options?: { undoable?: 
 export function findInSource(
   view: EditorView,
   query: string,
-  direction: 1 | -1
-): { count: number; index: number } {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return { count: 0, index: -1 };
-  const text = view.state.doc.toString();
-  const lower = text.toLowerCase();
-  const matches: number[] = [];
-  let start = 0;
-  while (start < lower.length) {
-    const idx = lower.indexOf(needle, start);
-    if (idx < 0) break;
-    matches.push(idx);
-    start = idx + 1;
+  direction: 1 | -1,
+  options: FindOptions = DEFAULT_FIND_OPTIONS
+): { count: number; index: number; error?: string } {
+  const compiled = compileFind(query, options);
+  if (!compiled) return { count: 0, index: -1 };
+  if (!compiled.ok) {
+    view.dispatch({ effects: setFindMarks.of({ matches: [], current: -1 }) });
+    return { count: 0, index: -1, error: compiled.error };
   }
-  if (!matches.length) {
+  const ranges = findInText(view.state.doc.toString(), compiled.re, "", options.regex);
+  if (!ranges.length) {
     view.dispatch({ effects: setFindMarks.of({ matches: [], current: -1 }) });
     return { count: 0, index: -1 };
   }
   const caret = direction === 1 ? view.state.selection.main.to : view.state.selection.main.from;
   let index = -1;
   if (direction === 1) {
-    index = matches.findIndex((from) => from >= caret);
+    index = ranges.findIndex((r) => r.from >= caret);
     if (index < 0) index = 0;
   } else {
-    for (let i = matches.length - 1; i >= 0; i--) {
-      if ((matches[i] ?? 0) < caret) {
+    for (let i = ranges.length - 1; i >= 0; i--) {
+      if ((ranges[i]?.from ?? 0) < caret) {
         index = i;
         break;
       }
     }
-    if (index < 0) index = matches.length - 1;
+    if (index < 0) index = ranges.length - 1;
   }
-  const from = matches[index] ?? 0;
-  const ranges = matches.map((start) => ({ from: start, to: start + needle.length }));
+  const current = ranges[index]!;
   view.dispatch({
-    selection: EditorSelection.range(from, from + needle.length),
+    selection: EditorSelection.range(current.from, current.to),
     effects: setFindMarks.of({ matches: ranges, current: index }),
     scrollIntoView: true
   });
-  return { count: matches.length, index };
+  return { count: ranges.length, index };
+}
+
+/** Replace the selected match (when it is one), then move to the next. */
+export function replaceInSource(view: EditorView, query: string, replace: string, options: FindOptions) {
+  const compiled = compileFind(query, options);
+  if (compiled && compiled.ok) {
+    const sel = view.state.selection.main;
+    const hit = findInText(view.state.doc.toString(), compiled.re, replace, options.regex).find(
+      (r) => r.from === sel.from && r.to === sel.to
+    );
+    if (hit) view.dispatch({ changes: { from: hit.from, to: hit.to, insert: hit.replacement } });
+  }
+  return findInSource(view, query, 1, options);
+}
+
+/** Replace every match in one change set (one undo step). */
+export function replaceAllInSource(view: EditorView, query: string, replace: string, options: FindOptions): number {
+  const compiled = compileFind(query, options);
+  if (!compiled || !compiled.ok) return 0;
+  const ranges = findInText(view.state.doc.toString(), compiled.re, replace, options.regex);
+  if (!ranges.length) return 0;
+  view.dispatch({ changes: ranges.map((r) => ({ from: r.from, to: r.to, insert: r.replacement })) });
+  view.dispatch({ effects: setFindMarks.of({ matches: [], current: -1 }) });
+  return ranges.length;
 }
 
 export function clearFindInSource(view: EditorView): void {
