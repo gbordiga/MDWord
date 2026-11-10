@@ -49,6 +49,23 @@ test.describe("formatting shortcuts", () => {
     await expect(tip).toContainText("Paragraph style");
     const box = await tip.boundingBox();
     expect(box && box.x >= 0).toBe(true);
-    await expect(page.getByTestId("ribbon-style").locator("option", { hasText: "Heading 1" })).toContainText("Alt");
+    await page.getByTestId("ribbon-style").click();
+    await expect(page.getByTestId("style-option-4")).toContainText("Alt");
+    const menu = await page.getByTestId("style-menu").boundingBox();
+    expect(menu && menu.x >= 0).toBe(true);
+  });
+
+  test("style shortcuts including Body and Heading 4", async ({ page }) => {
+    await page.goto("/");
+    const prose = page.locator(".ProseMirror");
+    await expect(prose).toBeVisible({ timeout: 20_000 });
+    await prose.click();
+    await page.keyboard.type("Text");
+    await page.keyboard.press("Control+Alt+4");
+    await expect(prose.locator("h4")).toHaveCount(1);
+    await page.keyboard.press("Control+Alt+0");
+    await expect(prose.locator("h4")).toHaveCount(0);
+    await page.keyboard.press("Control+Alt+2");
+    await expect(prose.locator("h2")).toHaveCount(1);
   });
 });

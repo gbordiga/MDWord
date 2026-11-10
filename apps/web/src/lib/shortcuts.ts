@@ -2,7 +2,7 @@
 export type ShortcutId =
   | "bold" | "italic" | "underline" | "strike" | "code" | "subscript" | "superscript"
   | "bulletList" | "orderedList" | "quote" | "codeBlock" | "link"
-  | "heading1" | "heading2" | "heading3"
+  | "paragraph" | "heading1" | "heading2" | "heading3" | "heading4"
   | "undo" | "redo" | "save" | "saveAs" | "new" | "open" | "openProject" | "print" | "find" | "palette" | "assistant";
 
 interface Shortcut {
@@ -27,9 +27,11 @@ export const SHORTCUTS: Record<ShortcutId, Shortcut> = {
   quote: { code: "KeyB", shift: true, key: "B" },
   codeBlock: { code: "KeyC", alt: true, key: "C" },
   link: { code: "KeyK", key: "K" },
+  paragraph: { code: "Digit0", alt: true, key: "0" },
   heading1: { code: "Digit1", alt: true, key: "1" },
   heading2: { code: "Digit2", alt: true, key: "2" },
   heading3: { code: "Digit3", alt: true, key: "3" },
+  heading4: { code: "Digit4", alt: true, key: "4" },
   undo: { code: "KeyZ", key: "Z" },
   redo: { code: "KeyZ", shift: true, key: "Z" },
   save: { code: "KeyS", key: "S" },

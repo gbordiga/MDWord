@@ -182,7 +182,9 @@ function AppShellInner({
           codeBlock: () => chain().toggleCodeBlock().run(),
           heading1: () => chain().toggleHeading({ level: 1 }).run(),
           heading2: () => chain().toggleHeading({ level: 2 }).run(),
-          heading3: () => chain().toggleHeading({ level: 3 }).run()
+          heading3: () => chain().toggleHeading({ level: 3 }).run(),
+          heading4: () => chain().toggleHeading({ level: 4 }).run(),
+          paragraph: () => chain().setParagraph().run()
         };
         const action = run[format];
         if (action) {
