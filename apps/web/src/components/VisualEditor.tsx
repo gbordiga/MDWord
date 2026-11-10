@@ -352,7 +352,7 @@ function VisualEditorCanvas({
       <div
         ref={scrollRef}
         data-testid="page-scroll"
-        className="page-scroll absolute inset-0 overflow-auto overscroll-contain px-2 py-3 lg:pb-8 lg:pr-4 lg:pl-[38px] lg:pt-[46px]"
+        className="page-scroll absolute inset-0 overflow-auto overscroll-contain px-2 py-3 [scroll-padding-top:12px] lg:pb-8 lg:pr-4 lg:pl-[38px] lg:pt-[46px] lg:[scroll-padding-left:36px] lg:[scroll-padding-top:44px]"
       >
       <div ref={layoutRef}>
       <FrontmatterInline width={metrics.widthPx * scale} />
