@@ -41,7 +41,7 @@ export const messagesEn = {
     "The assistant uses your own OpenRouter account. Nothing is sent until you connect it.",
   "panel.nokey.open": "Open settings",
   "panel.thinking": "Thinking",
-  "panel.thinking.web": "Thinking, searching the web if needed",
+  "panel.thinking.web": "Thinking",
   "panel.work.steps": "{count, plural, one {# step} other {# steps}}",
   "panel.jumpLatest": "Jump to latest",
   "panel.history": "Past conversations",
