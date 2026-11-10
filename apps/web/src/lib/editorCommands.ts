@@ -262,7 +262,15 @@ export function replaceInDocument(editor: Editor, query: string, replace: string
   const { from, to } = editor.state.selection;
   const current = matches.find((m) => m.from === from && m.to === to && m.replaceable);
   if (current) {
-    editor.chain().focus().insertContentAt({ from: current.from, to: current.to }, current.replacement ?? replace).run();
+    const text = current.replacement ?? replace;
+    editor
+      .chain()
+      .focus()
+      .command(({ tr }) => {
+        tr.insertText(text, current.from, current.to);
+        return true;
+      })
+      .run();
   }
   return findInDocument(editor, query, 1, { focus: false, from: "caret-end", find });
 }

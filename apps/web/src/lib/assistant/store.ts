@@ -252,6 +252,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
 
   const resetChat = (activeId: string | null, thread: ThreadItem[]) => {
     convGen += 1;
+    steerNext = null;
     history = historyFromThread(thread);
     // A superseded turn no longer owns the run lock: it unwinds on its own.
     abort = null;
@@ -771,7 +772,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
           steerNext = null;
           const next = steered ?? (controller.signal.aborted ? undefined : get().queue[0]?.text);
           if (steered === null && next !== undefined) set((s) => ({ queue: s.queue.slice(1) }));
-          if (next !== undefined) queueMicrotask(() => void get().send(next));
+          if (next !== undefined) queueMicrotask(() => gen === convGen && void get().send(next));
         }
       }
     },
