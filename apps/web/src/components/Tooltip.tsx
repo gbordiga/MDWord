@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { shortcutKeys, type ShortcutId } from "@/lib/shortcuts";
 
@@ -13,17 +13,23 @@ export function Tooltip({ label, shortcut, keys, children }: { label: string; sh
   const chips = keys ?? (shortcut ? shortcutKeys(shortcut) : []);
   const ref = useRef<HTMLSpanElement | null>(null);
   const timer = useRef<number | undefined>(undefined);
+  const tipRef = useRef<HTMLSpanElement | null>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Centre under the trigger, then pull the box back inside the window on either side.
+  useLayoutEffect(() => {
+    const el = tipRef.current;
+    if (!el || !pos) return;
+    const width = el.offsetWidth;
+    el.style.left = `${Math.min(Math.max(pos.x - width / 2, 8), window.innerWidth - width - 8)}px`;
+  }, [pos]);
 
   const show = (delay: number) => {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       const rect = ref.current?.getBoundingClientRect();
       if (!rect) return;
-      // Long descriptions wrap in a 16rem box: keep its edges inside the window.
-      const half = label.length > 40 ? 136 : 0;
-      const x = Math.min(Math.max(rect.left + rect.width / 2, half + 8), window.innerWidth - half - 8);
-      setPos({ x, y: rect.bottom + 8 });
+      setPos({ x: rect.left + rect.width / 2, y: rect.bottom + 8 });
     }, delay);
   };
   const hide = () => {
@@ -47,10 +53,11 @@ export function Tooltip({ label, shortcut, keys, children }: { label: string; sh
       {pos
         ? createPortal(
             <span
+              ref={tipRef}
               role="tooltip"
               data-testid="tooltip"
               style={{ left: pos.x, top: pos.y }}
-              className={`pointer-events-none fixed z-[100] flex -translate-x-1/2 items-center gap-2 rounded-lg bg-[#1c1f24] px-2.5 py-1.5 text-[12px] font-medium text-white shadow-lg ${label.length > 40 ? "w-max max-w-[16rem] whitespace-normal leading-snug" : "whitespace-nowrap"}`}
+              className={`pointer-events-none fixed z-[100] flex items-center gap-2 rounded-lg bg-[#1c1f24] px-2.5 py-1.5 text-[12px] font-medium text-white shadow-lg ${label.length > 40 ? "w-max max-w-[16rem] whitespace-normal leading-snug" : "whitespace-nowrap"}`}
             >
               {label}
               {chips.length ? (

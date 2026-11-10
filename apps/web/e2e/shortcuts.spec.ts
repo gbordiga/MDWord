@@ -40,4 +40,15 @@ test.describe("formatting shortcuts", () => {
     await expect(tip).toContainText("Ctrl");
     await expect(tip).toContainText("B");
   });
+
+  test("a tooltip near the left edge stays inside the window", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ribbon-style").hover();
+    const tip = page.getByTestId("tooltip");
+    await expect(tip).toContainText("Paragraph style");
+    const box = await tip.boundingBox();
+    expect(box && box.x >= 0).toBe(true);
+    await expect(page.getByTestId("ribbon-style").locator("option", { hasText: "Heading 1" })).toContainText("Alt");
+  });
 });

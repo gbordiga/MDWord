@@ -284,9 +284,9 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
               onChange={(e) => editor && applyBlockStyle(editor, e.target.value)}
             >
               <option value="p">Body</option>
-              <option value="1">Heading 1</option>
-              <option value="2">Heading 2</option>
-              <option value="3">Heading 3</option>
+              <option value="1">{`Heading 1  (${shortcutKeys("heading1").join("+")})`}</option>
+              <option value="2">{`Heading 2  (${shortcutKeys("heading2").join("+")})`}</option>
+              <option value="3">{`Heading 3  (${shortcutKeys("heading3").join("+")})`}</option>
               <option value="4">Heading 4</option>
             </select>
             </Tooltip>
