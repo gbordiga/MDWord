@@ -389,9 +389,10 @@ export function AssistantSettings() {
   const hasKey = s.key?.hasKey ?? false;
   const haveModels = s.models != null;
   const modelsFailed = s.modelsFailed;
+  const zdrOnly = s.settings.zdrOnly;
   useEffect(() => {
     if (hasKey && !haveModels && !modelsFailed) void loadModels();
-  }, [hasKey, haveModels, modelsFailed, loadModels]);
+  }, [hasKey, haveModels, modelsFailed, zdrOnly, loadModels]);
 
   const suggestedIds = useMemo(() => new Set(s.usableSuggested.map((m) => m.id)), [s.usableSuggested]);
   const current = s.settings.modelId;

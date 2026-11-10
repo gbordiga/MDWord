@@ -446,8 +446,8 @@ export const useAssistant = create<AssistantState>((set, get) => {
     loadModels: async () => {
       const host = assistantHost();
       if (!host) return;
+      const zdrOnly = get().settings.zdrOnly;
       try {
-        const zdrOnly = get().settings.zdrOnly;
         const response = await host.fetch(modelsListUrl(zdrOnly));
         if (!response.ok) throw new Error(String(response.status));
         const models = parseModelList(await response.json());
@@ -459,6 +459,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
           usableSuggested: checkSuggested(SUGGESTED_MODELS, models).usable
         });
       } catch {
+        if (get().settings.zdrOnly !== zdrOnly) return;
         set({ modelsFailed: true, usableSuggested: SUGGESTED_MODELS });
       }
     },
