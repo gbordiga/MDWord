@@ -213,7 +213,7 @@ export function FindBar() {
     <div
       data-testid="find-bar"
       role="search"
-      className="absolute inset-x-2 top-2 z-30 flex flex-col gap-1.5 rounded-xl border border-[#e4e7ec] bg-white/95 p-2 shadow-xl backdrop-blur lg:inset-x-auto lg:right-6 lg:w-[26rem]"
+      className="absolute inset-x-2 top-2 z-30 flex flex-col gap-1.5 rounded-xl border border-[#e4e7ec] bg-white/95 p-2 shadow-xl backdrop-blur lg:inset-x-auto lg:right-6 lg:w-[min(36rem,calc(100%-3rem))]"
     >
       <div className="flex items-center gap-1">
         <IconBtn

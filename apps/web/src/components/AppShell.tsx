@@ -296,13 +296,13 @@ function AppShellInner({
       <ErrorBanner />
       <UpdateBanner />
       <div className="relative flex min-h-0 min-w-0 flex-1">
-        <FindBar />
         <WorkspaceSplit leftOpen={leftOpen} rightOpen={rightOpen}>
           <div
-            className={`flex h-full min-h-0 min-w-0 ${
+            className={`relative flex h-full min-h-0 min-w-0 ${
               view === "split" ? "flex-col lg:flex-row" : ""
             }`}
           >
+            <FindBar />
             {view !== "source" && <VisualEditor editorRef={editorRef} onEditor={setEditor} />}
             {view !== "document" && (
               <div
