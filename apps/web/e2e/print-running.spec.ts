@@ -11,7 +11,7 @@ test("Paged.js print preview starts on page 1 with repeating header and footer",
     )
   );
   await page.getByRole("button", { name: "File", exact: true }).click();
-  await page.getByTitle("Export PDF").click();
+  await page.getByLabel("Export PDF", { exact: true }).click();
   await page.waitForFunction(
     () => Boolean((window as Window & { __MDWORD_LAST_EXPORT_HTML__?: string }).__MDWORD_LAST_EXPORT_HTML__)
   );

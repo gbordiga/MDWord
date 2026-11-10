@@ -1,5 +1,6 @@
 "use client";
 
+import { matchShortcut, type ShortcutId } from "@/lib/shortcuts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { Ribbon } from "./Ribbon";
@@ -28,7 +29,7 @@ import { configureNativeChrome, hideNativeSplash } from "@/lib/native";
 import { useVisualViewport } from "@/hooks/useVisualViewport";
 import { useCtrlWheelZoom } from "@/hooks/useCtrlWheelZoom";
 import { recoveredDraftDiffers, useCrashDraft, useDesktopCloseGuard, usePeriodicCrashDraft, useUnsavedCloseGuard } from "@/hooks/useCrashDraft";
-import { insertTable, selectionText } from "@/lib/editorCommands";
+import { insertTable, selectionText, toggleSubscript, toggleSuperscript } from "@/lib/editorCommands";
 import { EditorUiProvider, useEditorUi } from "@/lib/editorUi";
 import { RecoveryDialog } from "./RecoveryDialog";
 import { clearCrashDraft, readCrashDraft } from "@/lib/recovery";
@@ -108,7 +109,10 @@ function AppShellInner({
       }
       if (meta && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        void useApp.getState().saveFile();
+        e.stopPropagation();
+        if (e.shiftKey) void useApp.getState().saveFileAs();
+        else void useApp.getState().saveFile();
+        return;
       }
       if (meta && e.key.toLowerCase() === "z") {
         e.preventDefault();
@@ -142,15 +146,37 @@ function AppShellInner({
         e.preventDefault();
         void useApp.getState().openFile();
       }
-      if (meta && e.key.toLowerCase() === "b") {
-        editorRef.current?.chain().focus().toggleBold().run();
-      }
-      if (meta && e.key.toLowerCase() === "i") {
-        editorRef.current?.chain().focus().toggleItalic().run();
-      }
-      if (meta && e.key.toLowerCase() === "u") {
-        e.preventDefault();
-        editorRef.current?.chain().focus().toggleUnderline().run();
+      const format = matchShortcut(e);
+      const editor = editorRef.current;
+      const target = e.target as HTMLElement | null;
+      // Text fields outside the editor (find, assistant, properties) keep their own keys.
+      const inField = Boolean(target?.closest("input, textarea, select")) && !target?.closest(".ProseMirror");
+      if (format && editor && !inField) {
+        const chain = () => editor.chain().focus();
+        const run: Partial<Record<ShortcutId, () => void>> = {
+          bold: () => chain().toggleBold().run(),
+          italic: () => chain().toggleItalic().run(),
+          underline: () => chain().toggleUnderline().run(),
+          strike: () => chain().toggleStrike().run(),
+          code: () => chain().toggleCode().run(),
+          subscript: () => toggleSubscript(editor),
+          superscript: () => toggleSuperscript(editor),
+          bulletList: () => chain().toggleBulletList().run(),
+          orderedList: () => chain().toggleOrderedList().run(),
+          quote: () => chain().toggleBlockquote().run(),
+          codeBlock: () => chain().toggleCodeBlock().run(),
+          heading1: () => chain().toggleHeading({ level: 1 }).run(),
+          heading2: () => chain().toggleHeading({ level: 2 }).run(),
+          heading3: () => chain().toggleHeading({ level: 3 }).run()
+        };
+        const action = run[format];
+        if (action) {
+          // The editor has its own bindings for some of these: handle once, here.
+          e.preventDefault();
+          e.stopPropagation();
+          action();
+          return;
+        }
       }
       if (meta && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "j" && assistantSupported()) {
         e.preventDefault();
@@ -161,8 +187,8 @@ function AppShellInner({
         e.preventDefault();
         openLink();
       }
-      if (meta && e.key === "1") editorRef.current?.chain().focus().toggleHeading({ level: 1 }).run();
-      if (meta && e.key === "2") editorRef.current?.chain().focus().toggleHeading({ level: 2 }).run();
+      if (meta && !e.altKey && !e.shiftKey && e.key === "1") editorRef.current?.chain().focus().toggleHeading({ level: 1 }).run();
+      if (meta && !e.altKey && !e.shiftKey && e.key === "2") editorRef.current?.chain().focus().toggleHeading({ level: 2 }).run();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);

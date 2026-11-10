@@ -24,7 +24,7 @@ test("switches to source mode and keeps markdown", async ({ page }) => {
   const prose = page.locator(".ProseMirror");
   await expect(prose).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: "View" }).click();
-  await page.getByTitle("Source").click();
+  await page.getByLabel("Source", { exact: true }).click();
   await expect(page.getByTestId("source-editor")).toBeVisible();
   await expect(page.locator(".cm-editor")).toBeVisible();
 });

@@ -33,7 +33,7 @@ test("find locates text in source view", async ({ page }) => {
   await prose.click();
   await page.keyboard.type("SourceFindNeedle");
   await page.getByRole("button", { name: "View" }).click();
-  await page.getByTitle("Source").click();
+  await page.getByLabel("Source", { exact: true }).click();
   await expect(page.getByTestId("source-editor")).toBeVisible();
   await expect(page.locator(".cm-content")).toContainText("SourceFindNeedle");
   await page.keyboard.press("ControlOrMeta+F");
@@ -54,7 +54,7 @@ test("PDF export writes title and date into the print document", async ({ page }
   await expect(page.getByTestId("doc-title")).toContainText("Audit report");
   await expect(page.getByTestId("doc-date")).toContainText("2026-03-15");
   await page.getByRole("button", { name: "File", exact: true }).click();
-  await page.getByTitle("Export PDF").click();
+  await page.getByLabel("Export PDF", { exact: true }).click();
   await page.waitForFunction(
     () => Boolean((window as Window & { __MDWORD_LAST_EXPORT_HTML__?: string }).__MDWORD_LAST_EXPORT_HTML__)
   );

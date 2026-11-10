@@ -10,7 +10,7 @@ test("inserts a Mermaid diagram and keeps the fence in source", async ({ page })
   await expect(diagram).toBeVisible();
   await expect(diagram.locator("svg")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "View" }).click();
-  await page.getByTitle("Source").click();
+  await page.getByLabel("Source", { exact: true }).click();
   await expect(page.getByTestId("source-editor")).toBeVisible();
   await expect(page.locator(".cm-content")).toContainText("```mermaid");
   await expect(page.locator(".cm-content")).toContainText("flowchart TB");
@@ -24,7 +24,7 @@ test("PDF export inlines a rendered Mermaid SVG", async ({ page }) => {
   await page.getByTestId("insert-mermaid").click();
   await expect(prose.getByTestId("doc-mermaid").locator("svg")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "File", exact: true }).click();
-  await page.getByTitle("Export PDF").click();
+  await page.getByLabel("Export PDF", { exact: true }).click();
   await page.waitForFunction(
     () => Boolean((window as Window & { __MDWORD_LAST_EXPORT_HTML__?: string }).__MDWORD_LAST_EXPORT_HTML__),
     null,

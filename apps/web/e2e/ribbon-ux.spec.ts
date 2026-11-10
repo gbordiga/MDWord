@@ -13,8 +13,8 @@ test("ribbon file and insert groups use Lucide icons", async ({ page }) => {
   await expect(page.locator("button[aria-label='Open project']:not([data-testid='topbar-open-folder']) .lucide-folder")).toBeVisible();
   await page.getByRole("button", { name: "Insert" }).click();
   await expect(page.getByTestId("insert-callout").locator("svg")).toBeVisible();
-  await expect(page.getByTitle("Page break").locator("svg")).toBeVisible();
-  await expect(page.getByTitle("Wikilink").locator("svg")).toBeVisible();
+  await expect(page.getByLabel("Page break", { exact: true }).locator("svg")).toBeVisible();
+  await expect(page.getByLabel("Wikilink", { exact: true }).locator("svg")).toBeVisible();
 });
 
 test("choosing a local image embeds it in the document", async ({ page }) => {
@@ -153,7 +153,7 @@ test("embedded image source uses a CommonMark reference, not a data-URL fence", 
   await page.getByTestId("image-insert").click();
   await expect(prose.locator("img")).toBeVisible();
   await page.getByRole("button", { name: "View" }).click();
-  await page.getByTitle("Source").click();
+  await page.getByLabel("Source", { exact: true }).click();
   await expect(page.getByTestId("source-editor")).toBeVisible();
   const source = page.locator(".cm-content");
   await expect(source).toContainText("][img-");
@@ -167,10 +167,10 @@ test("page break does not report an unknown directive", async ({ page }) => {
   const prose = page.locator(".ProseMirror");
   await expect(prose).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: "Insert" }).click();
-  await page.getByTitle("Page break").click();
+  await page.getByLabel("Page break", { exact: true }).click();
   await expect(page.locator(".page-break-block")).toBeVisible();
   await page.getByRole("button", { name: "View" }).click();
-  await page.getByTitle("Source").click();
+  await page.getByLabel("Source", { exact: true }).click();
   await expect(page.getByTestId("source-editor")).toBeVisible();
   await expect(page.locator(".cm-content")).toContainText("page-break");
   await expect(page.getByTestId("diagnostics")).toHaveCount(0);

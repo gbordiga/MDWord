@@ -1,6 +1,8 @@
 "use client";
 
 import type { Editor } from "@tiptap/react";
+import { Tooltip } from "@/components/Tooltip";
+import type { ShortcutId } from "@/lib/shortcuts";
 import {
   Bold,
   Italic,
@@ -86,6 +88,7 @@ function Btn({
   onClick,
   children,
   title,
+  shortcut,
   testId,
   pressed,
   disabled,
@@ -94,15 +97,16 @@ function Btn({
   onClick: () => void;
   children: React.ReactNode;
   title: string;
+  shortcut?: ShortcutId;
   testId?: string;
   pressed?: boolean;
   disabled?: boolean;
   busy?: boolean;
 }) {
   return (
+    <Tooltip label={title} shortcut={shortcut}>
     <button
       type="button"
-      title={title}
       aria-label={title}
       aria-pressed={pressed}
       data-testid={testId}
@@ -115,6 +119,7 @@ function Btn({
       {busy ? <Spinner size={14} /> : null}
       {children}
     </button>
+    </Tooltip>
   );
 }
 
@@ -201,17 +206,17 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
       <div className="flex flex-wrap items-center gap-1 bg-[#f8fafc] px-2 py-1.5">
         {ribbon === "file" && (
           <>
-            <Btn title="New" onClick={() => confirmIfDirty(() => actions.newDocument())} disabled={fileBusy}>
+            <Btn title="New" shortcut="new" onClick={() => confirmIfDirty(() => actions.newDocument())} disabled={fileBusy}>
               <FilePlus size={16} /> New
             </Btn>
-            <Btn title="Open" onClick={() => void actions.openFile()} disabled={fileBusy}>
+            <Btn title="Open" shortcut="open" onClick={() => void actions.openFile()} disabled={fileBusy}>
               <FolderOpen size={16} /> Open
             </Btn>
             <Divider />
-            <Btn title="Save" onClick={() => void actions.saveFile()} busy={busy?.kind === "save"} disabled={fileBusy && busy?.kind !== "save"}>
+            <Btn title="Save" shortcut="save" onClick={() => void actions.saveFile()} busy={busy?.kind === "save"} disabled={fileBusy && busy?.kind !== "save"}>
               <Save size={16} /> Save
             </Btn>
-            <Btn title="Save as" onClick={() => void actions.saveFileAs()} disabled={fileBusy}>
+            <Btn title="Save as" shortcut="saveAs" onClick={() => void actions.saveFileAs()} disabled={fileBusy}>
               <SaveAll size={16} /> Save as
             </Btn>
             <Divider />
@@ -236,7 +241,8 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             ) : null}
             <Divider />
             <Btn
-              title="Print (Ctrl+P)"
+              title="Print"
+              shortcut="print"
               testId="print-document"
               onClick={() => void actions.printDocument()}
               busy={busy?.kind === "export"}
@@ -284,49 +290,49 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             </select>
             <Divider />
             <Btn
-              title="Bold"
+              title="Bold" shortcut="bold"
               pressed={editor?.isActive("bold")}
               onClick={() => editor?.chain().focus().toggleBold().run()}
             >
               <Bold size={16} />
             </Btn>
             <Btn
-              title="Italic"
+              title="Italic" shortcut="italic"
               pressed={editor?.isActive("italic")}
               onClick={() => editor?.chain().focus().toggleItalic().run()}
             >
               <Italic size={16} />
             </Btn>
             <Btn
-              title="Underline"
+              title="Underline" shortcut="underline"
               pressed={editor?.isActive("underline")}
               onClick={() => editor?.chain().focus().toggleUnderline().run()}
             >
               <UnderlineIcon size={16} />
             </Btn>
             <Btn
-              title="Strikethrough"
+              title="Strikethrough" shortcut="strike"
               pressed={editor?.isActive("strike")}
               onClick={() => editor?.chain().focus().toggleStrike().run()}
             >
               <Strikethrough size={16} />
             </Btn>
             <Btn
-              title="Code"
+              title="Code" shortcut="code"
               pressed={editor?.isActive("code")}
               onClick={() => editor?.chain().focus().toggleCode().run()}
             >
               <Code size={16} />
             </Btn>
-            <Btn title="Subscript" testId="fmt-subscript" pressed={editor?.isActive("subscript")} onClick={() => editor && toggleSubscript(editor)}>
+            <Btn title="Subscript" shortcut="subscript" testId="fmt-subscript" pressed={editor?.isActive("subscript")} onClick={() => editor && toggleSubscript(editor)}>
               x<sub className="text-[10px]">2</sub>
             </Btn>
-            <Btn title="Superscript" testId="fmt-superscript" pressed={editor?.isActive("superscript")} onClick={() => editor && toggleSuperscript(editor)}>
+            <Btn title="Superscript" shortcut="superscript" testId="fmt-superscript" pressed={editor?.isActive("superscript")} onClick={() => editor && toggleSuperscript(editor)}>
               x<sup className="text-[10px]">2</sup>
             </Btn>
             <Divider />
             <Btn
-              title="Bullet list"
+              title="Bullet list" shortcut="bulletList"
               testId="fmt-bullet"
               pressed={editor?.isActive("bulletList")}
               onClick={() => editor?.chain().focus().toggleBulletList().run()}
@@ -334,7 +340,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
               <List size={16} />
             </Btn>
             <Btn
-              title="Numbered list"
+              title="Numbered list" shortcut="orderedList"
               testId="fmt-ordered"
               pressed={editor?.isActive("orderedList")}
               onClick={() => editor?.chain().focus().toggleOrderedList().run()}
@@ -343,18 +349,18 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             </Btn>
             <Divider />
             <Btn
-              title="Quote"
+              title="Quote" shortcut="quote"
               testId="fmt-quote"
               pressed={editor?.isActive("blockquote")}
               onClick={() => editor?.chain().focus().toggleBlockquote().run()}
             >
               <Quote size={16} />
             </Btn>
-            <Btn title="Link" testId="fmt-link" pressed={editor?.isActive("link")} onClick={openLink}>
+            <Btn title="Link" shortcut="link" testId="fmt-link" pressed={editor?.isActive("link")} onClick={openLink}>
               <LinkIcon size={16} />
             </Btn>
             <Divider />
-            <Btn title="Find in document" testId="open-find-home" onClick={() => actions.setFind(true)}>
+            <Btn title="Find in document" shortcut="find" testId="open-find-home" onClick={() => actions.setFind(true)}>
               <Search size={16} /> Find
             </Btn>
           </>
@@ -371,7 +377,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
             <Btn title="Callout" testId="insert-callout" onClick={() => editor && insertCallout(editor)}>
               <StickyNote size={16} /> Callout
             </Btn>
-            <Btn title="Code block" onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>
+            <Btn title="Code block" shortcut="codeBlock" onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>
               <SquareCode size={16} /> Code
             </Btn>
             <Btn title="Mermaid diagram" testId="insert-mermaid" onClick={() => editor && insertMermaid(editor)}>
@@ -531,7 +537,7 @@ export function Ribbon({ editor }: { editor: Editor | null }) {
               <Search size={16} />
             </Btn>
             <Divider />
-            <Btn title="Find in document" testId="open-find" onClick={() => actions.setFind(true)}>
+            <Btn title="Find in document" shortcut="find" testId="open-find" onClick={() => actions.setFind(true)}>
               <Search size={16} /> Find
             </Btn>
             <Divider />
