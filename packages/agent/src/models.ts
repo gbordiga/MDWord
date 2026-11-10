@@ -80,6 +80,18 @@ export function parseModelList(json: unknown, now = Date.now()): ModelInfo[] {
   return out;
 }
 
+/** The id without a variant suffix such as `:free` or `:batch`. Plain string search: no regex backtracking. */
+function withoutVariant(id: string): string {
+  const colon = id.indexOf(":");
+  return colon === -1 ? id : id.slice(0, colon);
+}
+
+/** The base model of a `:variant` id, or the id itself. */
+function baseId(id: string): string {
+  const colon = id.lastIndexOf(":");
+  return colon !== -1 && /^[a-z]+$/.test(id.slice(colon + 1)) ? id.slice(0, colon) : id;
+}
+
 /**
  * The model line an id belongs to, with versions, dates, and variant suffixes
  * removed: `anthropic/claude-sonnet-4.6` and `anthropic/claude-sonnet-5.5`
@@ -87,9 +99,7 @@ export function parseModelList(json: unknown, now = Date.now()): ModelInfo[] {
  */
 export function modelFamily(id: string): string {
   const [vendor, ...rest] = id.split("/");
-  const slug = rest
-    .join("/")
-    .replace(/:.*$/, "")
+  const slug = withoutVariant(rest.join("/"))
     .replace(/-\d{4,8}$/, "")
     .replace(/(^|-)v?\d+(\.\d+)*(?=-|$)/g, "$1")
     .replace(/(\D)\d+(\.\d+)*(?=-|$)/g, "$1")
@@ -165,7 +175,7 @@ function estimateIntelligence(models: ModelInfo[]): void {
   const byId = new Map(models.map((m) => [m.id, m]));
   for (const m of models) {
     if (m.intelligence != null) continue;
-    const base = byId.get(m.id.replace(/:[a-z]+$/, ""));
+    const base = byId.get(baseId(m.id));
     if (base && base !== m && base.intelligence != null) {
       m.intelligence = base.intelligence;
       m.intelligenceEstimated = base.intelligenceEstimated || !real.has(base.id);

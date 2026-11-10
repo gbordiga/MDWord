@@ -117,10 +117,8 @@ export const messagesEn = {
   "settings.key.note":
     "The key has no spending limit of its own. For a hard limit, create a dedicated key on openrouter.ai and paste it here.",
   "settings.model": "Model",
-  "settings.model.suggested": "Suggested",
   "settings.model.all": "All models",
   "settings.model.failed": "Could not load the model list. Suggested models are still available.",
-  "settings.model.price": "{input} in / {output} out per million tokens",
   "settings.model.search": "Search models",
   "settings.model.intelligence": "Intelligence",
   "settings.model.cost": "Cost",
