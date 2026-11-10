@@ -67,6 +67,14 @@ function PropertySection({
   );
 }
 
+function GroupLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="border-b border-[#e4e7ec] bg-white px-3 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-wider text-[#98a2b3]">
+      {children}
+    </p>
+  );
+}
+
 export function DocumentProperties({
   variant
 }: {
@@ -103,6 +111,34 @@ export function DocumentProperties({
 
   return (
     <div>
+      {variant === "panel" && model.diagnostics.length > 0 ? (
+        <PropertySection
+          id="diagnostics"
+          title="Diagnostics"
+          icon={AlertTriangle}
+          hint={`${model.diagnostics.length} ${model.diagnostics.length === 1 ? "issue" : "issues"}`}
+          defaultOpen
+          testIds
+        >
+          <div data-testid="diagnostics" className="space-y-1.5">
+            {model.diagnostics.map((d, i) => (
+              <div
+                key={`${d.code ?? "diag"}-${i}`}
+                className={
+                  d.severity === "error"
+                    ? "rounded-md bg-[#fef3f2] px-2 py-1.5 text-[12px] text-[#b42318]"
+                    : d.severity === "info"
+                      ? "rounded-md bg-[#f2f4f7] px-2 py-1.5 text-[12px] text-[#344054]"
+                      : "rounded-md bg-[#fffbeb] px-2 py-1.5 text-[12px] text-[#92400e]"
+                }
+              >
+                {d.message}
+              </div>
+            ))}
+          </div>
+        </PropertySection>
+      ) : null}
+      <GroupLabel>Content</GroupLabel>
       <PropertySection
         id="document"
         title="Document"
@@ -159,7 +195,35 @@ export function DocumentProperties({
           />
         </div>
       </PropertySection>
-
+      <PropertySection id="toc" title="Table of contents" icon={ListTree} tip="A live table of contents built from the headings." hint={tocEnabled ? `On · depth ${tocDepth}` : "Off"} testIds={testIds}>
+        <Check
+          label="Show table of contents"
+          hint="Builds a live table of contents from the headings."
+          testId={testIds ? "prop-toc" : undefined}
+          checked={tocEnabled}
+          onChange={() => patchMdoc({ ...mdoc, toc: { enabled: !tocEnabled, depth: tocDepth } })}
+        />
+        {tocEnabled ? (
+          <Field label="Heading depth">
+            <select
+              className={fieldClass}
+              value={tocDepth}
+              onChange={(e) =>
+                patchMdoc({
+                  ...mdoc,
+                  toc: { enabled: true, depth: Number(e.target.value) }
+                })
+              }
+            >
+              {[1, 2, 3, 4, 5, 6].map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
+      </PropertySection>
       <PropertySection
         id="custom"
         title="Custom properties"
@@ -171,7 +235,7 @@ export function DocumentProperties({
       >
         <FrontmatterEditor compact={variant === "panel"} testIdScope={variant} />
       </PropertySection>
-
+      <GroupLabel>Page layout</GroupLabel>
       <PropertySection
         id="page"
         title="Page"
@@ -198,19 +262,28 @@ export function DocumentProperties({
             </select>
           </Field>
           <Field label="Orientation">
-            <select
-              className={fieldClass}
-              value={orientation}
-              onChange={(e) =>
-                patchMdoc({
-                  ...mdoc,
-                  page: { ...mdoc.page, orientation: e.target.value as "portrait" | "landscape" }
-                })
-              }
-            >
-              <option value="portrait">Portrait</option>
-              <option value="landscape">Landscape</option>
-            </select>
+            <div role="radiogroup" aria-label="Orientation" className="flex rounded-lg border border-[#d0d5dd] bg-white p-0.5">
+              {(["portrait", "landscape"] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={orientation === value}
+                  aria-label={value === "portrait" ? "Portrait" : "Landscape"}
+                  title={value === "portrait" ? "Portrait" : "Landscape"}
+                  data-testid={testIds ? `prop-orientation-${value}` : undefined}
+                  className={`flex h-8 flex-1 items-center justify-center rounded-md transition-colors lg:h-7 ${
+                    orientation === value ? "bg-accent text-white" : "text-[#667085] hover:bg-[#f2f4f7]"
+                  }`}
+                  onClick={() => patchMdoc({ ...mdoc, page: { ...mdoc.page, orientation: value } })}
+                >
+                  <span
+                    aria-hidden
+                    className={`block rounded-[2px] border-[1.5px] border-current ${value === "portrait" ? "h-3.5 w-2.5" : "h-2.5 w-3.5"}`}
+                  />
+                </button>
+              ))}
+            </div>
           </Field>
         </div>
         <Field label="Font size">
@@ -237,7 +310,6 @@ export function DocumentProperties({
           </select>
         </Field>
       </PropertySection>
-
       <PropertySection
         id="margins"
         title="Margins"
@@ -252,7 +324,6 @@ export function DocumentProperties({
           onChange={(margins) => patchMdoc({ ...mdoc, margins })}
         />
       </PropertySection>
-
       <PropertySection id="running" title="Header and footer" icon={PanelTop} tip="Shown on each page and in PDF. Tokens: {{page}}, {{pages}}, {{title}}, {{date}}." hint={headerPreview || "Page numbers and title"} testIds={testIds}>
         <p className="text-[11px] font-semibold uppercase tracking-wide text-[#667085]">Header</p>
         <div className="grid grid-cols-3 gap-1.5">
@@ -299,64 +370,6 @@ export function DocumentProperties({
           ))}
         </div>
       </PropertySection>
-
-      <PropertySection id="toc" title="Table of contents" icon={ListTree} tip="A live table of contents built from the headings." hint={tocEnabled ? `On · depth ${tocDepth}` : "Off"} testIds={testIds}>
-        <Check
-          label="Show table of contents"
-          hint="Builds a live table of contents from the headings."
-          testId={testIds ? "prop-toc" : undefined}
-          checked={tocEnabled}
-          onChange={() => patchMdoc({ ...mdoc, toc: { enabled: !tocEnabled, depth: tocDepth } })}
-        />
-        {tocEnabled ? (
-          <Field label="Heading depth">
-            <select
-              className={fieldClass}
-              value={tocDepth}
-              onChange={(e) =>
-                patchMdoc({
-                  ...mdoc,
-                  toc: { enabled: true, depth: Number(e.target.value) }
-                })
-              }
-            >
-              {[1, 2, 3, 4, 5, 6].map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </Field>
-        ) : null}
-      </PropertySection>
-
-      {variant === "panel" && model.diagnostics.length > 0 ? (
-        <PropertySection
-          id="diagnostics"
-          title="Diagnostics"
-          icon={AlertTriangle}
-          hint={`${model.diagnostics.length} ${model.diagnostics.length === 1 ? "issue" : "issues"}`}
-          defaultOpen
-          testIds
-        >
-          <div data-testid="diagnostics" className="space-y-1.5">
-            {model.diagnostics.map((d, i) => (
-              <div
-                key={`${d.code ?? "diag"}-${i}`}
-                className={
-                  d.severity === "error"
-                    ? "rounded-md bg-[#fef3f2] px-2 py-1.5 text-[12px] text-[#b42318]"
-                    : d.severity === "info"
-                      ? "rounded-md bg-[#f2f4f7] px-2 py-1.5 text-[12px] text-[#344054]"
-                      : "rounded-md bg-[#fffbeb] px-2 py-1.5 text-[12px] text-[#92400e]"
-                }
-              >
-                {d.message}
-              </div>
-            ))}
-          </div>
-        </PropertySection>
-      ) : null}
     </div>
   );
 }
