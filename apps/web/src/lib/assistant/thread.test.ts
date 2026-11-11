@@ -53,6 +53,16 @@ describe("assistant thread", () => {
     expect(blocks[3]).toMatchObject({ kind: "work", entries: [{ id: "t3" }] });
   });
 
+  it("keeps a thought inside the same steps as the tools around it", () => {
+    const blocks = groupThread([
+      { kind: "thought", id: "th", text: "Look at the file", streaming: false },
+      { kind: "tool", id: "t", name: "readFile", label: "Reading a.md", status: "ok" },
+      { kind: "assistant", id: "a", text: "ok" }
+    ]);
+    expect(blocks.map((b) => b.kind)).toEqual(["work", "item"]);
+    expect(blocks[0]).toMatchObject({ entries: [{ id: "th" }, { id: "t" }] });
+  });
+
   it("folds an edit into the steps once it is applied, and keeps the other states as cards", () => {
     const edit = (id: string, status: "pending" | "applied" | "discarded" | "stale"): ThreadItem => ({
       kind: "edit",

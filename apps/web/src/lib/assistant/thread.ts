@@ -75,9 +75,10 @@ export type ThreadItem =
 export type ToolItem = Extract<ThreadItem, { kind: "tool" }>;
 export type CommandItem = Extract<ThreadItem, { kind: "command" }>;
 export type EditItem = Extract<ThreadItem, { kind: "edit" }>;
-/** A step inside the work accordion: a tool, a command that already left the approval card, or an applied edit. */
+/** A step inside the work accordion: a tool, a thought, a command that already left the approval card, or an applied edit. */
 export type DeleteItem = Extract<ThreadItem, { kind: "delete" }>;
-export type WorkEntry = ToolItem | CommandItem | EditItem | DeleteItem;
+export type ThoughtItem = Extract<ThreadItem, { kind: "thought" }>;
+export type WorkEntry = ToolItem | CommandItem | EditItem | DeleteItem | ThoughtItem;
 export type ThreadBlock = { kind: "work"; id: string; entries: WorkEntry[] } | { kind: "item"; item: ThreadItem };
 
 /**
@@ -88,7 +89,7 @@ export type ThreadBlock = { kind: "work"; id: string; entries: WorkEntry[] } | {
 function isWorkEntry(item: ThreadItem): item is WorkEntry {
   if (item.kind === "edit") return item.status === "applied";
   if (item.kind === "delete") return item.status !== "pending";
-  return item.kind === "tool" || (item.kind === "command" && item.status !== "pending" && item.status !== "denied");
+  return item.kind === "tool" || item.kind === "thought" || (item.kind === "command" && item.status !== "pending" && item.status !== "denied");
 }
 
 /** Consecutive tool steps become one "work" block; anything else stands alone. */
