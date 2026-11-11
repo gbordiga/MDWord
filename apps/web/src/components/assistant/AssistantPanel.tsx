@@ -3,7 +3,15 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { formatUsd, t } from "@mdword/agent";
+import {
+  activeSlash,
+  EMPTY_CAPABILITIES,
+  formatUsd,
+  slashChoices,
+  t,
+  type Capabilities,
+  type SlashChoice
+} from "@mdword/agent";
 import { cn } from "@mdword/ui";
 import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, CornerDownRight, FilePenLine, FileText, Globe, History, Loader2, Plus, ScrollText, Settings, Sparkles, Square, Terminal, X } from "lucide-react";
 import type { ShellMode } from "@mdword/shared";
@@ -15,7 +23,7 @@ import { linkifyWikilinks, safeHref, wikiTargetFromHref } from "@/lib/assistant/
 import { openWikiTarget } from "@/lib/openEditorLink";
 import { shellModeOf, useAssistant } from "@/lib/assistant/store";
 import { mentionFiles } from "@/lib/assistant/context";
-import { instructionPaths } from "@/lib/assistant/env";
+import { instructionPaths, loadCapabilities } from "@/lib/assistant/env";
 import { activeMention, filterMentionFiles, splitMentions, type MentionSegment } from "@/lib/assistant/mentions";
 import type { ThreadItem } from "@/lib/assistant/thread";
 import { AssistantHistory } from "./AssistantHistory";
@@ -372,6 +380,79 @@ function MentionMenu({
   );
 }
 
+function SlashMenu({
+  query,
+  choices,
+  active,
+  onHover,
+  onPick
+}: {
+  query: string;
+  choices: SlashChoice[];
+  active: number;
+  onHover: (index: number) => void;
+  onPick: (choice: SlashChoice) => void;
+}) {
+  const activeRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest" });
+  }, [active, choices]);
+
+  return (
+    <div
+      id="assistant-slash"
+      data-testid="assistant-slash"
+      className="absolute bottom-full left-2 right-2 z-20 mb-2 overflow-hidden rounded-xl border border-[#e4e7ec] bg-white shadow-[0_12px_32px_rgba(16,24,40,0.12)]"
+    >
+      <div className="flex items-center gap-2 border-b border-[#e4e7ec] px-3 py-2">
+        <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#e8eefc] text-[12px] font-semibold text-[#1d4ed8]">/</span>
+        <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-[#344054]">{t("panel.slash.list")}</span>
+      </div>
+      {choices.length === 0 ? (
+        <p className="px-3 py-3 text-[12px] leading-5 text-[#667085]">{t("panel.slash.empty", { query })}</p>
+      ) : (
+      <ul role="listbox" aria-label={t("panel.slash.list")} className="max-h-64 overflow-auto p-1">
+        {choices.map((choice, index) => {
+          const selected = index === active;
+          return (
+            <li key={choice.id}>
+              <button
+                ref={selected ? activeRef : undefined}
+                id={`assistant-slash-${index}`}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                data-testid="assistant-slash-item"
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left",
+                  selected ? "bg-[#e8eefc]" : "hover:bg-[#f8fafc]"
+                )}
+                onMouseEnter={() => onHover(index)}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  onPick(choice);
+                }}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] text-[#1c1f24]">
+                    {choice.name}
+                    <span className="ml-1.5 text-[11px] text-[#667085]">
+                      {choice.kind === "skill" ? t("panel.slash.skill") : t("panel.slash.rule")}
+                    </span>
+                  </span>
+                  <span className="block truncate text-[11px] text-[#667085]">{choice.description}</span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      )}
+      <div className="border-t border-[#e4e7ec] px-3 py-1.5 text-[11px] text-[#98a2b3]">{t("panel.slash.hint")}</div>
+    </div>
+  );
+}
+
 const SHELL_CHOICES: ShellMode[] = ["off", "manual", "ai", "always"];
 
 function ShellModeControl() {
@@ -528,6 +609,50 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
     setMentionClosed(false);
   }, [mention?.start, mention?.query]);
 
+  // `/` at the start of the message picks a skill or rule from .agents.
+  const [caps, setCaps] = useState<Capabilities>(EMPTY_CAPABILITIES);
+  const [capsReady, setCapsReady] = useState(false);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [slashClosed, setSlashClosed] = useState(false);
+  const slash = activeSlash(text, cursor);
+  const slashWanted = Boolean(slash) && !slashClosed;
+  useEffect(() => {
+    if (!slashWanted || !workspace) return;
+    setCapsReady(false);
+    let live = true;
+    void loadCapabilities().then((next) => {
+      if (!live) return;
+      setCaps(next);
+      setCapsReady(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, [slashWanted, workspace]);
+  const slashList = useMemo(
+    () => (slashWanted && slash ? slashChoices(caps, slash.query) : []),
+    [slashWanted, slash?.query, caps]
+  );
+  const slashOpen =
+    !mentionOpen && slashWanted && (slashList.length > 0 || (capsReady && (slash?.query.length ?? 0) > 0));
+  useEffect(() => {
+    setSlashIndex(0);
+    setSlashClosed(false);
+  }, [slash?.query, slash === null]);
+
+  const applySlash = (choice: SlashChoice) => {
+    if (!slash) return;
+    const after = text.slice(slash.end).replace(/^ /, "");
+    const next = `/${choice.id} ${after}`;
+    const caret = choice.id.length + 2;
+    setText(next);
+    setCursor(caret);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(caret, caret);
+    });
+  };
+
   const applyMention = (rel: string) => {
     if (!mention) return;
     // Replace the whole token, also the part after the caret, so no leftover text stays behind.
@@ -639,6 +764,9 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
           </div>
         ) : null}
         <div className="relative">
+          {slashOpen ? (
+            <SlashMenu query={slash?.query ?? ""} choices={slashList} active={slashIndex} onHover={setSlashIndex} onPick={applySlash} />
+          ) : null}
           {mentionOpen && mention ? (
             <MentionMenu
               query={mention.query}
@@ -665,9 +793,15 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
             data-testid="assistant-input"
             data-focus-ring="none"
             aria-label={t("panel.input.placeholder")}
-            aria-expanded={mentionOpen}
-            aria-controls={mentionOpen ? "assistant-mentions" : undefined}
-            aria-activedescendant={mentionOpen && mentionChoices[mentionIndex] ? `assistant-mention-${mentionIndex}` : undefined}
+            aria-expanded={mentionOpen || slashOpen}
+            aria-controls={slashOpen ? "assistant-slash" : mentionOpen ? "assistant-mentions" : undefined}
+            aria-activedescendant={
+              slashOpen && slashList[slashIndex]
+                ? `assistant-slash-${slashIndex}`
+                : mentionOpen && mentionChoices[mentionIndex]
+                  ? `assistant-mention-${mentionIndex}`
+                  : undefined
+            }
             title={t("panel.input.hint")}
             rows={1}
             disabled={disabled}
@@ -685,6 +819,28 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
             onKeyDown={(e) => {
               // While an input method composes text, Enter and Tab belong to it.
               if (e.nativeEvent.isComposing) return;
+              if (slashOpen) {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setSlashClosed(true);
+                  return;
+                }
+                if (slashList.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+                  e.preventDefault();
+                  setSlashIndex((index) =>
+                    e.key === "ArrowDown"
+                      ? (index + 1) % slashList.length
+                      : (index - 1 + slashList.length) % slashList.length
+                  );
+                  return;
+                }
+                if (slashList.length > 0 && (e.key === "Enter" || e.key === "Tab") && !e.shiftKey) {
+                  e.preventDefault();
+                  const choice = slashList[slashIndex] ?? slashList[0];
+                  if (choice) applySlash(choice);
+                  return;
+                }
+              }
               if (e.key === "Escape" && mentionOpen) {
                 e.preventDefault();
                 setMentionClosed(true);

@@ -69,7 +69,7 @@ export type CommandOutcome =
 export interface AssistantEnv {
   listFiles(folder: string): Promise<FileEntry[] | null>;
   /**
-   * One folder level of docx, pptx, xlsx, pdf, and html, plus subfolders.
+   * One folder level of docx, pptx, xlsx, and pdf, plus subfolders.
    * Absent hosts cannot offer the tool.
    */
   listDocuments?(folder: string): Promise<FileEntry[] | null>;
@@ -77,7 +77,7 @@ export interface AssistantEnv {
   /** Buffer of an open tab, else the file on disk. `null` when it does not exist. */
   readFile(path: string): Promise<string | null>;
   /**
-   * Extract a docx, pptx, xlsx, pdf, or html file inside the project as Markdown.
+   * Extract a docx, pptx, xlsx, or pdf file inside the project as Markdown.
    * `null` when the file does not exist. Absent hosts cannot offer the tool.
    */
   readDocument?(path: string): Promise<string | null>;

@@ -3,6 +3,7 @@ import { costFromUsage, type Pricing } from "./models";
 import { redactKeys } from "./openrouter";
 import { buildSystemPrompt } from "./prompt";
 import type { InstructionFile } from "./instructions";
+import { renderCapabilities, type Capabilities } from "./skills";
 import { t, type MessageKey } from "./messages.en";
 import { createTools, scrubForModel, type ToolContext } from "./tools";
 import {
@@ -30,6 +31,10 @@ export interface TurnInput {
   webSearch?: boolean;
   /** AGENTS.md-style files found in the workspace, nearest first. */
   instructions?: InstructionFile[];
+  /** Skills and rules of the project (`.agents`). */
+  capabilities?: Capabilities;
+  /** Workspace-relative files this turn is about, for rules that apply to files. */
+  scope?: string[];
   signal?: AbortSignal;
   onEvent: (event: TurnEvent) => void;
 }
@@ -143,7 +148,8 @@ export async function runAssistantTurn(input: TurnInput): Promise<TurnResult> {
     system: buildSystemPrompt({
       webSearch: input.webSearch,
       shell: input.env.runCommand != null,
-      instructions: input.instructions
+      instructions: input.instructions,
+      capabilities: input.capabilities ? renderCapabilities(input.capabilities, input.scope ?? []) : ""
     }),
     messages: scrubForModel([...input.history, sent]),
     tools,

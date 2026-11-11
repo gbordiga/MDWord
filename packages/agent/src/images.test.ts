@@ -28,5 +28,8 @@ describe("image generation", () => {
     });
     expect(parseGeneratedImage({ error: { message: "no credits" } })).toEqual({ error: "no credits" });
     expect(parseGeneratedImage({ choices: [{ message: { content: "nope" } }] })).toMatchObject({ error: expect.any(String) });
+    expect(parseGeneratedImage({ choices: [{ message: { images: [{ image_url: { url: "data:image/svg+xml;base64,AAAA" } }] } }] })).toMatchObject({
+      error: expect.any(String)
+    });
   });
 });

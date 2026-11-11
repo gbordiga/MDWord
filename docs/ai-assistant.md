@@ -487,6 +487,23 @@ Steps 1 to 5 are the web release; 6 follows; 7 last.
 - **Trust.** A workspace can come from someone else, so the section states that these files never override the Safety and Edit rules, never waive Apply, and that requests to send or search private text outside the workspace are ignored. The panel shows a "Following AGENTS.md" chip so the user can see what applies.
 - **Compared with opencode.** opencode loads the nearest `AGENTS.md` upward from the working directory, a global file, `CLAUDE.md` as a fallback, and configured extra files or URLs, and sends diffs when a file changes. We took the nearest-first order, the first-match rule per folder, and the `CLAUDE.md` fallback; we left out global and remote instructions (a remote URL is a prompt-injection channel) and diff updates (files are re-read each turn). From its prompt we took: lead the answer with the outcome, and do not narrate routine reads.
 
+## Implementation notes: skills and rules (`.agents`)
+
+- **Skills** follow the [Agent Skills](https://agentskills.io) format: `<root>/<name>/SKILL.md` with `name` (same as the folder) and `description`. Roots are `.claude/skills` and `.agents/skills`; `.agents` wins on the same name. Only name, description, and path go into the system prompt (`<available_skills>`); the model reads the body with `readFile` when a task matches. `disable-model-invocation: true` hides a skill from that list.
+- **Rules** are `.agents/rules/<name>.md` with `trigger: always_on | model_decision | glob | manual` (plus `description` or `globs`). `always_on` and `glob` rules that match the open or mentioned files are added to the system prompt (8,000 characters in total). `model_decision` rules are listed with their description for the model to read. Cursor-style `alwaysApply`, `globs`, `paths`, and `applyTo` are read leniently. Glob rules use the portable subset (a file name pattern, or a pattern starting with `**/`).
+- **`/` command.** Typing `/` at the start of a message opens a menu of skills and rules. `/skill:<name> request`, `/rule:<name> request`, or `/<name> request` loads that file into the turn. The thread shows what the user typed; the model gets the request and the file text. Global `~/.agents` files are not read: the web app only sees the open project.
+- **Writing them.** The model creates and edits these files with `writeFile` and `editFile`. A skill or rule that would not load (bad name, missing description, unknown trigger, non-portable glob) is refused with the reason. Changes to `.agents`, `.claude`, `.opencode`, and `AGENTS.md` files always need manual approval, even when edit approval is automatic, because they steer later turns. A root `.agents/AGENTS.md` is read as the last instruction file.
+- **Not supported.** `.agents/rules.json`, rules in subfolders, and running skill scripts unless shell mode allows the command.
+
+## Implementation notes: document conversion
+
+`readDocument` reads docx, pptx, xlsx, and pdf (not HTML). Conversion is deterministic and runs in the browser, with no model call (`apps/web/src/lib/assistant/`).
+
+- **docx:** mammoth to HTML, then `htmlMarkdown.ts`: headings, bold, italic, links, nested and numbered lists, tables, quotes, code, pictures as `![alt][img-…]`. It scans once, drops scripts and unknown tags, and refuses `javascript:` links.
+- **pptx:** `pptxMarkdown.ts` reads the slide XML. The title placeholder becomes `## Slide N: Title`, body text keeps its bullet level, tables become tables, speaker notes follow as `> Notes:`, and date, footer, and slide-number placeholders are skipped.
+- **pdf:** `pdfMarkdown.ts` rebuilds structure from text positions: headings from font size, paragraphs from line spacing, hyphenated words joined, bullet and numbered lists kept, and repeated headers, footers, and page numbers removed. Columns, tables, and scanned pages (no text, no OCR) are not recovered; the model can tidy the draft with `editFile`.
+- **xlsx:** one table per sheet, 200 rows at most, dates as `yyyy-mm-dd`.
+
 ## Appendix A. Prompt draft
 
 Draft only. It is evaluated and tuned with the section 17 set; wording changes are tracked in version control. Structure is borrowed from mini-swe-agent (role, hard rules, ordered workflow, concrete examples) and Pi (edit rules written for the model inside the tool description).

@@ -25,6 +25,11 @@ describe("pickInstructionFiles", () => {
     expect(pickInstructionFiles(["claude.md", "AGENT.md"], null)).toEqual(["AGENT.md"]);
   });
 
+  it("reads .agents/AGENTS.md after the files nearer to the open one", () => {
+    expect(pickInstructionFiles([".agents/AGENTS.md", "AGENTS.md"], "a.md")).toEqual(["AGENTS.md", ".agents/AGENTS.md"]);
+    expect(pickInstructionFiles([".agents/AGENT.md"], null)).toEqual([".agents/AGENT.md"]);
+  });
+
   it("returns nothing without instruction files and caps the count", () => {
     expect(pickInstructionFiles(["a.md", "docs/b.md"], "docs/b.md")).toEqual([]);
     const deep = ["AGENTS.md", "a/AGENTS.md", "a/b/AGENTS.md", "a/b/c/AGENTS.md"];

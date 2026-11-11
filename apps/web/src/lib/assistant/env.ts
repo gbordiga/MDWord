@@ -1,7 +1,12 @@
 import {
+  agentFileKind,
   applyEdits,
+  buildCapabilities,
+  EMPTY_CAPABILITIES,
+  parseFrontmatter,
   pickInstructionFiles,
   type AssistantEnv,
+  type Capabilities,
   type InstructionFile,
   type DeleteDecision,
   type EditDecision,
@@ -111,6 +116,35 @@ export async function loadInstructionFiles(): Promise<InstructionFile[]> {
     if (content) out.push({ path: rel, content });
   }
   return out;
+}
+
+/** Skills and rules of the project, read fresh: the user may have edited them, even unsaved. */
+export async function loadCapabilities(): Promise<Capabilities> {
+  if (!useApp.getState().workspace?.root) return EMPTY_CAPABILITIES;
+  const files: { path: string; content: string }[] = [];
+  for (const entry of fileTable()) {
+    if (entry.isDirectory || !agentFileKind(entry.rel)) continue;
+    const content = await readEntry(entry);
+    if (content !== null) files.push({ path: entry.rel, content });
+  }
+  return buildCapabilities(files);
+}
+
+/** Workspace-relative paths this turn is about: the open file and the ones the user mentioned. */
+export function scopePaths(mentioned: readonly string[]): string[] {
+  const state = useApp.getState();
+  const root = state.workspace?.root;
+  const open = root && state.path ? relativeWorkspacePath(state.path, root) : null;
+  return [...new Set([...(open ? [open] : []), ...mentioned])];
+}
+
+/** The text of a skill or rule file without its frontmatter, for a `/` command. */
+export async function readCapabilityBody(rel: string): Promise<string | null> {
+  const entry = resolve(rel);
+  const raw = entry ? await readEntry(entry) : null;
+  if (raw === null) return null;
+  const parsed = parseFrontmatter(raw);
+  return parsed.ok ? parsed.body : raw;
 }
 
 /**

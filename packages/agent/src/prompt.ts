@@ -83,18 +83,31 @@ and page layout live there, not in the body. Say so when you change it.
 
 # How to work
 1. Find: use listFiles for markdown files and folders, and search for text.
-   Use listDocuments when the user asks about a docx, pptx, xlsx, pdf, or html file.
+   Use listDocuments when the user asks about a docx, pptx, xlsx, or pdf file.
 2. Read: use readFile before you edit. Read only what you need, chunk by
    chunk (follow nextStartLine) or by line range; never read a whole long file.
 3. Edit: use editFile with the smallest oldText that is still unique in the
    file. To add a markdown file that does not exist yet, use writeFile with
    the full text. The user reviews every edit before it is applied.
-4. Other files: for docx, pptx, xlsx, pdf, and html, use readDocument. It
-   returns Markdown. Pictures inside docx, pptx, and html become the same
+4. Other files: for docx, pptx, xlsx, and pdf, use readDocument. It
+   returns Markdown. Pictures inside docx and pptx become the same
    \`![alt][img-…]\` references used in markdown files; their bytes stay hidden
    from you. To convert a file, call readDocument with saveAs set to a new
    .md path. Do not copy the extract into writeFile, and do not use the shell.
-5. Report: say briefly what you changed or proposed. Do not repeat the whole
+5. Skills and rules: the project keeps them in .agents. To write or change one,
+   use writeFile or editFile like any markdown file; the user always approves it.
+   - A skill is .agents/skills/<name>/SKILL.md. Frontmatter: name (the same
+     as the folder; lowercase letters, numbers, single hyphens) and description
+     (what it does and when to use it, at most 1024 characters). Optional
+     disable-model-invocation: true makes it available only through /skill:<name>.
+     The body is the steps. Keep it short and put long reference text in
+     another file next to it.
+   - A rule is .agents/rules/<name>.md. Frontmatter: trigger is always_on,
+     model_decision (also needs description: when to read it), glob (also needs
+     globs: comma-separated, a file name like "*.sql" or a path starting with
+     "**/") or manual. Write the rule as short, direct instructions.
+   - Do not write skills or rules the user did not ask for.
+6. Report: say briefly what you changed or proposed. Do not repeat the whole
    edit.
 If the request is ambiguous, ask one short question instead of guessing.
 When the task is done, reply in plain text with no further tool call.
@@ -151,9 +164,15 @@ commands, or has chosen to let them run automatically.
 - If the user does not allow a command, do not retry it. Say what you wanted and ask.`;
 
 export function buildSystemPrompt(
-  options: { webSearch?: boolean; shell?: boolean; instructions?: readonly InstructionFile[] } = {}
+  options: {
+    webSearch?: boolean;
+    shell?: boolean;
+    instructions?: readonly InstructionFile[];
+    /** Skills and rules, already rendered by `renderCapabilities`. */
+    capabilities?: string;
+  } = {}
 ): string {
-  return `${SYSTEM_PROMPT}${options.webSearch ? WEB_SEARCH_PROMPT : ""}${options.shell ? SHELL_PROMPT : ""}${renderInstructions(options.instructions ?? [])}`;
+  return `${SYSTEM_PROMPT}${options.webSearch ? WEB_SEARCH_PROMPT : ""}${options.shell ? SHELL_PROMPT : ""}${renderInstructions(options.instructions ?? [])}${options.capabilities ?? ""}`;
 }
 
 export const TOOL_DESCRIPTIONS = {
@@ -162,15 +181,15 @@ export const TOOL_DESCRIPTIONS = {
   writeFile:
     "Create one new markdown file. The path must not already exist. Pass the full file text. The user reviews it before the file is created. Use editFile to change a file that already exists.",
   readFile:
-    "Read a markdown or text file in the workspace. Returns the current content, including unsaved changes if the file is open. Returns at most 500 lines or about 24000 characters, always whole lines. If the result says more remains, call again with startLine to continue, only when you need it. Use startLine and endLine to jump to a part. For docx, pptx, xlsx, pdf, and html use readDocument.",
+    "Read a markdown or text file in the workspace. Returns the current content, including unsaved changes if the file is open. Returns at most 500 lines or about 24000 characters, always whole lines. If the result says more remains, call again with startLine to continue, only when you need it. Use startLine and endLine to jump to a part. For docx, pptx, xlsx, and pdf use readDocument.",
   readDocument:
-    "Read one docx, pptx, xlsx, pdf, or html file in the project and return Markdown. Pictures in docx, pptx, and html are embedded as image references, the same as photos already in markdown files; you see the reference, not the bytes. Pass saveAs (a new .md path) when the user wants the file converted. Omit saveAs to only read. Does not change the original.",
+    "Read one docx, pptx, xlsx, or pdf file in the project and return Markdown. Pictures in docx and pptx are embedded as image references, the same as photos already in markdown files; you see the reference, not the bytes. Pass saveAs (a new .md path) when the user wants the file converted. Omit saveAs to only read. Does not change the original.",
   search:
     "Search the workspace index by title, heading, tag, and text. Returns file paths with a short snippet. Use before reading to find the right file.",
   listFiles:
-    "List markdown files and folders in the workspace or in one folder. Does not list docx, pptx, xlsx, pdf, or html; use listDocuments for those.",
+    "List markdown files and folders in the workspace or in one folder. Does not list docx, pptx, xlsx, or pdf; use listDocuments for those.",
   listDocuments:
-    "List docx, pptx, xlsx, pdf, and html files, plus folders, in the workspace or in one folder. Use this when the user asks for one of those files. Then use readDocument to open it.",
+    "List docx, pptx, xlsx, and pdf files, plus folders, in the workspace or in one folder. Use this when the user asks for one of those files. Then use readDocument to open it.",
   runCommand:
     "Run one shell command in the workspace folder (bash, or powershell on Windows). Each call is a fresh process with no input, a limited environment and a time limit. Returns the exit code and the merged output (only the end if it is long). The user approves the command unless they allowed automatic runs. Not for editing documents. Do not use it to delete files; use deleteFile.",
   generateImage:

@@ -40,7 +40,8 @@ export function parseGeneratedImage(json: unknown): { dataUrl: string; costUsd: 
   for (const item of candidates) {
     const record = item as { image_url?: { url?: unknown }; url?: unknown };
     const url = record?.image_url?.url ?? record?.url;
-    if (typeof url === "string" && url.startsWith("data:image/")) {
+    // Raster data URLs only. SVG can carry markup, so it never becomes a preview.
+    if (typeof url === "string" && /^data:image\/(png|jpeg|gif|webp);base64,/i.test(url)) {
       const cost = root.usage?.cost;
       return { dataUrl: url, costUsd: typeof cost === "number" && Number.isFinite(cost) ? cost : null };
     }

@@ -76,7 +76,7 @@ Citations, equations UI, advanced cross-references, template gallery, DOCX expor
 
 ## AI assistant (optional)
 
-A side panel that reads the open workspace and proposes edits to Markdown files. It is off until the user connects their own OpenRouter account, and it never writes without an explicit Apply. One Apply is one undo step. Available on desktop and web; not yet on mobile. See `docs/ai-assistant.md`.
+A side panel that reads the open workspace and proposes edits to Markdown files. It is off until the user connects their own OpenRouter account. By default it never writes without an explicit Apply; the user can turn on automatic approval for short edits. One applied change is one undo step. It can also read docx, pptx, xlsx, and pdf, and follow project skills and rules in `.agents`. Available on desktop and web; not yet on mobile. See `docs/ai-assistant.md`.
 
 ## Privacy
 
