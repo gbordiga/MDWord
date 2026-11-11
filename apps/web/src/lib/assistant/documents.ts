@@ -47,20 +47,28 @@ function attr(attrs: string, name: string): string {
 }
 
 function inline(html: string): string {
-  return tidy(
-    decode(
-      html
-        .replace(/<a\s+[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href: string, body: string) => `[${strip(body)}](${href})`)
-        .replace(/<(strong|b)[^>]*>([\s\S]*?)<\/\1>/gi, (_, _tag: string, body: string) => `**${strip(body)}**`)
-        .replace(/<(em|i)[^>]*>([\s\S]*?)<\/\1>/gi, (_, _tag: string, body: string) => `*${strip(body)}*`)
-        .replace(/<[a-z/!?][^>]*>?/gi, "")
-    )
-  );
+  const marked = html
+    .replace(/<a\s+[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href: string, body: string) => `[${strip(body)}](${href})`)
+    .replace(/<(strong|b)[^>]*>([\s\S]*?)<\/\1>/gi, (_, _tag: string, body: string) => `**${strip(body)}**`)
+    .replace(/<(em|i)[^>]*>([\s\S]*?)<\/\1>/gi, (_, _tag: string, body: string) => `*${strip(body)}*`);
+  return tidy(decode(stripTags(marked)));
 }
 
-/** Drop tags, including an unclosed `<script` with no `>`. */
+/** Drop every tag, including an unclosed `<script` with no `>`. */
 function stripTags(html: string): string {
-  return html.replace(/<[a-z/!?][^>]*>?/gi, "");
+  let out = "";
+  let i = 0;
+  while (i < html.length) {
+    const start = html.indexOf("<", i);
+    if (start < 0) {
+      out += html.slice(i);
+      break;
+    }
+    out += html.slice(i, start);
+    const end = html.indexOf(">", start + 1);
+    i = end < 0 ? html.length : end + 1;
+  }
+  return out;
 }
 
 function strip(html: string): string {
