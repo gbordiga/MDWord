@@ -213,7 +213,9 @@ export function htmlToMarkdown(html: string): string {
   let heading = 0;
   let quote = 0;
   let pre = false;
-  let item: { marker: string; indent: string } | null = null;
+  type ListItem = { marker: string; indent: string };
+  let item: ListItem | null = null;
+  const parentItems: (ListItem | null)[] = [];
   const lists: { ordered: boolean; n: number; width: number }[] = [];
   const links: { href: string; start: number }[] = [];
   let tableDepth = 0;
@@ -292,6 +294,7 @@ export function htmlToMarkdown(html: string): string {
         pre = true;
       } else if (name === "ul" || name === "ol") {
         flush();
+        parentItems.push(item);
         const parent = lists[lists.length - 1];
         lists.push({ ordered: name === "ol", n: 0, width: (parent?.width ?? 0) + (name === "ol" ? 3 : 2) });
       } else if (name === "li") {
@@ -346,7 +349,9 @@ export function htmlToMarkdown(html: string): string {
     } else if (name === "ul" || name === "ol") {
       flush();
       lists.pop();
-      item = null;
+      const parentItem = parentItems.pop() ?? null;
+      const parentList = lists[lists.length - 1];
+      item = parentItem?.marker === "" && parentList ? { marker: "", indent: " ".repeat(parentList.width) } : parentItem;
     } else if ((name === "td" || name === "th") && tableDepth === 1) {
       row.push(cellText(cur));
       cur = "";

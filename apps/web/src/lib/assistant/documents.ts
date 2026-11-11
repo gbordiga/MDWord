@@ -125,16 +125,20 @@ async function pdfToMarkdown(bytes: Uint8Array): Promise<string> {
   const { getDocumentProxy } = await import("unpdf");
   const pdf = await getDocumentProxy(new Uint8Array(bytes));
   const pages: PdfItem[][] = [];
-  for (let number = 1; number <= pdf.numPages; number += 1) {
-    const page = await pdf.getPage(number);
-    const content = await page.getTextContent();
-    const items: PdfItem[] = [];
-    for (const item of content.items) {
-      if (!("str" in item) || !Array.isArray(item.transform)) continue;
-      const [a = 0, b = 0, , , x = 0, y = 0] = item.transform as number[];
-      items.push({ text: item.str, x, y, size: Math.hypot(a, b) || item.height || 1, width: item.width });
+  try {
+    for (let number = 1; number <= pdf.numPages; number += 1) {
+      const page = await pdf.getPage(number);
+      const content = await page.getTextContent();
+      const items: PdfItem[] = [];
+      for (const item of content.items) {
+        if (!("str" in item) || !Array.isArray(item.transform)) continue;
+        const [a = 0, b = 0, , , x = 0, y = 0] = item.transform as number[];
+        items.push({ text: item.str, x, y, size: Math.hypot(a, b) || item.height || 1, width: item.width });
+      }
+      pages.push(items);
     }
-    pages.push(items);
+  } finally {
+    await pdf.loadingTask.destroy();
   }
   return tidy(layoutToMarkdown(pages));
 }

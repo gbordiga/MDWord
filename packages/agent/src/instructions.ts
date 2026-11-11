@@ -58,7 +58,7 @@ export function pickInstructionFiles(paths: readonly string[], openFile: string 
     for (const wanted of INSTRUCTION_FILE_NAMES) {
       const hit = agents.get(wanted.toLowerCase());
       if (hit) {
-        out.push(hit);
+        if (!out.includes(hit)) out.push(hit);
         break;
       }
     }
