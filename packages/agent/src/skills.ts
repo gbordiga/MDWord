@@ -538,8 +538,8 @@ export function slashChoices(caps: Capabilities, query: string): SlashChoice[] {
     { id: "new:skill", kind: "new-skill", name: "", description: "", path: "" },
     { id: "new:rule", kind: "new-rule", name: "", description: "", path: "" }
   ];
-  const words: Record<string, string> = { "new:skill": "new create skill", "new:rule": "new create rule" };
-  return [...found, ...create.filter((c) => !q || words[c.id]!.includes(q))];
+  const words: Record<string, string[]> = { "new:skill": ["new", "create", "skill"], "new:rule": ["new", "create", "rule"] };
+  return [...found, ...create.filter((c) => !q || words[c.id]!.some((w) => w.startsWith(q)))];
 }
 
 /** `/query` being typed at the start of the message, before any space. */

@@ -638,8 +638,8 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
     };
   }, [startsWithSlash, workspace]);
   const slashList = useMemo(
-    () => (slashWanted && slash ? slashChoices(caps, slash.query) : []),
-    [slashWanted, slash?.query, caps]
+    () => (slashWanted && slash && capsReady ? slashChoices(caps, slash.query) : []),
+    [slashWanted, slash?.query, caps, capsReady]
   );
   const slashBadge = useMemo(() => slashBadgeLength(text, caps), [text, caps]);
   const segments = useMemo(

@@ -232,21 +232,18 @@ export function createAssistantEnv(options: EnvOptions): AssistantEnv {
       const state = useApp.getState();
       const { workspace } = state;
       if (workspace?.root) {
+        // The index only knows markdown. Office and PDF files are found by name, at any depth.
+        const documents = !field || field === "path" ? matchDocumentNames(fileTable(), query, limit) : [];
         const hits = searchHits(workspace.index, query)
           .filter((h) => !field || h.field === field)
-          .slice(0, limit);
+          .slice(0, limit - documents.length);
         const found = hits.map((h) => ({
           path: relativeWorkspacePath(h.document.path, workspace.root!) ?? h.document.path,
           title: h.document.title,
           snippet: h.excerpt
         }));
-        // The index only knows markdown. Office and PDF files are found by name, at any depth.
-        if (!field) {
-          const seen = new Set(found.map((r) => r.path.toLowerCase()));
-          for (const rel of matchDocumentNames(fileTable(), query, limit - found.length)) {
-            if (seen.has(rel.toLowerCase())) continue;
-            found.push({ path: rel, title: baseName(rel), snippet: "Document file. Open it with readDocument." });
-          }
+        for (const rel of documents) {
+          found.push({ path: rel, title: baseName(rel), snippet: "Document file. Open it with readDocument." });
         }
         return found;
       }
