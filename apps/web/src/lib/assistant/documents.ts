@@ -53,14 +53,14 @@ function inline(html: string): string {
         .replace(/<a\s+[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href: string, body: string) => `[${strip(body)}](${href})`)
         .replace(/<(strong|b)[^>]*>([\s\S]*?)<\/\1>/gi, (_, _tag: string, body: string) => `**${strip(body)}**`)
         .replace(/<(em|i)[^>]*>([\s\S]*?)<\/\1>/gi, (_, _tag: string, body: string) => `*${strip(body)}*`)
-        .replace(/<[^>]*>?/g, "")
+        .replace(/<[a-z/!?][^>]*>?/gi, "")
     )
   );
 }
 
 /** Drop tags, including an unclosed `<script` with no `>`. */
 function stripTags(html: string): string {
-  return html.replace(/<[^>]*>?/g, "");
+  return html.replace(/<[a-z/!?][^>]*>?/gi, "");
 }
 
 function strip(html: string): string {
