@@ -52,6 +52,17 @@ export function pickInstructionFiles(paths: readonly string[], openFile: string 
     if (folder === "") break;
     folder = folderOf(folder);
   }
+  // `.agents/AGENTS.md` at the workspace root applies everywhere, after the files nearer to the open one.
+  const agents = byFolder.get(".agents");
+  if (agents) {
+    for (const wanted of INSTRUCTION_FILE_NAMES) {
+      const hit = agents.get(wanted.toLowerCase());
+      if (hit) {
+        out.push(hit);
+        break;
+      }
+    }
+  }
   return out.slice(0, MAX_INSTRUCTION_FILES);
 }
 

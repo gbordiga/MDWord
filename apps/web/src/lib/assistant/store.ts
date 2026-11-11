@@ -15,6 +15,9 @@ import {
   SUGGESTED_MODELS,
   t,
   checkCommand,
+  invokedContext,
+  isAgentConfigPath,
+  resolveSlash,
   type CommandOutcome,
   type CommandRequest,
   type DeleteDecision,
@@ -38,7 +41,13 @@ import { attachedFilesContext, buildTurnContext, mentionFiles } from "./context"
 import { mentionedPaths } from "./mentions";
 import { embedImageSrc } from "@mdword/editor";
 import { imageReference } from "@mdword/shared";
-import { applyProposal, createAssistantEnv, deleteConfirmedFile, inspectDelete, loadInstructionFiles } from "./env";
+import { applyProposal, createAssistantEnv, deleteConfirmedFile,
+  inspectDelete,
+  loadCapabilities,
+  loadInstructionFiles,
+  readCapabilityBody,
+  scopePaths
+} from "./env";
 import {
   conversationKey,
   indexKey,
@@ -293,7 +302,12 @@ export const useAssistant = create<AssistantState>((set, get) => {
       ...(proposal.create ? { create: true as const } : {}),
       status: "pending" as const
     };
-    if (get().settings.editApproval === "auto") {
+    // Skills, rules, and AGENTS.md steer every later turn, so the user always reads changes to them.
+    // A change the card clips (4,000 characters) or that embeds a picture is not applied unseen.
+    const shownInFull = proposal.edits.every(
+      (edit) => edit.oldText.length <= 4000 && edit.newText.length <= 4000 && !edit.newText.includes("data:image/")
+    );
+    if (get().settings.editApproval === "auto" && !isAgentConfigPath(proposal.path) && shownInFull) {
       return (async (): Promise<EditDecision> => {
         if (signal?.aborted) return { status: "rejected" };
         mutateThread((thread) => [...thread, item]);
@@ -777,14 +791,6 @@ export const useAssistant = create<AssistantState>((set, get) => {
           fetch: (input, init) =>
             host.fetch(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, init)
         });
-        const classifierModel = createAssistantModel({
-          apiKey: "host-managed",
-          modelId: state.settings.modelId,
-          privacyOnly: state.settings.privacyOnly,
-          zdrOnly: state.settings.zdrOnly,
-          fetch: (input, init) =>
-            host.fetch(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, init)
-        });
         const mentioned = mentionedPaths(trimmed, mentionFiles().map((f) => f.rel));
         const shellApi = host.shell;
         const root = useApp.getState().workspace?.root;
@@ -800,12 +806,13 @@ export const useAssistant = create<AssistantState>((set, get) => {
           let why: Extract<ThreadItem, { kind: "command" }>["why"];
           if (mode === "ai") {
             const verdict = await classifyCommand({
-              model: classifierModel,
+              fetch: (url, init) => host.fetch(url, init),
               command: req.command,
               shell: req.shell,
               folder: req.folder,
               signal
             });
+            if (verdict.costUsd != null) set({ sessionCostUsd: get().sessionCostUsd + verdict.costUsd });
             if (verdict.decision === "allow") approval = "ai";
             else why = { kind: "ai", reason: verdict.reason };
           } else if (mode === "always") {
@@ -881,11 +888,23 @@ export const useAssistant = create<AssistantState>((set, get) => {
             signal?.removeEventListener("abort", onAbort);
           }
         };
+        const capabilities = await loadCapabilities();
+        const slash = resolveSlash(trimmed, capabilities);
+        const slashBody = slash ? await readCapabilityBody(slash.path) : null;
+        const modelText = slash
+          ? slash.request || t("skill.invoke.default", { kind: slash.kind, name: slash.name })
+          : trimmed;
         const result = await runAssistantTurn({
           model,
           history,
-          userText: trimmed,
-          context: [buildTurnContext(), await attachedFilesContext(mentioned)]
+          userText: modelText,
+          capabilities,
+          scope: scopePaths(mentioned),
+          context: [
+            buildTurnContext(),
+            await attachedFilesContext(mentioned),
+            slash && slashBody ? invokedContext(slash, slashBody) : ""
+          ]
             .filter(Boolean)
             .join("\n\n"),
           env: createAssistantEnv({ propose, proposeDelete, generateImage, mentioned, ...(commandsOn ? { runCommand } : {}) }),

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { applyEdits } from "./edits";
 import { normalizeWorkspacePath } from "./paths";
 import { TOOL_DESCRIPTIONS } from "./prompt";
+import { agentFileIssues, agentFileKind } from "./skills";
 import { SHELL_DEFAULT_TIMEOUT_MS, SHELL_MAX_COMMAND_CHARS, SHELL_MAX_TIMEOUT_MS } from "@mdword/shared";
 import { READ_CHUNK_CHARS, READ_CHUNK_LINES } from "./truncate";
 import type { AssistantEnv, StopReason } from "./types";
@@ -171,7 +172,7 @@ export function createTools(ctx: ToolContext) {
       const checked = normalizeWorkspacePath(path);
       if (!checked.ok) return account(ctx, fail(checked.reason));
       if (checked.path === "") return account(ctx, fail("Give a file path, not the workspace root."));
-      if (/\.(docx|pptx|xlsx|pdf|html?)$/i.test(checked.path)) {
+      if (/\.(docx|pptx|xlsx|pdf)$/i.test(checked.path)) {
         return account(ctx, fail(`Use readDocument for "${checked.path}". readFile is for markdown and text.`));
       }
       const text = await env.readFile(checked.path);
@@ -230,11 +231,11 @@ export function createTools(ctx: ToolContext) {
       .strict(),
     execute: async ({ path, saveAs }) => {
       const read = env.readDocument;
-      if (!read) return account(ctx, fail("Reading office, PDF, and HTML files is not available here."));
+      if (!read) return account(ctx, fail("Reading office and PDF files is not available here."));
       const checked = normalizeWorkspacePath(path);
       if (!checked.ok) return account(ctx, fail(checked.reason));
-      if (!/\.(docx|pptx|xlsx|pdf|html?)$/i.test(checked.path)) {
-        return account(ctx, fail("readDocument reads docx, pptx, xlsx, pdf, and html files. Use readFile for markdown."));
+      if (!/\.(docx|pptx|xlsx|pdf)$/i.test(checked.path)) {
+        return account(ctx, fail("readDocument reads docx, pptx, xlsx, and pdf files. Use readFile for markdown."));
       }
       try {
         const markdown = await read(checked.path);
@@ -334,6 +335,13 @@ export function createTools(ctx: ToolContext) {
             fail(`This file would contain errors: ${errors.join("; ")}. Fix the text. No file was written.`)
           );
         }
+        const agentIssues = agentFileIssues(checked.path, text);
+        if (agentIssues && agentIssues.length > 0) {
+          return account(
+            ctx,
+            fail(`This ${agentFileKind(checked.path)} would not work: ${agentIssues.slice(0, 5).join(" ")} No file was written.`)
+          );
+        }
         const decision = await env.proposeEdit(
           {
             id: newProposalId(),
@@ -414,6 +422,19 @@ export function createTools(ctx: ToolContext) {
                 "Fix the edit so the result stays valid. No edit was applied."
             )
           );
+        }
+        const agentAfter = agentFileIssues(checked.path, applied.result);
+        if (agentAfter && agentAfter.length > 0) {
+          const known = new Set(agentFileIssues(checked.path, source) ?? []);
+          const introduced = agentAfter.filter((issue) => !known.has(issue));
+          if (introduced.length > 0) {
+            return account(
+              ctx,
+              fail(
+                `This ${agentFileKind(checked.path)} would stop working: ${introduced.slice(0, 5).join(" ")} No edit was applied.`
+              )
+            );
+          }
         }
 
         const decision = await env.proposeEdit(

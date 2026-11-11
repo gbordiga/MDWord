@@ -48,7 +48,7 @@ describe("readDocument", () => {
     const source = `![Logo][img-1]\n\n[img-1]: ${payload}`;
     let saved = "";
     const { tools } = setup(source);
-    const read = await exec(tools.readDocument, { path: "page.html" });
+    const read = await exec(tools.readDocument, { path: "page.docx" });
     expect(String(read.markdown)).toContain("omitted");
     expect(String(read.markdown)).not.toContain(payload);
     const converting = createTools({
@@ -69,7 +69,7 @@ describe("readDocument", () => {
       toolChars: 0,
       stopReason: null
     });
-    const out = await exec(converting.readDocument, { path: "page.html", saveAs: "page.md" });
+    const out = await exec(converting.readDocument, { path: "page.docx", saveAs: "page.md" });
     expect(out).toMatchObject({ ok: true, status: "applied", path: "page.md" });
     expect(saved).toContain(payload);
   });
