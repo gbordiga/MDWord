@@ -23,6 +23,7 @@ function setup(overrides: Partial<AssistantEnv> = {}, files: Record<string, stri
     diagnostics: () => [],
     canCreateFiles: () => true,
     proposeEdit: async () => ({ status: "rejected" as const }),
+    proposeDelete: async () => ({ status: "rejected" as const }),
     isTrustedPath: (p: string) => p === "a.md",
     runCommand,
     ...overrides

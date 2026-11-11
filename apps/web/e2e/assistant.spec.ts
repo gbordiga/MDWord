@@ -135,9 +135,22 @@ test("a proposed edit changes nothing until Apply, and Apply is one undo step", 
   expect(requests[0]!.headers.authorization).toBe(`Bearer ${KEY}`);
   const provider = requests[0]!.body.provider as { data_collection?: string; zdr?: boolean } | undefined;
   expect(provider?.data_collection).toBe("deny");
-  expect(provider?.zdr).toBeUndefined();
-  const tools = (requests[0]!.body.tools as { function: { name: string } }[]).map((t) => t.function.name).sort();
-  expect(tools).toEqual(["editFile", "listFiles", "readFile", "search", "writeFile"]);
+  expect(provider?.zdr).toBe(true);
+  const tools = (requests[0]!.body.tools as { function?: { name: string } }[])
+    .map((t) => t.function?.name)
+    .filter((name): name is string => Boolean(name))
+    .sort();
+  expect(tools).toEqual([
+    "deleteFile",
+    "editFile",
+    "generateImage",
+    "listDocuments",
+    "listFiles",
+    "readDocument",
+    "readFile",
+    "search",
+    "writeFile"
+  ]);
   expect(JSON.stringify(requests[0]!.body.messages)).toContain("Make the greeting friendlier");
 });
 
@@ -282,29 +295,28 @@ test("suggestions fill the composer and deleting all conversations asks first", 
   await expect(page.getByTestId("assistant-clear-history")).toBeVisible();
 });
 
-test("web search is off by default, can be turned on from the composer, and adds the server tool", async ({ page }) => {
+test("web search is on by default, can be turned off from the composer, and adds the server tool", async ({ page }) => {
   await withKey(page);
   const requests = await mockOpenRouter(page, [text("One."), text("Two.")]);
   await openAssistant(page);
   const toggle = page.getByTestId("assistant-web-toggle");
-  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
 
   await page.getByTestId("assistant-input").fill("first");
   await page.getByTestId("assistant-send").click();
   await expect(page.getByTestId("assistant-message").first()).toContainText("One.", { timeout: 15_000 });
-  expect(JSON.stringify(requests[0]!.body.tools ?? [])).not.toContain("openrouter:web_search");
+  const firstTools = requests[0]!.body.tools as { type: string; parameters?: { max_uses?: number } }[];
+  expect(firstTools.some((t) => t.type === "openrouter:web_search" && t.parameters?.max_uses === 3)).toBe(true);
 
   await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
   await page.getByTestId("assistant-input").fill("second");
   await page.getByTestId("assistant-send").click();
   await expect(page.getByTestId("assistant-message").last()).toContainText("Two.", { timeout: 15_000 });
-  const tools = requests[1]!.body.tools as { type: string; parameters?: { max_uses?: number } }[];
-  expect(tools.some((t) => t.type === "openrouter:web_search" && t.parameters?.max_uses === 3)).toBe(true);
-  expect(tools.some((t) => t.type === "function")).toBe(true);
+  expect(JSON.stringify(requests[1]!.body.tools ?? [])).not.toContain("openrouter:web_search");
 
   await page.getByTestId("assistant-open-settings").click();
-  await expect(page.getByTestId("assistant-web-search")).toBeChecked();
+  await expect(page.getByTestId("assistant-web-search")).not.toBeChecked();
 });
 
 test("the model can edit frontmatter and mdoc, and invalid layout is refused", async ({ page }) => {

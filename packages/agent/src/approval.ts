@@ -6,7 +6,8 @@ import type { ShellName } from "@mdword/shared";
  * Mode 2 of ADR-011. A separate call that sees only the command, the shell and
  * the folder. It never sees file text, tool output, search results or the
  * conversation, so injected text cannot reach it. Any answer that is not the
- * exact schema counts as `deny`, which falls back to manual approval.
+ * schema counts as `deny`, which falls back to manual approval. A single
+ * markdown fence around the object is accepted; any other wrapping is not.
  */
 export const CLASSIFIER_PROMPT = `You review one shell command. You see only the command, the shell, and the
 folder it would run in. You see nothing else: no files, no web pages, no chat.
@@ -29,10 +30,24 @@ export type ClassifierVerdict = { decision: "allow" | "deny"; reason: string };
 
 const DENY = (reason: string): ClassifierVerdict => ({ decision: "deny", reason });
 
-/** Exposed for tests: accepts only the exact JSON object, nothing around it. */
+/**
+ * Accepts the JSON object alone, or that same object wrapped in one markdown
+ * fence. Leading prose, a second object, or a schema mismatch is deny.
+ */
+function unwrapFence(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("```") || !trimmed.endsWith("```") || trimmed.length < 7) return trimmed;
+  const nl = trimmed.indexOf("\n");
+  if (nl < 0 || nl > 16) return trimmed;
+  const lang = trimmed.slice(3, nl).trim().toLowerCase();
+  if (lang !== "" && lang !== "json") return trimmed;
+  return trimmed.slice(nl + 1, -3).trim();
+}
+
 export function parseVerdict(text: string): ClassifierVerdict {
+  const body = unwrapFence(text);
   try {
-    const parsed = answerSchema.safeParse(JSON.parse(text.trim()));
+    const parsed = answerSchema.safeParse(JSON.parse(body));
     return parsed.success ? parsed.data : DENY("unreadable answer");
   } catch {
     return DENY("unreadable answer");

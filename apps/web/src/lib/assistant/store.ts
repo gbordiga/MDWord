@@ -6,7 +6,10 @@ import {
   createPkce,
   buildAuthUrl,
   exchangeCode,
+  DEFAULT_IMAGE_MODEL_ID,
   DEFAULT_MODEL_ID,
+  imageGenerationRequest,
+  parseGeneratedImage,
   modelsListUrl,
   parseModelList,
   SUGGESTED_MODELS,
@@ -14,6 +17,7 @@ import {
   checkCommand,
   type CommandOutcome,
   type CommandRequest,
+  type DeleteDecision,
   type EditDecision,
   type EditProposal,
   type ModelInfo,
@@ -28,10 +32,13 @@ import {
   type ShellAvailability,
   type ShellMode
 } from "@mdword/shared";
+import { relativeWorkspacePath } from "@mdword/workspace";
 import { getHost } from "../host";
 import { attachedFilesContext, buildTurnContext, mentionFiles } from "./context";
 import { mentionedPaths } from "./mentions";
-import { applyProposal, createAssistantEnv, loadInstructionFiles } from "./env";
+import { embedImageSrc } from "@mdword/editor";
+import { imageReference } from "@mdword/shared";
+import { applyProposal, createAssistantEnv, deleteConfirmedFile, inspectDelete, loadInstructionFiles } from "./env";
 import {
   conversationKey,
   indexKey,
@@ -50,13 +57,17 @@ const DEFAULT_CAP_USD = 3;
 
 export interface AssistantSettings {
   modelId: string;
+  /** OpenRouter model used only for generated pictures. */
+  imageModelId: string;
   /** `null` turns the session cap off. */
   spendCapUsd: number | null;
   privacyOnly: boolean;
   /** Only route to zero-data-retention endpoints; the model list is filtered to match. */
   zdrOnly: boolean;
-  /** The model may search the web (OpenRouter server tool). Off until the user turns it on. */
+  /** The model may search the web (OpenRouter server tool). On until the user turns it off. */
   webSearch: boolean;
+  /** `manual` waits for Apply. `auto` writes the edit as soon as the model proposes it. */
+  editApproval: "manual" | "auto";
   noticeAccepted: boolean;
   /** Command mode per workspace. Missing means off. User level: a project cannot turn it on. */
   shell: Record<string, ShellMode>;
@@ -66,10 +77,12 @@ const SHELL_MODES: readonly ShellMode[] = ["off", "manual", "ai", "always"];
 
 const defaultSettings: AssistantSettings = {
   modelId: DEFAULT_MODEL_ID,
+  imageModelId: DEFAULT_IMAGE_MODEL_ID,
   spendCapUsd: DEFAULT_CAP_USD,
   privacyOnly: true,
-  zdrOnly: false,
-  webSearch: false,
+  zdrOnly: true,
+  webSearch: true,
+  editApproval: "manual",
   noticeAccepted: false,
   shell: {}
 };
@@ -96,6 +109,8 @@ function loadSettings(): AssistantSettings {
     const parsed = JSON.parse(raw) as Partial<AssistantSettings>;
     return {
       modelId: typeof parsed.modelId === "string" && parsed.modelId ? parsed.modelId : defaultSettings.modelId,
+      imageModelId:
+        typeof parsed.imageModelId === "string" && parsed.imageModelId ? parsed.imageModelId : defaultSettings.imageModelId,
       spendCapUsd:
         parsed.spendCapUsd === null
           ? null
@@ -103,8 +118,9 @@ function loadSettings(): AssistantSettings {
             ? parsed.spendCapUsd
             : defaultSettings.spendCapUsd,
       privacyOnly: parsed.privacyOnly !== false,
-      zdrOnly: parsed.zdrOnly === true,
-      webSearch: parsed.webSearch === true,
+      zdrOnly: parsed.zdrOnly !== false,
+      webSearch: parsed.webSearch !== false,
+      editApproval: parsed.editApproval === "auto" ? "auto" : "manual",
       noticeAccepted: parsed.noticeAccepted === true,
       shell: parseShellModes(parsed.shell)
     };
@@ -158,6 +174,8 @@ export interface AssistantState {
   /** Interrupt the running turn and send this queued message next. */
   steer: (id: string) => void;
   resolveEdit: (id: string, choice: "apply" | "discard") => Promise<void>;
+  resolveDelete: (id: string, choice: "delete" | "keep") => Promise<void>;
+  resolveImage: (id: string, choice: "insert" | "discard") => void;
   setShellMode: (mode: ShellMode) => void;
   shellAvailability: ShellAvailability | null;
   refreshShell: () => Promise<void>;
@@ -174,6 +192,8 @@ let convGen = 0;
 const deletedIds = new Set<string>();
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 const pending = new Map<string, { proposal: EditProposal; resolve: (d: EditDecision) => void }>();
+const pendingDeletes = new Map<string, { path: string; resolve: (d: DeleteDecision) => void }>();
+const pendingImages = new Map<string, { refId: string; image: string; definition: string; resolve: (ok: boolean) => void }>();
 const pendingCommands = new Map<string, (run: boolean) => void>();
 
 const SHELL_ERRORS = {
@@ -263,20 +283,27 @@ export const useAssistant = create<AssistantState>((set, get) => {
     set({ thread, activeId, running: false, queue: [], sessionCostUsd: 0, costUnknown: false });
   };
 
-  const propose = (proposal: EditProposal, signal: AbortSignal | undefined) =>
-    new Promise<EditDecision>((resolve) => {
-      const id = proposal.id;
-      mutateThread((thread) => [
-        ...thread,
-        {
-          kind: "edit",
-          id,
-          path: proposal.path,
-          edits: proposal.edits.map((e) => ({ line: e.line, oldText: e.oldText, newText: e.newText })),
-          ...(proposal.create ? { create: true } : {}),
-          status: "pending"
-        }
-      ]);
+  const propose = (proposal: EditProposal, signal: AbortSignal | undefined) => {
+    const id = proposal.id;
+    const item = {
+      kind: "edit" as const,
+      id,
+      path: proposal.path,
+      edits: proposal.edits.map((e) => ({ line: e.line, oldText: e.oldText, newText: e.newText })),
+      ...(proposal.create ? { create: true as const } : {}),
+      status: "pending" as const
+    };
+    if (get().settings.editApproval === "auto") {
+      return (async (): Promise<EditDecision> => {
+        if (signal?.aborted) return { status: "rejected" };
+        mutateThread((thread) => [...thread, item]);
+        const decision = await applyProposal(proposal);
+        patchItem(id, { status: decision.status === "applied" ? "applied" : "stale" });
+        return decision;
+      })();
+    }
+    return new Promise<EditDecision>((resolve) => {
+      mutateThread((thread) => [...thread, item]);
       pending.set(id, { proposal, resolve });
       signal?.addEventListener(
         "abort",
@@ -288,22 +315,135 @@ export const useAssistant = create<AssistantState>((set, get) => {
         { once: true }
       );
     });
+  };
+
+  const proposeDelete = async (path: string, signal: AbortSignal | undefined): Promise<DeleteDecision> => {
+    const check = await inspectDelete(path);
+    if (!check.ok) return { status: "failed", reason: check.reason };
+    if (signal?.aborted) return { status: "rejected" };
+    const id = nextId("d");
+    mutateThread((thread) => [...thread, { kind: "delete", id, path, status: "pending" }]);
+    return new Promise<DeleteDecision>((resolve) => {
+      pendingDeletes.set(id, { path, resolve });
+      signal?.addEventListener(
+        "abort",
+        () => {
+          if (!pendingDeletes.delete(id)) return;
+          patchItem(id, { status: "kept" });
+          resolve({ status: "rejected" });
+        },
+        { once: true }
+      );
+    });
+  };
+
+  const generateImage = async (prompt: string, alt: string, signal: AbortSignal | undefined) => {
+    const host = assistantHost();
+    const targetTabId = useApp.getState().activeTabId;
+    if (!host) return { status: "failed" as const, reason: "Image generation is not available here." };
+    if (!targetTabId || !useApp.getState().readOpenBuffer({ tabId: targetTabId })) {
+      return { status: "failed" as const, reason: t("image.noDocument") };
+    }
+    const settings = get().settings;
+    if (settings.spendCapUsd != null && get().sessionCostUsd >= settings.spendCapUsd) {
+      return { status: "failed" as const, reason: t("stop.spendCap") };
+    }
+    const request = imageGenerationRequest({
+      model: settings.imageModelId || DEFAULT_IMAGE_MODEL_ID,
+      prompt,
+      privacyOnly: settings.privacyOnly,
+      zdrOnly: settings.zdrOnly
+    });
+    let dataUrl = "";
+    let refId = "";
+    let image = "";
+    let definition = "";
+    try {
+      const response = await host.fetch(request.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request.body),
+        signal
+      });
+      const json: unknown = await response.json();
+      const parsed = parseGeneratedImage(json);
+      if (!response.ok || "error" in parsed) {
+        const reason = "error" in parsed ? parsed.error : `Image request failed (${response.status}).`;
+        return { status: "failed" as const, reason };
+      }
+      if (parsed.costUsd != null) set({ sessionCostUsd: get().sessionCostUsd + parsed.costUsd });
+      dataUrl = await embedImageSrc(parsed.dataUrl);
+      const ref = imageReference(alt, dataUrl);
+      refId = ref.id;
+      image = ref.image;
+      definition = ref.definition;
+    } catch (error) {
+      if (signal?.aborted) return { status: "rejected" as const };
+      return { status: "failed" as const, reason: error instanceof Error ? error.message : "The image request failed." };
+    }
+    if (signal?.aborted) return { status: "rejected" as const };
+    const id = nextId("img");
+    mutateThread((thread) => [...thread, { kind: "image", id, alt, prompt, preview: dataUrl, refId, status: "pending" }]);
+    const accepted = await new Promise<boolean>((resolve) => {
+      pendingImages.set(id, { refId, image, definition, resolve });
+      signal?.addEventListener(
+        "abort",
+        () => {
+          if (!pendingImages.delete(id)) return;
+          patchItem(id, { status: "discarded", preview: undefined });
+          resolve(false);
+        },
+        { once: true }
+      );
+    });
+    if (!accepted) return { status: "rejected" as const };
+    const open = targetTabId ? useApp.getState().readOpenBuffer({ tabId: targetTabId }) : null;
+    if (!open) {
+      const reason = t("image.noDocument");
+      patchItem(id, { status: "failed", preview: undefined, error: reason });
+      return { status: "failed" as const, reason };
+    }
+    const next = `${open.source.replace(/\s*$/, "")}\n\n${image}\n\n${definition}\n`;
+    if (!useApp.getState().applyAssistantEdit(open.tabId, next, id)) {
+      const reason = t("image.notUpdated");
+      patchItem(id, { status: "failed", preview: undefined, error: reason });
+      return { status: "failed" as const, reason };
+    }
+    const tab = useApp.getState().tabs.find((entry) => entry.id === open.tabId);
+    const root = useApp.getState().workspace?.root;
+    const path = tab?.path && root ? (relativeWorkspacePath(tab.path, root) ?? tab.path) : (tab?.path ?? "the open document");
+    patchItem(id, { status: "inserted", preview: undefined, path, refId });
+    return { status: "inserted" as const, path, id: refId };
+  };
 
   const onEvent = (event: TurnEvent) => {
     switch (event.type) {
-      case "text": {
+      case "reasoning": {
         mutateThread((thread) => {
           const last = thread[thread.length - 1];
-          if (last?.kind === "assistant") {
+          if (last?.kind === "thought" && last.streaming) {
             return [...thread.slice(0, -1), { ...last, text: last.text + event.text }];
           }
-          return [...thread, { kind: "assistant", id: nextId("a"), text: event.text }];
+          return [...thread, { kind: "thought", id: nextId("th"), text: event.text, streaming: true }];
+        });
+        break;
+      }
+      case "text": {
+        mutateThread((thread) => {
+          const settled = thread.map((item) =>
+            item.kind === "thought" && item.streaming ? { ...item, streaming: false } : item
+          );
+          const last = settled[settled.length - 1];
+          if (last?.kind === "assistant") {
+            return [...settled.slice(0, -1), { ...last, text: last.text + event.text }];
+          }
+          return [...settled, { kind: "assistant", id: nextId("a"), text: event.text }];
         });
         break;
       }
       case "tool-start":
         mutateThread((thread) => [
-          ...thread,
+          ...thread.map((item) => (item.kind === "thought" && item.streaming ? { ...item, streaming: false } : item)),
           {
             kind: "tool",
             id: event.id,
@@ -748,7 +888,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
           context: [buildTurnContext(), await attachedFilesContext(mentioned)]
             .filter(Boolean)
             .join("\n\n"),
-          env: createAssistantEnv({ propose, mentioned, ...(commandsOn ? { runCommand } : {}) }),
+          env: createAssistantEnv({ propose, proposeDelete, generateImage, mentioned, ...(commandsOn ? { runCommand } : {}) }),
           pricing: info,
           spentBeforeUsd: get().sessionCostUsd,
           spendCapUsd: state.settings.spendCapUsd,
@@ -775,6 +915,16 @@ export const useAssistant = create<AssistantState>((set, get) => {
             patchItem(id, { status: "discarded" });
             entry.resolve({ status: "rejected" });
           }
+          for (const [id, entry] of pendingDeletes) {
+            pendingDeletes.delete(id);
+            patchItem(id, { status: "kept" });
+            entry.resolve({ status: "rejected" });
+          }
+          for (const [id, entry] of pendingImages) {
+            pendingImages.delete(id);
+            patchItem(id, { status: "discarded", preview: undefined });
+            entry.resolve(false);
+          }
           if (abort === controller) abort = null;
           set({ running: false });
           // Steering sends its message at once. A normal finish sends the next queued one;
@@ -799,6 +949,29 @@ export const useAssistant = create<AssistantState>((set, get) => {
       const decision = await applyProposal(entry.proposal);
       patchItem(id, { status: decision.status === "applied" ? "applied" : "stale" });
       entry.resolve(decision);
+    },
+    resolveDelete: async (id, choice) => {
+      const entry = pendingDeletes.get(id);
+      if (!entry) return;
+      pendingDeletes.delete(id);
+      if (choice === "keep") {
+        patchItem(id, { status: "kept" });
+        entry.resolve({ status: "rejected" });
+        return;
+      }
+      const decision = await deleteConfirmedFile(entry.path);
+      patchItem(id, {
+        status: decision.status === "deleted" ? "deleted" : "failed",
+        ...(decision.status === "failed" ? { error: decision.reason } : {})
+      });
+      entry.resolve(decision);
+    },
+    resolveImage: (id, choice) => {
+      const entry = pendingImages.get(id);
+      if (!entry) return;
+      pendingImages.delete(id);
+      if (choice === "discard") patchItem(id, { status: "discarded", preview: undefined });
+      entry.resolve(choice === "insert");
     }
   };
 });

@@ -13,6 +13,7 @@ const api = {
     openRecentFolder: (path: string) => ipcRenderer.invoke("files.openRecentFolder", path),
     list: (folder: string) => ipcRenderer.invoke("files.list", folder),
     read: (path: string) => ipcRenderer.invoke("files.read", path),
+    readBytes: (path: string) => ipcRenderer.invoke("files.readBytes", path),
     readDataUrl: (path: string) => ipcRenderer.invoke("files.readDataUrl", path),
     readMany: (paths: string[]) => ipcRenderer.invoke("files.readMany", paths),
     write: (path: string, content: string) => ipcRenderer.invoke("files.write", { path, content }),

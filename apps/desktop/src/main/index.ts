@@ -567,6 +567,14 @@ function registerIpc(): void {
     return fs.readFile(resolved, "utf8");
   });
 
+  ipcMain.handle("files.readBytes", async (_e, filePath: unknown) => {
+    const resolved = assertSafePath(z.string().parse(filePath), [...allowedRoots]);
+    const stat = await fs.stat(resolved);
+    if (!stat.isFile()) throw new Error("Not a file");
+    if (stat.size > 20 * 1024 * 1024) throw new Error("File is larger than 20 MB");
+    return new Uint8Array(await fs.readFile(resolved));
+  });
+
   ipcMain.handle("files.readDataUrl", async (_e, filePath: unknown) => {
     const resolved = assertImageRead(z.string().parse(filePath));
     const buf = await fs.readFile(resolved);

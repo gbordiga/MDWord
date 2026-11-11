@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { formatUsd, t } from "@mdword/agent";
 import { cn } from "@mdword/ui";
-import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, CornerDownRight, FileText, Globe, History, Loader2, Plus, ScrollText, Settings, Sparkles, Square, Terminal, X } from "lucide-react";
+import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, CornerDownRight, FilePenLine, FileText, Globe, History, Loader2, Plus, ScrollText, Settings, Sparkles, Square, Terminal, X } from "lucide-react";
 import type { ShellMode } from "@mdword/shared";
 import { getHost } from "@/lib/host";
 import { relativeWorkspacePath } from "@mdword/workspace";
@@ -21,6 +21,8 @@ import type { ThreadItem } from "@/lib/assistant/thread";
 import { AssistantHistory } from "./AssistantHistory";
 import { AssistantSettings } from "./AssistantSettings";
 import { CommandCard, CommandStep } from "./CommandCard";
+import { DeleteCard, DeleteStep } from "./DeleteCard";
+import { ImageCard } from "./ImageCard";
 import { EditCard, EditStep } from "./EditCard";
 
 const iconButton =
@@ -116,26 +118,34 @@ const Markdown = memo(function Markdown({ text }: { text: string }) {
 function renderEntry(entry: WorkEntry) {
   if (entry.kind === "tool") return <ToolLine key={entry.id} item={entry} />;
   if (entry.kind === "edit") return <EditStep key={entry.id} item={entry} />;
+  if (entry.kind === "delete") return <DeleteStep key={entry.id} item={entry} />;
   return <CommandStep key={entry.id} item={entry} />;
 }
 
 function workLabel(entry: WorkEntry): string {
   if (entry.kind === "tool") return entry.label;
   if (entry.kind === "edit") return t(entry.create ? "edit.step.created" : "edit.step.applied", { path: entry.path });
+  if (entry.kind === "delete") {
+    return t(entry.status === "deleted" ? "delete.deleted" : entry.status === "failed" ? "delete.failed" : "delete.kept", {
+      path: entry.path,
+      reason: entry.error ?? ""
+    });
+  }
   return entry.command;
 }
 
 function workFailed(entry: WorkEntry): boolean {
   if (entry.kind === "tool") return entry.status === "error";
   if (entry.kind === "edit") return false;
+  if (entry.kind === "delete") return entry.status === "failed";
   return entry.status === "failed" || (entry.status === "done" && (entry.exitCode !== 0 || entry.timedOut === true));
 }
 
 const WorkGroup = memo(function WorkGroup({ entries }: { entries: WorkEntry[] }) {
   const [open, setOpen] = useState(false);
   const running = entries.some((x) => x.status === "running");
-  const failed = entries.some(workFailed);
   const last = entries.at(-1)!;
+  const failed = !running && workFailed(last);
   return (
     <div data-testid="assistant-work" data-status={running ? "running" : "done"} className="rounded-md border border-[#e4e7ec] bg-[#f9fafb]">
       <button
@@ -163,6 +173,39 @@ const WorkGroup = memo(function WorkGroup({ entries }: { entries: WorkEntry[] })
     </div>
   );
 });
+
+function ThoughtBlock({ item }: { item: Extract<ThreadItem, { kind: "thought" }> }) {
+  const [open, setOpen] = useState(item.streaming);
+  const pinned = useRef(false);
+  useEffect(() => {
+    if (!pinned.current) setOpen(item.streaming);
+  }, [item.streaming]);
+  const preview = item.text.replace(/\s+/g, " ").trim();
+  return (
+    <div data-testid="assistant-thought" data-open={open ? "true" : "false"} className="text-[12px] text-[#667085]">
+      <button
+        type="button"
+        aria-expanded={open}
+        className="flex w-full items-center gap-1.5 text-left"
+        onClick={() => {
+          pinned.current = true;
+          setOpen((v) => !v);
+        }}
+      >
+        <ChevronRight size={12} className={cn("shrink-0 transition-transform", open && "rotate-90")} aria-hidden />
+        <span className="shrink-0 font-medium text-[#475467]">
+          {t(item.streaming ? "panel.thought.live" : "panel.thought")}
+        </span>
+        {open ? null : <span className="min-w-0 flex-1 truncate text-[#98a2b3]">{preview}</span>}
+      </button>
+      {open ? (
+        <div className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words border-l border-[#e4e7ec] pl-2.5 leading-relaxed text-[#667085]">
+          {item.text}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function ThreadView({ thread }: { thread: ThreadItem[] }) {
   return (
@@ -193,8 +236,14 @@ function ThreadView({ thread }: { thread: ThreadItem[] }) {
             return null;
           case "edit":
             return <EditCard key={item.id} item={item} />;
+          case "delete":
+            return <DeleteCard key={item.id} item={item} />;
+          case "image":
+            return <ImageCard key={item.id} item={item} />;
           case "command":
             return <CommandCard key={item.id} item={item} />;
+          case "thought":
+            return <ThoughtBlock key={item.id} item={item} />;
           case "notice":
             return (
               <p key={item.id} role="status" data-testid="assistant-notice-line" className="text-[12px] text-[#b54708]">
@@ -348,10 +397,10 @@ function ShellModeControl() {
         data-testid="assistant-shell-badge"
         data-mode={mode}
         aria-expanded={open}
-        aria-label={t("panel.shell.badge.title")}
-        title={t("panel.shell.badge.title")}
+        aria-label={t(mode === "off" ? "panel.shell.badge.title" : `panel.shell.badge.${mode}`)}
+        title={t(mode === "off" ? "panel.shell.badge.title" : `panel.shell.badge.${mode}`)}
         className={cn(
-          "flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium",
+          "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
           mode === "off" ? "text-[#667085] hover:bg-[#f2f4f7]" : mode === "manual" ? "bg-[#f2f4f7] text-[#344054]" : "bg-[#fffaeb] text-[#b54708]"
         )}
         onClick={() => {
@@ -360,7 +409,6 @@ function ShellModeControl() {
         }}
       >
         <Terminal size={13} aria-hidden />
-        {mode !== "off" ? <span>{t(`panel.shell.badge.${mode}`)}</span> : null}
       </button>
       {open ? (
         <div
@@ -410,6 +458,29 @@ function ShellModeControl() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+function EditApprovalControl() {
+  const mode = useAssistant((s) => s.settings.editApproval);
+  const updateSettings = useAssistant((s) => s.updateSettings);
+  const auto = mode === "auto";
+  return (
+    <button
+      type="button"
+      data-testid="assistant-edits-badge"
+      data-mode={mode}
+      aria-pressed={auto}
+      aria-label={t(auto ? "panel.edits.auto" : "panel.edits.manual")}
+      title={t(auto ? "panel.edits.auto" : "panel.edits.manual")}
+      className={cn(
+        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+        auto ? "bg-[#ecfdf3] text-[#027a48]" : "text-[#667085] hover:bg-[#f2f4f7]"
+      )}
+      onClick={() => updateSettings({ editApproval: auto ? "manual" : "auto" })}
+    >
+      <FilePenLine size={13} aria-hidden />
+    </button>
   );
 }
 
@@ -673,16 +744,16 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
             data-testid="assistant-web-toggle"
             aria-pressed={webSearch}
             aria-label={t(webSearch ? "panel.web.on" : "panel.web.off")}
-            title={t(webSearch ? "panel.web.on" : "panel.web.off")}
+            title={t(webSearch ? "panel.web.badge" : "panel.web.off")}
             className={cn(
-              "flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium transition-colors",
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors",
               webSearch ? "bg-[#eef2ff] text-[#3538cd]" : "text-[#667085] hover:bg-[#f2f4f7]"
             )}
             onClick={() => updateSettings({ webSearch: !webSearch })}
           >
             <Globe size={13} aria-hidden />
-            {webSearch ? <span>{t("panel.web.badge")}</span> : null}
           </button>
+          <EditApprovalControl />
           {root ? <ShellModeControl /> : null}
           <span className="flex-1" />
           {running && canSend ? (
@@ -753,7 +824,9 @@ export function AssistantPanel({ className, onClose }: { className?: string; onC
     setAttached(atEnd);
   };
   const webSearchOn = s.settings.webSearch;
-  const waitingForUser = s.thread.some((i) => (i.kind === "edit" || i.kind === "command") && i.status === "pending");
+  const waitingForUser = s.thread.some(
+    (i) => (i.kind === "edit" || i.kind === "command" || i.kind === "delete" || i.kind === "image") && i.status === "pending"
+  );
   const lastUser = [...s.thread].reverse().find((i) => i.kind === "user")?.id;
   useEffect(() => {
     attachedRef.current = true;

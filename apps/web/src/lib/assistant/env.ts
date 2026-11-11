@@ -3,6 +3,7 @@ import {
   pickInstructionFiles,
   type AssistantEnv,
   type InstructionFile,
+  type DeleteDecision,
   type EditDecision,
   type EditProposal,
   type FileEntry
@@ -16,6 +17,7 @@ import {
   relativeWorkspacePath
 } from "@mdword/workspace";
 import type { Diagnostic } from "@mdword/shared";
+import { documentExtension, documentToMarkdown } from "./documents";
 import { getHost } from "../host";
 import { useApp } from "../store";
 
@@ -45,7 +47,7 @@ function fileTable(): Entry[] {
     for (const f of workspace.files) {
       const rel = relativeWorkspacePath(f.path, workspace.root);
       if (!rel) continue;
-      if (!f.isDirectory && !isOpenableWorkspaceFile(f.name)) continue;
+      if (!f.isDirectory && !isOpenableWorkspaceFile(f.name) && !documentExtension(f.name)) continue;
       out.push({ rel, abs: f.path, tabId: null, isDirectory: f.isDirectory });
     }
     return out;
@@ -68,7 +70,7 @@ function resolve(rel: string): Entry | null {
     table.find((e) => !e.isDirectory && e.rel.toLowerCase() === lower);
   if (hit) return hit;
   const root = useApp.getState().workspace?.root;
-  if (root && isOpenableWorkspaceFile(baseName(rel))) {
+  if (root && (isOpenableWorkspaceFile(baseName(rel)) || documentExtension(rel))) {
     return { rel, abs: joinWorkspacePath(root, rel), tabId: null, isDirectory: false };
   }
   return null;
@@ -143,6 +145,8 @@ export function metadataDiagnostics(frontmatter: Record<string, unknown>): Diagn
 
 export interface EnvOptions {
   propose: (proposal: EditProposal, signal: AbortSignal | undefined) => Promise<EditDecision>;
+  proposeDelete: (path: string, signal: AbortSignal | undefined) => Promise<DeleteDecision>;
+  generateImage: AssistantEnv["generateImage"];
   /** Files the user named with @ in this message. */
   mentioned?: readonly string[];
   /** Present only when commands are on for this workspace (desktop, folder open). */
@@ -150,6 +154,26 @@ export interface EnvOptions {
 }
 
 /** Files the user opened in a tab or named in the message. Anything else the model reads taints the turn. */
+function listChildren(folder: string, kind: "markdown" | "document"): FileEntry[] | null {
+  const table = fileTable();
+  const prefix = folder ? `${folder}/` : "";
+  if (folder && !table.some((e) => e.rel === folder || e.rel.startsWith(prefix))) return null;
+  const out: FileEntry[] = [];
+  for (const e of table) {
+    if (!e.rel.startsWith(prefix) || e.rel === folder) continue;
+    const rest = e.rel.slice(prefix.length);
+    if (rest.includes("/")) continue;
+    if (!e.isDirectory) {
+      const markdown = isOpenableWorkspaceFile(rest);
+      const document = documentExtension(rest) != null;
+      if (kind === "markdown" && !markdown) continue;
+      if (kind === "document" && !document) continue;
+    }
+    out.push({ path: e.rel, name: rest, isDirectory: e.isDirectory });
+  }
+  return out;
+}
+
 function trustedPaths(mentioned: readonly string[]): Set<string> {
   const state = useApp.getState();
   const root = state.workspace?.root;
@@ -165,17 +189,10 @@ function trustedPaths(mentioned: readonly string[]): Set<string> {
 export function createAssistantEnv(options: EnvOptions): AssistantEnv {
   return {
     async listFiles(folder) {
-      const table = fileTable();
-      const prefix = folder ? `${folder}/` : "";
-      if (folder && !table.some((e) => e.rel === folder || e.rel.startsWith(prefix))) return null;
-      const out: FileEntry[] = [];
-      for (const e of table) {
-        if (!e.rel.startsWith(prefix) || e.rel === folder) continue;
-        const rest = e.rel.slice(prefix.length);
-        if (rest.includes("/")) continue;
-        out.push({ path: e.rel, name: rest, isDirectory: e.isDirectory });
-      }
-      return out;
+      return listChildren(folder, "markdown");
+    },
+    async listDocuments(folder) {
+      return listChildren(folder, "document");
     },
     async search(query, field, limit) {
       const state = useApp.getState();
@@ -209,6 +226,12 @@ export function createAssistantEnv(options: EnvOptions): AssistantEnv {
       const entry = resolve(path);
       return entry ? readEntry(entry) : null;
     },
+    async readDocument(path) {
+      const entry = resolve(path);
+      if (!entry?.abs || !documentExtension(path)) return null;
+      const bytes = await getHost().files.readBytes(entry.abs);
+      return documentToMarkdown(path, bytes);
+    },
     diagnostics(source) {
       const model = openDocument(source, { workspaceMdoc: useApp.getState().workspace?.workspaceMdoc });
       return [...model.diagnostics, ...metadataDiagnostics(
@@ -220,6 +243,8 @@ export function createAssistantEnv(options: EnvOptions): AssistantEnv {
     },
     canCreateFiles: () => Boolean(useApp.getState().workspace?.root),
     proposeEdit: options.propose,
+    proposeDelete: options.proposeDelete,
+    generateImage: options.generateImage,
     isTrustedPath: (path) => trustedPaths(options.mentioned ?? []).has(path.toLowerCase()),
     ...(options.runCommand ? { runCommand: options.runCommand } : {})
   };
@@ -275,4 +300,41 @@ async function applyCreate(proposal: EditProposal): Promise<EditDecision> {
     if (!done) return { status: "stale", reason: "The tab was closed." };
   }
   return { status: "applied" };
+}
+
+/** Refuse anything that is not one existing file inside the open project. */
+export async function inspectDelete(rel: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const root = useApp.getState().workspace?.root;
+  if (!root) return { ok: false, reason: "Open a folder before deleting a file." };
+  const files = useApp.getState().workspace?.files ?? [];
+  const relOf = (filePath: string) => relativeWorkspacePath(filePath, root);
+  const isFolder =
+    files.some((f) => f.isDirectory && relOf(f.path) === rel) ||
+    files.some((f) => {
+      const child = relOf(f.path);
+      return child != null && child.startsWith(`${rel}/`);
+    });
+  if (isFolder) return { ok: false, reason: `"${rel}" is a folder. Only a single file can be deleted.` };
+  const listed = files.some((f) => !f.isDirectory && relOf(f.path) === rel);
+  if (!listed) return { ok: false, reason: `The file "${rel}" does not exist.` };
+  return { ok: true };
+}
+
+/** Remove one file the user already confirmed. Closes an open tab for that path. */
+export async function deleteConfirmedFile(rel: string): Promise<DeleteDecision> {
+  const root = useApp.getState().workspace?.root;
+  if (!root) return { status: "failed", reason: "Open a folder before deleting a file." };
+  const abs = joinWorkspacePath(root, rel);
+  const host = getHost();
+  try {
+    if (typeof host.files.prepareWrite === "function") await host.files.prepareWrite(abs);
+    await host.files.remove(abs);
+  } catch {
+    return { status: "failed", reason: `The file "${rel}" could not be deleted.` };
+  }
+  for (const tab of useApp.getState().tabs) {
+    if (tab.path && relativeWorkspacePath(tab.path, root) === rel) useApp.getState().closeTab(tab.id);
+  }
+  await useApp.getState().refreshWorkspace();
+  return { status: "deleted" };
 }
