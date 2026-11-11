@@ -341,7 +341,13 @@ export const useAssistant = create<AssistantState>((set, get) => {
     const host = assistantHost();
     const targetTabId = useApp.getState().activeTabId;
     if (!host) return { status: "failed" as const, reason: "Image generation is not available here." };
+    if (!targetTabId || !useApp.getState().readOpenBuffer({ tabId: targetTabId })) {
+      return { status: "failed" as const, reason: t("image.noDocument") };
+    }
     const settings = get().settings;
+    if (settings.spendCapUsd != null && get().sessionCostUsd >= settings.spendCapUsd) {
+      return { status: "failed" as const, reason: t("stop.spendCap") };
+    }
     const request = imageGenerationRequest({
       model: settings.imageModelId || DEFAULT_IMAGE_MODEL_ID,
       prompt,

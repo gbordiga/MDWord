@@ -19,6 +19,7 @@ export function imageGenerationRequest(options: {
       model: options.model,
       messages: [{ role: "user", content: options.prompt }],
       modalities: ["image", "text"],
+      usage: { include: true },
       ...(provider ? { provider } : {})
     }
   };
