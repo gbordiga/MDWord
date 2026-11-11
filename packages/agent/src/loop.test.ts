@@ -3,12 +3,12 @@ import { simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { runAssistantTurn } from "./loop";
 import { TOOL_DESCRIPTIONS, SYSTEM_PROMPT, buildContext } from "./prompt";
-import { createTools, maskDataUrls, type ToolContext } from "./tools";
+import { createTools, maskDataUrls, scrubForModel, type ToolContext } from "./tools";
 import { formatMessage, messagesEn, t } from "./messages.en";
 import type { AssistantEnv, EditDecision, EditProposal, TurnEvent } from "./types";
 
 type Step =
-  | { text: string }
+  | { text: string; reasoning?: string }
   | { calls: { name: string; input: unknown }[] }
   | { usage: { input: number; output: number }; text: string }
   | { text: string; sources: { url: string; title?: string }[] };
@@ -47,6 +47,11 @@ function scripted(steps: Step[]) {
             chunks.push({ type: "source", sourceType: "url", id: `s${n}`, url: s.url, title: s.title })
           );
         }
+        if ("reasoning" in step && step.reasoning) {
+          chunks.push({ type: "reasoning-start", id: "r" });
+          chunks.push({ type: "reasoning-delta", id: "r", delta: step.reasoning });
+          chunks.push({ type: "reasoning-end", id: "r" });
+        }
         chunks.push({ type: "text-start", id: "t" });
         chunks.push({ type: "text-delta", id: "t", delta: step.text });
         chunks.push({ type: "text-end", id: "t" });
@@ -83,7 +88,8 @@ function fakeEnv(
       const decision = decide(proposal);
       if (decision.status === "applied") files[proposal.path] = proposal.after;
       return decision;
-    }
+    },
+    proposeDelete: async () => ({ status: "rejected" as const })
   };
   return { env, proposals, files };
 }
@@ -127,6 +133,30 @@ describe("assistant loop", () => {
     // The context block is sent but not kept in history.
     expect(JSON.stringify(result.history[0])).not.toContain("Open file");
     expect(result.history.length).toBeGreaterThan(2);
+  });
+
+  it("forwards reasoning text as its own event, ahead of the answer", async () => {
+    const { env } = fakeEnv({});
+    const model = scripted([{ text: "Done.", reasoning: "Check the greeting first." }]);
+    const { done, events } = run(model, env);
+    await done;
+    const kinds = events.map((e) => e.type);
+    expect(kinds.indexOf("reasoning")).toBeGreaterThanOrEqual(0);
+    expect(kinds.indexOf("reasoning")).toBeLessThan(kinds.indexOf("text"));
+    expect(events.find((e) => e.type === "reasoning")).toMatchObject({ text: "Check the greeting first." });
+  });
+
+  it("strips image payloads from the request, including history", async () => {
+    const payload = "A".repeat(240);
+    const { env } = fakeEnv({});
+    const model = scripted([{ text: "ok" }]);
+    await run(model, env, {
+      history: [{ role: "user", content: `see data:image/png;base64,${payload} please` }],
+      context: ""
+    }).done;
+    const sent = JSON.stringify(model.doStreamCalls[0]!.prompt);
+    expect(sent).not.toContain(payload);
+    expect(sent).toContain("characters omitted");
   });
 
   it("passes the context block to the model on the user turn", async () => {
@@ -270,8 +300,14 @@ describe("assistant loop", () => {
 
   it("masks embedded photo payloads of any mime type, but not short ones", () => {
     expect(maskDataUrls(`x data:image/png;base64,${"A".repeat(300)} y`)).toBe("x data:image/png;base64,[300 characters omitted] y");
-    expect(maskDataUrls("data:image/png;base64,AAAA")).toBe("data:image/png;base64,AAAA");
-    expect(maskDataUrls(`a data:text/plain,${"x".repeat(250)} b`)).toBe("a data:text/plain,[250 characters omitted] b");
+    expect(maskDataUrls("data:image/png;base64,AAAA")).toBe("data:image/png;base64,[4 characters omitted]");
+    expect(maskDataUrls(`a data:text/plain,${"x".repeat(80)} b`)).toBe("a data:text/plain,[80 characters omitted] b");
+    expect(maskDataUrls(`blob ${"A".repeat(40)}+${"A".repeat(40)} end`)).toContain("base64 omitted");
+    expect(maskDataUrls(`${"AAAA".repeat(20)}\n${"BBBB".repeat(19)}+AAA`)).toContain("base64 omitted");
+    expect(scrubForModel({ type: "image", image: "data:image/png;base64,AAAA" })).toEqual({
+      type: "text",
+      text: "[binary omitted]"
+    });
   });
 
   it("surfaces provider errors as a catalog message", async () => {

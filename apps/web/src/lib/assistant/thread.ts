@@ -49,13 +49,35 @@ export type ThreadItem =
       /** Memory only. Never saved: history holds no command output (ADR-011). */
       output?: string;
     }
+  | {
+      kind: "delete";
+      id: string;
+      path: string;
+      status: "pending" | "deleted" | "kept" | "failed";
+      error?: string;
+    }
+  | { kind: "thought"; id: string; text: string; streaming: boolean }
+  | {
+      kind: "image";
+      id: string;
+      alt: string;
+      prompt: string;
+      /** Set only while the preview is on screen. Never saved. */
+      preview?: string;
+      /** Image reference id once inserted, such as img-abc. */
+      refId?: string;
+      path?: string;
+      status: "pending" | "inserted" | "discarded" | "failed";
+      error?: string;
+    }
   | { kind: "notice"; id: string; text: string };
 
 export type ToolItem = Extract<ThreadItem, { kind: "tool" }>;
 export type CommandItem = Extract<ThreadItem, { kind: "command" }>;
 export type EditItem = Extract<ThreadItem, { kind: "edit" }>;
 /** A step inside the work accordion: a tool, a command that already left the approval card, or an applied edit. */
-export type WorkEntry = ToolItem | CommandItem | EditItem;
+export type DeleteItem = Extract<ThreadItem, { kind: "delete" }>;
+export type WorkEntry = ToolItem | CommandItem | EditItem | DeleteItem;
 export type ThreadBlock = { kind: "work"; id: string; entries: WorkEntry[] } | { kind: "item"; item: ThreadItem };
 
 /**
@@ -65,6 +87,7 @@ export type ThreadBlock = { kind: "work"; id: string; entries: WorkEntry[] } | {
  */
 function isWorkEntry(item: ThreadItem): item is WorkEntry {
   if (item.kind === "edit") return item.status === "applied";
+  if (item.kind === "delete") return item.status !== "pending";
   return item.kind === "tool" || (item.kind === "command" && item.status !== "pending" && item.status !== "denied");
 }
 
@@ -86,11 +109,14 @@ export function toolLabel(name: string, input: unknown): string {
   const path = typeof i.path === "string" ? i.path : "";
   switch (name) {
     case "listFiles":
-      return t("tool.listFiles", {
+    case "listDocuments":
+      return t(name === "listDocuments" ? "tool.listDocuments" : "tool.listFiles", {
         folder: typeof i.folder === "string" && i.folder ? i.folder : t("tool.listFiles.root")
       });
     case "search":
       return t("tool.search", { query: typeof i.query === "string" ? i.query : "" });
+    case "readDocument":
+      return t("tool.readDocument", { path });
     case "readFile":
       return typeof i.startLine === "number" && typeof i.endLine === "number"
         ? t("tool.readFile.range", { path, start: i.startLine, end: i.endLine })
@@ -101,6 +127,10 @@ export function toolLabel(name: string, input: unknown): string {
       return t("tool.writeFile", { path });
     case "runCommand":
       return t("tool.runCommand");
+    case "deleteFile":
+      return t("tool.deleteFile", { path });
+    case "generateImage":
+      return t("tool.generateImage");
     default:
       return name;
   }
@@ -134,12 +164,30 @@ function settleCommand(item: Extract<ThreadItem, { kind: "command" }>): ThreadIt
   return rest;
 }
 
+function hideStoredPayloads(text: string): string {
+  return text.replace(/data:[a-z0-9.+/-]+;base64,[^\s)]+/gi, "data:;base64,[omitted]");
+}
+
 export function serializeThread(thread: ThreadItem[]): string {
   const settled = thread
     .slice(-MAX_ITEMS)
     .map((item) =>
-      item.kind === "edit" && item.status === "pending"
-        ? { ...item, status: "discarded" as const }
+      item.kind === "edit"
+        ? {
+            ...item,
+            status: item.status === "pending" ? ("discarded" as const) : item.status,
+            edits: item.edits.map((edit) => ({
+              ...edit,
+              oldText: hideStoredPayloads(edit.oldText),
+              newText: hideStoredPayloads(edit.newText)
+            }))
+          }
+        :       item.kind === "delete" && item.status === "pending"
+          ? { ...item, status: "kept" as const }
+        : item.kind === "thought"
+          ? { ...item, streaming: false, text: item.text.slice(0, 12_000) }
+        : item.kind === "image"
+          ? { ...item, preview: undefined, status: item.status === "pending" ? ("discarded" as const) : item.status }
         : item.kind === "tool" && item.status === "running"
           ? { ...item, status: "error" as const }
           : item.kind === "command"
@@ -158,7 +206,7 @@ export function parseThread(json: string | null): ThreadItem[] {
       (item) =>
         item &&
         typeof item.id === "string" &&
-        ["user", "assistant", "tool", "edit", "command", "notice"].includes(item.kind)
+        ["user", "assistant", "tool", "edit", "command", "delete", "thought", "image", "notice"].includes(item.kind)
     );
   } catch {
     return [];

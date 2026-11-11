@@ -522,6 +522,19 @@ export function AssistantSettings() {
             onSelect={(modelId) => s.updateSettings({ modelId })}
           />
           <label className="block space-y-1">
+            <span className="flex items-center gap-1 px-1 text-[12px] font-medium text-[#344054]">
+              {t("settings.imageModel")}
+              <InfoTip text={t("settings.imageModel.note")} />
+            </span>
+            <input
+              data-testid="assistant-image-model"
+              aria-label={t("settings.imageModel")}
+              className={controlClass}
+              value={s.settings.imageModelId}
+              onChange={(e) => s.updateSettings({ imageModelId: e.target.value })}
+            />
+          </label>
+          <label className="block space-y-1">
             <span className="px-1 text-[12px] font-medium text-[#344054]">{t("settings.cap")}</span>
           <select
             aria-label={t("settings.cap")}
@@ -561,6 +574,26 @@ export function AssistantSettings() {
             label={t("settings.web")}
             note={t("settings.web.note")}
           />
+          <div role="radiogroup" aria-label={t("settings.edits")} className="space-y-1.5 px-1" data-testid="assistant-edit-approval">
+            <p className="text-[12px] font-medium text-[#344054]">{t("settings.edits")}</p>
+            <p className="text-[11px] leading-snug text-[#667085]">{t("settings.edits.note")}</p>
+            {(["manual", "auto"] as const).map((choice) => (
+              <label key={choice} className="flex items-start gap-2 text-[12px] text-[#344054]">
+                <input
+                  type="radio"
+                  name="assistant-edit-approval"
+                  className="mt-0.5"
+                  data-testid={`assistant-edits-${choice}`}
+                  checked={s.settings.editApproval === choice}
+                  onChange={() => s.updateSettings({ editApproval: choice })}
+                />
+                <span>
+                  {t(`settings.edits.${choice}`)}
+                  <span className="mt-0.5 block text-[11px] leading-snug text-[#667085]">{t(`settings.editsNote.${choice}`)}</span>
+                </span>
+              </label>
+            ))}
+          </div>
         </Section>
 
         <ShellSection />

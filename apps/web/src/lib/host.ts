@@ -470,6 +470,13 @@ export const webHost: HostApi = {
       await collectFolderEntries(folderHandle, folder, 0, out);
       return out;
     },
+    async readBytes(path) {
+      const handle = fileHandles.get(path) ?? fileHandles.get(path.split("/").pop() ?? path);
+      if (!handle) throw new Error("File handle missing");
+      const file = await handle.getFile();
+      if (file.size > 20 * 1024 * 1024) throw new Error("File is larger than 20 MB");
+      return new Uint8Array(await file.arrayBuffer());
+    },
     async read(path) {
       const cached = fileTexts.get(path) ?? fileTexts.get(path.split("/").pop() ?? path);
       if (cached !== undefined) return cached;

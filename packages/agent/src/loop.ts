@@ -4,7 +4,7 @@ import { redactKeys } from "./openrouter";
 import { buildSystemPrompt } from "./prompt";
 import type { InstructionFile } from "./instructions";
 import { t, type MessageKey } from "./messages.en";
-import { createTools, type ToolContext } from "./tools";
+import { createTools, scrubForModel, type ToolContext } from "./tools";
 import {
   defaultLimits,
   type AssistantEnv,
@@ -145,7 +145,7 @@ export async function runAssistantTurn(input: TurnInput): Promise<TurnResult> {
       shell: input.env.runCommand != null,
       instructions: input.instructions
     }),
-    messages: [...input.history, sent],
+    messages: scrubForModel([...input.history, sent]),
     tools,
     abortSignal: stall.signal,
     stopWhen: [
@@ -175,6 +175,9 @@ export async function runAssistantTurn(input: TurnInput): Promise<TurnResult> {
       switch (part.type) {
         case "text-delta":
           input.onEvent({ type: "text", text: part.text });
+          break;
+        case "reasoning-delta":
+          if (part.text) input.onEvent({ type: "reasoning", text: part.text });
           break;
         case "tool-call":
           names.set(part.toolCallId, part.toolName);

@@ -122,6 +122,8 @@ export interface HostApi {
     openRecentFolder?(path: string): Promise<string>;
     list(folder: string): Promise<HostFileStat[]>;
     read(path: string): Promise<string>;
+    /** Raw bytes of a file inside an allowed root. Used to extract office, PDF, and HTML text. */
+    readBytes(path: string): Promise<Uint8Array>;
     /** Read a workspace file as a data URL (images). Missing files should reject. */
     readDataUrl?(path: string): Promise<string>;
     /** Batch read for workspace indexing. Missing/unreadable paths are omitted. */

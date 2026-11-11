@@ -7,12 +7,19 @@ describe("parseVerdict", () => {
     expect(parseVerdict(' {"decision":"deny","reason":"writes"} ')).toEqual({ decision: "deny", reason: "writes" });
   });
 
+  it("accepts one markdown fence around the object", () => {
+    expect(parseVerdict('```json\n{"decision":"allow","reason":"ok"}\n```')).toEqual({
+      decision: "allow",
+      reason: "ok"
+    });
+    expect(parseVerdict('```\n{"decision":"deny","reason":"writes"}\n```').decision).toBe("deny");
+  });
+
   it("denies everything else", () => {
     for (const text of [
       "",
       "allow",
       "Sure! {\"decision\":\"allow\",\"reason\":\"ok\"}",
-      '```json\n{"decision":"allow","reason":"ok"}\n```',
       '{"decision":"maybe","reason":"x"}',
       '{"decision":"allow"}',
       '{"decision":"allow","reason":"x","extra":1}',

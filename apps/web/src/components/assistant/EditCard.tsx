@@ -9,6 +9,8 @@ type EditItem = Extract<ThreadItem, { kind: "edit" }>;
 
 function Block({ kind, text }: { kind: "remove" | "add"; text: string }) {
   const remove = kind === "remove";
+  const shown = text.replace(/data:[a-z0-9.+/-]+;base64,[^\s)]+/gi, "data:;base64,[omitted]");
+  const clipped = shown.length > 4000 ? `${shown.slice(0, 4000)}\n…` : shown;
   return (
     <div
       className={`flex gap-1.5 rounded px-1.5 py-1 ${remove ? "bg-[#fef3f2] text-[#912018]" : "bg-[#ecfdf3] text-[#05603a]"}`}
@@ -17,7 +19,7 @@ function Block({ kind, text }: { kind: "remove" | "add"; text: string }) {
         {remove ? "\u2212" : "+"}
       </span>
       <pre className="m-0 max-h-40 min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-words font-sans text-[12px] leading-snug">
-        {text || "\u00a0"}
+        {clipped || "\u00a0"}
       </pre>
     </div>
   );
