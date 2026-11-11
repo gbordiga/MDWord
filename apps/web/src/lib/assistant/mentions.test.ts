@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeMention, filterMentionFiles, mentionedPaths, splitMentions } from "./mentions";
+import { activeMention, filterMentionFiles, folderListing, isFolderMention, mentionedPaths, splitMentions } from "./mentions";
 
 const files = [
   { rel: "notes/ideas.md", title: "Ideas" },
@@ -29,6 +29,27 @@ describe("mentions", () => {
       "@notes (2).md"
     ]);
     expect(mentionedPaths("mail me@a.md", known)).toEqual([]);
+  });
+
+  it("lists folders first and recognizes a folder next to the files inside it", () => {
+    const withFolders = [{ rel: "notes/", title: "notes/" }, ...files];
+    expect(filterMentionFiles(withFolders, "notes").map((f) => f.rel)).toEqual(["notes/", "notes/ideas.md"]);
+    expect(isFolderMention("notes/")).toBe(true);
+    expect(isFolderMention("notes/ideas.md")).toBe(false);
+    const known = withFolders.map((f) => f.rel);
+    expect(mentionedPaths("Look in @notes/ and @notes/ideas.md.", known)).toEqual(["notes/", "notes/ideas.md"]);
+    expect(splitMentions("Look in @notes/ now", known).filter((p) => p.mention).map((p) => p.text)).toEqual(["@notes/"]);
+  });
+
+  it("caps folders in the menu and notes a cut folder listing", () => {
+    const many = Array.from({ length: 9 }, (_, i) => ({ rel: `d${i}/`, title: `d${i}/` }));
+    const out = filterMentionFiles([...many, ...files], "").map((f) => f.rel);
+    expect(out.slice(0, 5)).toEqual(["d0/", "d1/", "d2/", "d3/", "d4/"]);
+    expect(out).toContain("readme.md");
+    expect(folderListing("a/", ["a/1.md", "a/2.md", "b/3.md"], 1)).toBe(
+      "a/1.md\n(1 more files not listed; use listDocuments or search)"
+    );
+    expect(folderListing("z/", ["a/1.md"])).toBe("(no files)");
   });
 
   it("keeps only paths that exist", () => {

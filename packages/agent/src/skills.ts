@@ -510,9 +510,9 @@ ${blocks.length > 0 ? `\n${blocks.join("\n\n")}` : ""}${
 // ---------- slash command ----------
 
 export interface SlashChoice {
-  /** `skill:name` or `rule:name`, as typed after the slash. */
+  /** `skill:name` or `rule:name`, as typed after the slash. `new:skill` and `new:rule` start a new file. */
   id: string;
-  kind: "skill" | "rule";
+  kind: "skill" | "rule" | "new-skill" | "new-rule";
   name: string;
   description: string;
   path: string;
@@ -530,9 +530,16 @@ export function slashChoices(caps: Capabilities, query: string): SlashChoice[] {
       path: r.path
     }))
   ];
-  return all
+  const found = all
     .filter((c) => !q || c.id.toLowerCase().includes(q) || c.description.toLowerCase().includes(q))
     .slice(0, 12);
+  // Creating one is always offered last. The text of these entries comes from the message catalog.
+  const create: SlashChoice[] = [
+    { id: "new:skill", kind: "new-skill", name: "", description: "", path: "" },
+    { id: "new:rule", kind: "new-rule", name: "", description: "", path: "" }
+  ];
+  const words: Record<string, string> = { "new:skill": "new create skill", "new:rule": "new create rule" };
+  return [...found, ...create.filter((c) => !q || words[c.id]!.includes(q))];
 }
 
 /** `/query` being typed at the start of the message, before any space. */
@@ -577,6 +584,14 @@ export function resolveSlash(message: string, caps: Capabilities): SlashInvocati
     if (rule) return { kind: "rule", name, path: rule.path, request };
   }
   return null;
+}
+
+/** Length of the `/name` at the start of the draft when it names a real skill or rule, for drawing it as a badge. */
+export function slashBadgeLength(draft: string, caps: Capabilities): number {
+  if (!draft.startsWith("/")) return 0;
+  const space = draft.search(/\s/);
+  const token = space < 0 ? draft : draft.slice(0, space);
+  return resolveSlash(token, caps) ? token.length : 0;
 }
 
 const INVOKED_MAX_CHARS = 24_000;

@@ -7,13 +7,14 @@ import {
   activeSlash,
   EMPTY_CAPABILITIES,
   formatUsd,
+  slashBadgeLength,
   slashChoices,
   t,
   type Capabilities,
   type SlashChoice
 } from "@mdword/agent";
 import { cn } from "@mdword/ui";
-import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, CornerDownRight, FilePenLine, FileText, Globe, History, Loader2, Plus, ScrollText, Settings, Sparkles, Square, Terminal, X } from "lucide-react";
+import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, CornerDownRight, FilePenLine, FileText, Folder, Globe, History, Loader2, Plus, ScrollText, Settings, Sparkles, Square, Terminal, X } from "lucide-react";
 import type { ShellMode } from "@mdword/shared";
 import { getHost } from "@/lib/host";
 import { relativeWorkspacePath } from "@mdword/workspace";
@@ -24,7 +25,7 @@ import { openWikiTarget } from "@/lib/openEditorLink";
 import { shellModeOf, useAssistant } from "@/lib/assistant/store";
 import { mentionFiles } from "@/lib/assistant/context";
 import { instructionPaths, loadCapabilities } from "@/lib/assistant/env";
-import { activeMention, filterMentionFiles, splitMentions, type MentionSegment } from "@/lib/assistant/mentions";
+import { activeMention, filterMentionFiles, isFolderMention, splitMentions, type MentionSegment } from "@/lib/assistant/mentions";
 import type { ThreadItem } from "@/lib/assistant/thread";
 import { AssistantHistory } from "./AssistantHistory";
 import { AssistantSettings } from "./AssistantSettings";
@@ -353,7 +354,7 @@ function MentionMenu({
                       selected ? "bg-white text-[#1d4ed8]" : "bg-[#f2f4f7] text-[#667085]"
                     )}
                   >
-                    <FileText size={14} aria-hidden />
+                    {isFolderMention(file.rel) ? <Folder size={14} aria-hidden /> : <FileText size={14} aria-hidden />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] text-[#1c1f24]">
@@ -428,13 +429,27 @@ function SlashMenu({
                 }}
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] text-[#1c1f24]">
-                    {choice.name}
-                    <span className="ml-1.5 text-[11px] text-[#667085]">
-                      {choice.kind === "skill" ? t("panel.slash.skill") : t("panel.slash.rule")}
-                    </span>
-                  </span>
-                  <span className="block truncate text-[11px] text-[#667085]">{choice.description}</span>
+                  {choice.kind === "new-skill" || choice.kind === "new-rule" ? (
+                    <>
+                      <span className="flex items-center gap-1 truncate text-[13px] text-[#1d4ed8]">
+                        <Plus size={13} aria-hidden />
+                        {choice.kind === "new-skill" ? t("panel.slash.new.skill") : t("panel.slash.new.rule")}
+                      </span>
+                      <span className="block truncate text-[11px] text-[#667085]">
+                        {choice.kind === "new-skill" ? t("panel.slash.new.skill.hint") : t("panel.slash.new.rule.hint")}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="block truncate text-[13px] text-[#1c1f24]">
+                        {choice.name}
+                        <span className="ml-1.5 text-[11px] text-[#667085]">
+                          {choice.kind === "skill" ? t("panel.slash.skill") : t("panel.slash.rule")}
+                        </span>
+                      </span>
+                      <span className="block truncate text-[11px] text-[#667085]">{choice.description}</span>
+                    </>
+                  )}
                 </span>
               </button>
             </li>
@@ -589,8 +604,6 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
 
   const backdropRef = useRef<HTMLDivElement | null>(null);
   const knownFiles = useMemo(() => (workspace ? mentionFiles().map((f) => f.rel) : []), [workspace]);
-  const segments = useMemo(() => splitMentions(text, knownFiles), [text, knownFiles]);
-  const hasBadges = segments.some((s) => s.mention);
 
   const mention = activeMention(text, cursor);
   const mentionOpen = Boolean(mention) && !mentionClosed;
@@ -610,8 +623,9 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
   const [slashClosed, setSlashClosed] = useState(false);
   const slash = activeSlash(text, cursor);
   const slashWanted = Boolean(slash) && !slashClosed;
+  const startsWithSlash = text.startsWith("/");
   useEffect(() => {
-    if (!slashWanted || !workspace) return;
+    if (!startsWithSlash || !workspace) return;
     setCapsReady(false);
     let live = true;
     void loadCapabilities().then((next) => {
@@ -622,13 +636,22 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
     return () => {
       live = false;
     };
-  }, [slashWanted, workspace]);
+  }, [startsWithSlash, workspace]);
   const slashList = useMemo(
     () => (slashWanted && slash ? slashChoices(caps, slash.query) : []),
     [slashWanted, slash?.query, caps]
   );
+  const slashBadge = useMemo(() => slashBadgeLength(text, caps), [text, caps]);
+  const segments = useMemo(
+    () =>
+      slashBadge > 0
+        ? [{ text: text.slice(0, slashBadge), mention: true }, ...splitMentions(text.slice(slashBadge), knownFiles)]
+        : splitMentions(text, knownFiles),
+    [text, knownFiles, slashBadge]
+  );
+  const hasBadges = segments.some((s) => s.mention);
   const slashOpen =
-    !mentionOpen && slashWanted && (slashList.length > 0 || (capsReady && (slash?.query.length ?? 0) > 0));
+    !mentionOpen && slashWanted && Boolean(workspace) && (slashList.length > 0 || (capsReady && (slash?.query.length ?? 0) > 0));
   useEffect(() => {
     setSlashIndex(0);
     setSlashClosed(false);
@@ -637,8 +660,17 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
   const applySlash = (choice: SlashChoice) => {
     if (!slash) return;
     const after = text.slice(slash.end).replace(/^ /, "");
-    const next = `/${choice.id} ${after}`;
-    const caret = choice.id.length + 2;
+    // A new skill or rule is written by the assistant: the box gets the start of the request to finish.
+    const start =
+      choice.kind === "new-skill"
+        ? t("panel.slash.new.skill.prompt")
+        : choice.kind === "new-rule"
+          ? t("panel.slash.new.rule.prompt")
+          : choice.kind === "rule" && caps.skills.some((skill) => skill.name === choice.name)
+            ? `/${choice.id} `
+            : `/${choice.name} `;
+    const next = `${start}${after}`;
+    const caret = start.length;
     setText(next);
     setCursor(caret);
     requestAnimationFrame(() => {

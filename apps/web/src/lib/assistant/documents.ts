@@ -9,6 +9,22 @@ export { htmlToMarkdown };
 /** Office and PDF files the assistant can read and turn into Markdown. */
 export const DOCUMENT_EXTENSIONS = ["docx", "pptx", "xlsx", "pdf"] as const;
 
+/** Paths of docx, pptx, xlsx, and pdf files whose path contains the query (case-insensitive). */
+export function matchDocumentNames(
+  entries: readonly { rel: string; isDirectory: boolean }[],
+  query: string,
+  limit: number
+): string[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle || limit <= 0) return [];
+  const out: string[] = [];
+  for (const e of entries) {
+    if (out.length >= limit) break;
+    if (!e.isDirectory && documentExtension(e.rel) && e.rel.toLowerCase().includes(needle)) out.push(e.rel);
+  }
+  return out;
+}
+
 export function documentExtension(path: string): string | null {
   const ext = path.split(".").pop()?.toLowerCase() ?? "";
   return (DOCUMENT_EXTENSIONS as readonly string[]).includes(ext) ? ext : null;

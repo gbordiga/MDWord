@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
-import { documentToMarkdown, htmlToMarkdown } from "./documents";
+import { documentToMarkdown, htmlToMarkdown, matchDocumentNames } from "./documents";
 
 describe("documentToMarkdown", () => {
   it("turns HTML into headings, links, and lists", () => {
@@ -115,5 +115,19 @@ describe("pptx structure", () => {
     expect(md).toBe(
       "## Slide 1: Plan\n\n- Scope\n  - Small\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n> Notes: Say hello"
     );
+  });
+});
+
+describe("matchDocumentNames", () => {
+  it("matches documents by path, ignores markdown and folders, and honors the limit", () => {
+    const entries = [
+      { rel: "fin/Bilancio-2025.xlsx", isDirectory: false },
+      { rel: "fin/bilancio.md", isDirectory: false },
+      { rel: "bilancio.pdf", isDirectory: true },
+      { rel: "a/bilancio.pdf", isDirectory: false }
+    ];
+    expect(matchDocumentNames(entries, " BILANCIO ", 5)).toEqual(["fin/Bilancio-2025.xlsx", "a/bilancio.pdf"]);
+    expect(matchDocumentNames(entries, "bilancio", 1)).toEqual(["fin/Bilancio-2025.xlsx"]);
+    expect(matchDocumentNames(entries, "", 5)).toEqual([]);
   });
 });

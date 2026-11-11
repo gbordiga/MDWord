@@ -5,6 +5,7 @@ import {
   agentFileIssues,
   agentFileKind,
   buildCapabilities,
+  EMPTY_CAPABILITIES,
   globIssue,
   globMatches,
   invokedContext,
@@ -12,6 +13,7 @@ import {
   parseFrontmatter,
   renderCapabilities,
   resolveSlash,
+  slashBadgeLength,
   slashChoices
 } from "./skills";
 
@@ -190,9 +192,15 @@ describe("slash command", () => {
   });
 
   it("lists skills and rules that match", () => {
-    expect(slashChoices(caps, "").map((c) => c.id)).toEqual(["skill:pdf-tools", "rule:tone"]);
+    expect(slashChoices(caps, "").map((c) => c.id)).toEqual(["skill:pdf-tools", "rule:tone", "new:skill", "new:rule"]);
     expect(slashChoices(caps, "pdf").map((c) => c.id)).toEqual(["skill:pdf-tools"]);
     expect(slashChoices(caps, "zzz")).toEqual([]);
+  });
+
+  it("always offers to create a skill or a rule, even in a project that has none", () => {
+    expect(slashChoices(EMPTY_CAPABILITIES, "").map((c) => c.id)).toEqual(["new:skill", "new:rule"]);
+    expect(slashChoices(EMPTY_CAPABILITIES, "new").map((c) => c.kind)).toEqual(["new-skill", "new-rule"]);
+    expect(slashChoices(EMPTY_CAPABILITIES, "ski").map((c) => c.kind)).toEqual(["new-skill"]);
   });
 
   it("resolves the command and keeps the request", () => {
@@ -206,6 +214,13 @@ describe("slash command", () => {
     expect(resolveSlash("/skill:tone", caps)).toBeNull();
     expect(resolveSlash("/etc/hosts", caps)).toBeNull();
     expect(resolveSlash("plain text", caps)).toBeNull();
+  });
+
+  it("measures the badge for a real name only", () => {
+    expect(slashBadgeLength("/pdf-tools extract it", caps)).toBe("/pdf-tools".length);
+    expect(slashBadgeLength("/tone", caps)).toBe("/tone".length);
+    expect(slashBadgeLength("/unknown rest", caps)).toBe(0);
+    expect(slashBadgeLength("text /pdf-tools", caps)).toBe(0);
   });
 
   it("wraps the file text for the turn", () => {
