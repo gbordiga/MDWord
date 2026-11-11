@@ -11,6 +11,7 @@ describe("documentToMarkdown", () => {
     expect(md).toContain("[the source](https://example.com)");
     expect(md).toContain("- One");
     expect(md).not.toContain("alert");
+    expect(htmlToMarkdown("<script >alert(1)</script >")).not.toContain("alert");
   });
 
   it("embeds an HTML picture as an image reference", () => {

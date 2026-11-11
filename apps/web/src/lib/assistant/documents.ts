@@ -24,9 +24,7 @@ export function htmlToMarkdown(html: string): string {
       definitions.set(ref.id, ref.definition);
       return ref.image;
     });
-  const withoutCode = html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "");
+  const withoutCode = dropElements(html, ["script", "style"]);
   const withBlocks = pictures(withoutCode)
     .replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_, level: string, body: string) => {
       return `\n${"#".repeat(Number(level))} ${inline(body)}\n`;
@@ -64,14 +62,43 @@ function strip(html: string): string {
   return decode(html.replace(/<[^>]+>/g, ""));
 }
 
+/** Remove whole elements, including end tags with space before `>`. */
+function dropElements(html: string, names: readonly string[]): string {
+  const lower = html.toLowerCase();
+  let out = "";
+  let i = 0;
+  while (i < html.length) {
+    const start = lower.indexOf("<", i);
+    if (start < 0) {
+      out += html.slice(i);
+      break;
+    }
+    out += html.slice(i, start);
+    const name = names.find((n) => {
+      if (!lower.startsWith("<" + n, start)) return false;
+      const next = lower[start + n.length + 1];
+      return next === undefined || next === ">" || next === "/" || /\s/.test(next);
+    });
+    if (!name) {
+      out += html[start]!;
+      i = start + 1;
+      continue;
+    }
+    const close = lower.indexOf("</" + name, start + name.length + 1);
+    const end = close < 0 ? html.length : html.indexOf(">", close);
+    i = end < 0 ? html.length : end + 1;
+  }
+  return out;
+}
+
 function decode(text: string): string {
   return text
     .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
 }
 
 function tidy(text: string): string {
@@ -83,7 +110,7 @@ function tidy(text: string): string {
 
 function cell(value: unknown): string {
   if (value == null) return "";
-  return String(value).replace(/\|/g, "\\|").replace(/\n/g, " ");
+  return String(value).replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\n/g, " ");
 }
 
 function table(rows: unknown[][]): string {

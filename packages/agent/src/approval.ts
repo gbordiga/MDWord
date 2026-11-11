@@ -34,9 +34,18 @@ const DENY = (reason: string): ClassifierVerdict => ({ decision: "deny", reason 
  * Accepts the JSON object alone, or that same object wrapped in one markdown
  * fence. Leading prose, a second object, or a schema mismatch is deny.
  */
+function unwrapFence(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("```") || !trimmed.endsWith("```") || trimmed.length < 7) return trimmed;
+  const nl = trimmed.indexOf("\n");
+  if (nl < 0 || nl > 16) return trimmed;
+  const lang = trimmed.slice(3, nl).trim().toLowerCase();
+  if (lang !== "" && lang !== "json") return trimmed;
+  return trimmed.slice(nl + 1, -3).trim();
+}
+
 export function parseVerdict(text: string): ClassifierVerdict {
-  const fenced = text.trim().match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  const body = (fenced?.[1] ?? text).trim();
+  const body = unwrapFence(text);
   try {
     const parsed = answerSchema.safeParse(JSON.parse(body));
     return parsed.success ? parsed.data : DENY("unreadable answer");
