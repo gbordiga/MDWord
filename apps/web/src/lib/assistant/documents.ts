@@ -36,7 +36,7 @@ export function htmlToMarkdown(html: string): string {
       if (/^\s*(javascript|data):/i.test(href)) return inline(body);
       return `[${inline(body)}](${href})`;
     });
-  const body = tidy(decode(withBlocks.replace(/<[^>]+>/g, "")));
+  const body = tidy(decode(stripTags(withBlocks)));
   const defs = [...definitions.values()].join("\n");
   return tidy(defs ? `${body}\n\n${defs}` : body);
 }
@@ -53,13 +53,18 @@ function inline(html: string): string {
         .replace(/<a\s+[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href: string, body: string) => `[${strip(body)}](${href})`)
         .replace(/<(strong|b)[^>]*>([\s\S]*?)<\/\1>/gi, (_, _tag: string, body: string) => `**${strip(body)}**`)
         .replace(/<(em|i)[^>]*>([\s\S]*?)<\/\1>/gi, (_, _tag: string, body: string) => `*${strip(body)}*`)
-        .replace(/<[^>]+>/g, "")
+        .replace(/<[^>]*>?/g, "")
     )
   );
 }
 
+/** Drop tags, including an unclosed `<script` with no `>`. */
+function stripTags(html: string): string {
+  return html.replace(/<[^>]*>?/g, "");
+}
+
 function strip(html: string): string {
-  return decode(html.replace(/<[^>]+>/g, ""));
+  return decode(stripTags(html));
 }
 
 /** Remove whole elements, including end tags with space before `>`. */
