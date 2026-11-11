@@ -1,6 +1,6 @@
 {
   "name": "@mdword/mobile",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "license": "MIT",
   "description": "MDWord Capacitor shells for the App Store and Google Play",
