@@ -503,6 +503,7 @@ Steps 1 to 5 are the web release; 6 follows; 7 last.
 - **pptx:** `pptxMarkdown.ts` reads the slide XML. The title placeholder becomes `## Slide N: Title`, body text keeps its bullet level, tables become tables, speaker notes follow as `> Notes:`, and date, footer, and slide-number placeholders are skipped.
 - **pdf:** `pdfMarkdown.ts` rebuilds structure from text positions: headings from font size, paragraphs from line spacing, hyphenated words joined, bullet and numbered lists kept, and repeated headers, footers, and page numbers removed. Columns, tables, and scanned pages (no text, no OCR) are not recovered; the model can tidy the draft with `editFile`.
 - **xlsx:** one table per sheet, 200 rows at most, dates as `yyyy-mm-dd`.
+- **Finding them:** `search` matches markdown by title, heading, tag, and text, and docx, pptx, xlsx, and pdf by file name at any depth. It does not look inside those documents (that would mean converting every file); the model opens a hit with `readDocument`.
 
 ## Appendix A. Prompt draft
 

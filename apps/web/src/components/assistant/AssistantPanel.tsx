@@ -7,13 +7,14 @@ import {
   activeSlash,
   EMPTY_CAPABILITIES,
   formatUsd,
+  slashBadgeLength,
   slashChoices,
   t,
   type Capabilities,
   type SlashChoice
 } from "@mdword/agent";
 import { cn } from "@mdword/ui";
-import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, CornerDownRight, FilePenLine, FileText, Globe, History, Loader2, Plus, ScrollText, Settings, Sparkles, Square, Terminal, X } from "lucide-react";
+import { AlertCircle, Check, ChevronRight, ArrowDown, ArrowUp, CornerDownRight, FilePenLine, FileText, Folder, Globe, History, Loader2, Plus, ScrollText, Settings, Sparkles, Square, Terminal, X } from "lucide-react";
 import type { ShellMode } from "@mdword/shared";
 import { getHost } from "@/lib/host";
 import { relativeWorkspacePath } from "@mdword/workspace";
@@ -24,7 +25,7 @@ import { openWikiTarget } from "@/lib/openEditorLink";
 import { shellModeOf, useAssistant } from "@/lib/assistant/store";
 import { mentionFiles } from "@/lib/assistant/context";
 import { instructionPaths, loadCapabilities } from "@/lib/assistant/env";
-import { activeMention, filterMentionFiles, splitMentions, type MentionSegment } from "@/lib/assistant/mentions";
+import { activeMention, filterMentionFiles, isFolderMention, splitMentions, type MentionSegment } from "@/lib/assistant/mentions";
 import type { ThreadItem } from "@/lib/assistant/thread";
 import { AssistantHistory } from "./AssistantHistory";
 import { AssistantSettings } from "./AssistantSettings";
@@ -127,10 +128,16 @@ function renderEntry(entry: WorkEntry) {
   if (entry.kind === "tool") return <ToolLine key={entry.id} item={entry} />;
   if (entry.kind === "edit") return <EditStep key={entry.id} item={entry} />;
   if (entry.kind === "delete") return <DeleteStep key={entry.id} item={entry} />;
+  if (entry.kind === "thought") return <ThoughtBlock key={entry.id} item={entry} />;
   return <CommandStep key={entry.id} item={entry} />;
 }
 
 function workLabel(entry: WorkEntry): string {
+  if (entry.kind === "thought") {
+    if (entry.streaming) return t("panel.thought.live");
+    const preview = entry.text.replace(/\s+/g, " ").trim();
+    return preview ? `${t("panel.thought")}: ${preview}` : t("panel.thought");
+  }
   if (entry.kind === "tool") return entry.label;
   if (entry.kind === "edit") return t(entry.create ? "edit.step.created" : "edit.step.applied", { path: entry.path });
   if (entry.kind === "delete") {
@@ -143,6 +150,7 @@ function workLabel(entry: WorkEntry): string {
 }
 
 function workFailed(entry: WorkEntry): boolean {
+  if (entry.kind === "thought") return false;
   if (entry.kind === "tool") return entry.status === "error";
   if (entry.kind === "edit") return false;
   if (entry.kind === "delete") return entry.status === "failed";
@@ -150,8 +158,14 @@ function workFailed(entry: WorkEntry): boolean {
 }
 
 const WorkGroup = memo(function WorkGroup({ entries }: { entries: WorkEntry[] }) {
-  const [open, setOpen] = useState(false);
-  const running = entries.some((x) => x.status === "running");
+  const running = entries.some((x) => x.kind === "thought" ? x.streaming : x.status === "running");
+  // Open only while the model is thinking, so the text can be followed. Tool steps do not move the layout.
+  const thinking = entries.some((x) => x.kind === "thought" && x.streaming);
+  const [open, setOpen] = useState(thinking);
+  const pinned = useRef(false);
+  useEffect(() => {
+    if (!pinned.current) setOpen(thinking);
+  }, [thinking]);
   const last = entries.at(-1)!;
   const failed = !running && workFailed(last);
   return (
@@ -160,7 +174,10 @@ const WorkGroup = memo(function WorkGroup({ entries }: { entries: WorkEntry[] })
         type="button"
         aria-expanded={open}
         className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-[11px] text-[#667085]"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          pinned.current = true;
+          setOpen((v) => !v);
+        }}
       >
         {running ? (
           <Loader2 size={12} className="shrink-0 animate-spin" aria-hidden />
@@ -183,34 +200,12 @@ const WorkGroup = memo(function WorkGroup({ entries }: { entries: WorkEntry[] })
 });
 
 function ThoughtBlock({ item }: { item: Extract<ThreadItem, { kind: "thought" }> }) {
-  const [open, setOpen] = useState(item.streaming);
-  const pinned = useRef(false);
-  useEffect(() => {
-    if (!pinned.current) setOpen(item.streaming);
-  }, [item.streaming]);
-  const preview = item.text.replace(/\s+/g, " ").trim();
   return (
-    <div data-testid="assistant-thought" data-open={open ? "true" : "false"} className="text-[12px] text-[#667085]">
-      <button
-        type="button"
-        aria-expanded={open}
-        className="flex w-full items-center gap-1.5 text-left"
-        onClick={() => {
-          pinned.current = true;
-          setOpen((v) => !v);
-        }}
-      >
-        <ChevronRight size={12} className={cn("shrink-0 transition-transform", open && "rotate-90")} aria-hidden />
-        <span className="shrink-0 font-medium text-[#475467]">
-          {t(item.streaming ? "panel.thought.live" : "panel.thought")}
-        </span>
-        {open ? null : <span className="min-w-0 flex-1 truncate text-[#98a2b3]">{preview}</span>}
-      </button>
-      {open ? (
-        <div className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words border-l border-[#e4e7ec] pl-2.5 leading-relaxed text-[#667085]">
-          {item.text}
-        </div>
-      ) : null}
+    <div data-testid="assistant-thought" className="text-[12px] text-[#667085]">
+      <p className="font-medium text-[#475467]">{t(item.streaming ? "panel.thought.live" : "panel.thought")}</p>
+      <div className="mt-0.5 max-h-40 overflow-auto whitespace-pre-wrap break-words border-l border-[#e4e7ec] pl-2.5 leading-relaxed">
+        {item.text}
+      </div>
     </div>
   );
 }
@@ -251,7 +246,7 @@ function ThreadView({ thread }: { thread: ThreadItem[] }) {
           case "command":
             return <CommandCard key={item.id} item={item} />;
           case "thought":
-            return <ThoughtBlock key={item.id} item={item} />;
+            return null;
           case "notice":
             return (
               <p key={item.id} role="status" data-testid="assistant-notice-line" className="text-[12px] text-[#b54708]">
@@ -359,7 +354,7 @@ function MentionMenu({
                       selected ? "bg-white text-[#1d4ed8]" : "bg-[#f2f4f7] text-[#667085]"
                     )}
                   >
-                    <FileText size={14} aria-hidden />
+                    {isFolderMention(file.rel) ? <Folder size={14} aria-hidden /> : <FileText size={14} aria-hidden />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] text-[#1c1f24]">
@@ -434,13 +429,27 @@ function SlashMenu({
                 }}
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] text-[#1c1f24]">
-                    {choice.name}
-                    <span className="ml-1.5 text-[11px] text-[#667085]">
-                      {choice.kind === "skill" ? t("panel.slash.skill") : t("panel.slash.rule")}
-                    </span>
-                  </span>
-                  <span className="block truncate text-[11px] text-[#667085]">{choice.description}</span>
+                  {choice.kind === "new-skill" || choice.kind === "new-rule" ? (
+                    <>
+                      <span className="flex items-center gap-1 truncate text-[13px] text-[#1d4ed8]">
+                        <Plus size={13} aria-hidden />
+                        {choice.kind === "new-skill" ? t("panel.slash.new.skill") : t("panel.slash.new.rule")}
+                      </span>
+                      <span className="block truncate text-[11px] text-[#667085]">
+                        {choice.kind === "new-skill" ? t("panel.slash.new.skill.hint") : t("panel.slash.new.rule.hint")}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="block truncate text-[13px] text-[#1c1f24]">
+                        {choice.name}
+                        <span className="ml-1.5 text-[11px] text-[#667085]">
+                          {choice.kind === "skill" ? t("panel.slash.skill") : t("panel.slash.rule")}
+                        </span>
+                      </span>
+                      <span className="block truncate text-[11px] text-[#667085]">{choice.description}</span>
+                    </>
+                  )}
                 </span>
               </button>
             </li>
@@ -595,8 +604,6 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
 
   const backdropRef = useRef<HTMLDivElement | null>(null);
   const knownFiles = useMemo(() => (workspace ? mentionFiles().map((f) => f.rel) : []), [workspace]);
-  const segments = useMemo(() => splitMentions(text, knownFiles), [text, knownFiles]);
-  const hasBadges = segments.some((s) => s.mention);
 
   const mention = activeMention(text, cursor);
   const mentionOpen = Boolean(mention) && !mentionClosed;
@@ -616,8 +623,9 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
   const [slashClosed, setSlashClosed] = useState(false);
   const slash = activeSlash(text, cursor);
   const slashWanted = Boolean(slash) && !slashClosed;
+  const startsWithSlash = text.startsWith("/");
   useEffect(() => {
-    if (!slashWanted || !workspace) return;
+    if (!startsWithSlash || !workspace) return;
     setCapsReady(false);
     let live = true;
     void loadCapabilities().then((next) => {
@@ -628,13 +636,22 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
     return () => {
       live = false;
     };
-  }, [slashWanted, workspace]);
+  }, [startsWithSlash, workspace]);
   const slashList = useMemo(
-    () => (slashWanted && slash ? slashChoices(caps, slash.query) : []),
-    [slashWanted, slash?.query, caps]
+    () => (slashWanted && slash && capsReady ? slashChoices(caps, slash.query) : []),
+    [slashWanted, slash?.query, caps, capsReady]
   );
+  const slashBadge = useMemo(() => slashBadgeLength(text, caps), [text, caps]);
+  const segments = useMemo(
+    () =>
+      slashBadge > 0
+        ? [{ text: text.slice(0, slashBadge), mention: true }, ...splitMentions(text.slice(slashBadge), knownFiles)]
+        : splitMentions(text, knownFiles),
+    [text, knownFiles, slashBadge]
+  );
+  const hasBadges = segments.some((s) => s.mention);
   const slashOpen =
-    !mentionOpen && slashWanted && (slashList.length > 0 || (capsReady && (slash?.query.length ?? 0) > 0));
+    !mentionOpen && slashWanted && Boolean(workspace) && (slashList.length > 0 || (capsReady && (slash?.query.length ?? 0) > 0));
   useEffect(() => {
     setSlashIndex(0);
     setSlashClosed(false);
@@ -643,8 +660,17 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
   const applySlash = (choice: SlashChoice) => {
     if (!slash) return;
     const after = text.slice(slash.end).replace(/^ /, "");
-    const next = `/${choice.id} ${after}`;
-    const caret = choice.id.length + 2;
+    // A new skill or rule is written by the assistant: the box gets the start of the request to finish.
+    const start =
+      choice.kind === "new-skill"
+        ? t("panel.slash.new.skill.prompt")
+        : choice.kind === "new-rule"
+          ? t("panel.slash.new.rule.prompt")
+          : choice.kind === "rule" && caps.skills.some((skill) => skill.name === choice.name)
+            ? `/${choice.id} `
+            : `/${choice.name} `;
+    const next = `${start}${after}`;
+    const caret = start.length;
     setText(next);
     setCursor(caret);
     requestAnimationFrame(() => {

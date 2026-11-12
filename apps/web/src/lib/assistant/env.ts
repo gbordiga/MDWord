@@ -22,7 +22,7 @@ import {
   relativeWorkspacePath
 } from "@mdword/workspace";
 import type { Diagnostic } from "@mdword/shared";
-import { documentExtension, documentToMarkdown } from "./documents";
+import { documentExtension, documentToMarkdown, matchDocumentNames } from "./documents";
 import { getHost } from "../host";
 import { useApp } from "../store";
 
@@ -232,14 +232,20 @@ export function createAssistantEnv(options: EnvOptions): AssistantEnv {
       const state = useApp.getState();
       const { workspace } = state;
       if (workspace?.root) {
+        // The index only knows markdown. Office and PDF files are found by name, at any depth.
+        const documents = !field || field === "path" ? matchDocumentNames(fileTable(), query, limit) : [];
         const hits = searchHits(workspace.index, query)
           .filter((h) => !field || h.field === field)
-          .slice(0, limit);
-        return hits.map((h) => ({
+          .slice(0, limit - documents.length);
+        const found = hits.map((h) => ({
           path: relativeWorkspacePath(h.document.path, workspace.root!) ?? h.document.path,
           title: h.document.title,
           snippet: h.excerpt
         }));
+        for (const rel of documents) {
+          found.push({ path: rel, title: baseName(rel), snippet: "Document file. Open it with readDocument." });
+        }
+        return found;
       }
       const needle = query.toLowerCase();
       const out = [];
@@ -279,7 +285,12 @@ export function createAssistantEnv(options: EnvOptions): AssistantEnv {
     proposeEdit: options.propose,
     proposeDelete: options.proposeDelete,
     generateImage: options.generateImage,
-    isTrustedPath: (path) => trustedPaths(options.mentioned ?? []).has(path.toLowerCase()),
+    isTrustedPath: (path) => {
+      const trusted = trustedPaths(options.mentioned ?? []);
+      const lower = path.toLowerCase();
+      // A folder the user named (`docs/`) covers the files inside it.
+      return trusted.has(lower) || [...trusted].some((t) => t.endsWith("/") && lower.startsWith(t));
+    },
     ...(options.runCommand ? { runCommand: options.runCommand } : {})
   };
 }

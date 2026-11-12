@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { t } from "@mdword/agent";
-import { AlertCircle, Check, Loader2, Square, TerminalSquare, X } from "lucide-react";
+import { cn } from "@mdword/ui";
+import { AlertCircle, Check, ChevronRight, Loader2, Square, TerminalSquare, X } from "lucide-react";
 import type { ThreadItem } from "@/lib/assistant/thread";
 import { useAssistant } from "@/lib/assistant/store";
 
@@ -38,6 +40,7 @@ function summary(item: CommandItem): string {
 /** A command that already ran, shown as one row inside the steps accordion. */
 export function CommandStep({ item }: { item: CommandItem }) {
   const stop = useAssistant((s) => s.stop);
+  const [outputOpen, setOutputOpen] = useState(false);
   const failed = item.status === "failed" || (item.status === "done" && (item.exitCode !== 0 || item.timedOut));
   return (
     <div data-testid="assistant-command-step" data-status={item.status} className="text-[11px] text-[#667085]">
@@ -59,15 +62,27 @@ export function CommandStep({ item }: { item: CommandItem }) {
         ) : (
           <span className="shrink-0">{summary(item)}</span>
         )}
+        {item.output ? (
+          <button
+            type="button"
+            aria-expanded={outputOpen}
+            aria-label={t("command.output")}
+            title={t("command.output")}
+            data-testid="assistant-command-output-toggle"
+            className="-mr-1 shrink-0 rounded p-1 hover:bg-[#e4e7ec] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2563eb]"
+            onClick={() => setOutputOpen((open) => !open)}
+          >
+            <ChevronRight size={12} className={cn("transition-transform", outputOpen && "rotate-90")} aria-hidden />
+          </button>
+        ) : null}
       </div>
       {item.changed && item.changed.length > 0 ? (
         <p className="mt-1 pl-5">{t("command.changed", { files: item.changed.join(", ") })}</p>
       ) : null}
-      {item.output ? (
-        <details className="mt-1 pl-5">
-          <summary className="cursor-pointer">{t("command.output")}</summary>
-          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all font-mono">{item.output}</pre>
-        </details>
+      {item.output && outputOpen ? (
+        <pre data-testid="assistant-command-output" className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all pl-5 font-mono">
+          {item.output}
+        </pre>
       ) : null}
     </div>
   );

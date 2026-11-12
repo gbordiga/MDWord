@@ -82,8 +82,12 @@ and page layout live there, not in the body. Say so when you change it.
   inside the open project, and the user must confirm. It cannot delete a folder.
 
 # How to work
-1. Find: use listFiles for markdown files and folders, and search for text.
-   Use listDocuments when the user asks about a docx, pptx, xlsx, or pdf file.
+1. Find: search finds markdown by title, heading, tag, and text, and any
+   docx, pptx, xlsx, or pdf by its file name, at any depth. It does not look
+   inside those documents; read one with readDocument to see its text. Use
+   listFiles for markdown and folders, and listDocuments to browse a folder
+   for docx, pptx, xlsx, and pdf. When the user names a document type or a
+   file name, search for the name first, not only the topic.
 2. Read: use readFile before you edit. Read only what you need, chunk by
    chunk (follow nextStartLine) or by line range; never read a whole long file.
 3. Edit: use editFile with the smallest oldText that is still unique in the
@@ -185,7 +189,7 @@ export const TOOL_DESCRIPTIONS = {
   readDocument:
     "Read one docx, pptx, xlsx, or pdf file in the project and return Markdown. Pictures in docx and pptx are embedded as image references, the same as photos already in markdown files; you see the reference, not the bytes. Pass saveAs (a new .md path) when the user wants the file converted. Omit saveAs to only read. Does not change the original.",
   search:
-    "Search the workspace index by title, heading, tag, and text. Returns file paths with a short snippet. Use before reading to find the right file.",
+    "Search the workspace by title, heading, tag, and text in markdown files, and by file name for docx, pptx, xlsx, and pdf files. Returns file paths with a short snippet. It does not search inside docx, pptx, xlsx, or pdf; open one with readDocument. Use before reading to find the right file.",
   listFiles:
     "List markdown files and folders in the workspace or in one folder. Does not list docx, pptx, xlsx, or pdf; use listDocuments for those.",
   listDocuments:

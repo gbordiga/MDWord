@@ -1,6 +1,23 @@
 export interface MentionFile {
+  /** Workspace-relative path. A folder ends with `/`. */
   rel: string;
   title: string;
+}
+
+export const MENTION_LIMIT = 12;
+export const FOLDER_MAX_FILES = 80;
+
+/** Listing of a mentioned folder for the model, with a note when it is cut. */
+export function folderListing(folder: string, paths: readonly string[], max = FOLDER_MAX_FILES): string {
+  const inside = paths.filter((p) => p.startsWith(folder));
+  if (inside.length === 0) return "(no files)";
+  const shown = inside.slice(0, max);
+  const more = inside.length - shown.length;
+  return more > 0 ? `${shown.join("\n")}\n(${more} more files not listed; use listDocuments or search)` : shown.join("\n");
+}
+
+export function isFolderMention(rel: string): boolean {
+  return rel.endsWith("/");
 }
 
 /**
@@ -21,9 +38,12 @@ export function activeMention(
 
 export function filterMentionFiles(files: MentionFile[], query: string): MentionFile[] {
   const q = query.toLowerCase();
-  return files
-    .filter((file) => !q || file.rel.toLowerCase().includes(q) || file.title.toLowerCase().includes(q))
-    .slice(0, 12);
+  const matching = files.filter((file) => !q || file.rel.toLowerCase().includes(q) || file.title.toLowerCase().includes(q));
+  // Folders first (at most 5, so they cannot push every file out), then files and documents.
+  const folders = matching.filter((f) => isFolderMention(f.rel));
+  const rest = matching.filter((f) => !isFolderMention(f.rel));
+  const head = folders.slice(0, 5);
+  return [...head, ...rest, ...folders.slice(5)].slice(0, MENTION_LIMIT);
 }
 
 export interface MentionSegment {
