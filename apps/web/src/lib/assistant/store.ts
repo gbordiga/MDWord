@@ -378,12 +378,14 @@ export const useAssistant = create<AssistantState>((set, get) => {
     const imageModelId = settings.imageModelId || DEFAULT_IMAGE_MODEL_ID;
     // A picture-only model must not be asked for text, so the list is needed even when settings were never opened.
     if (!get().imageModels) await get().loadImageModels();
+    const catalogModel = get().imageModels?.find((m) => m.id === imageModelId);
     const request = imageGenerationRequest({
       model: imageModelId,
       prompt,
       privacyOnly: settings.privacyOnly,
       zdrOnly: settings.zdrOnly,
-      imageOnly: isImageOnly(get().imageModels?.find((m) => m.id === imageModelId))
+      // Only the picture is used, so a model missing from the catalog is asked for pictures alone.
+      imageOnly: catalogModel ? isImageOnly(catalogModel) : true
     });
     let dataUrl = "";
     let refId = "";
