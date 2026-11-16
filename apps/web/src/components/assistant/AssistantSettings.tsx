@@ -3,10 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   intelligenceLevel,
-  DEFAULT_IMAGE_MODEL_ID,
   effectiveReasoning,
   imagePriceLabel,
-  latestModels,
   parseReasoningEffort,
   reasoningChoices,
   SUGGESTED_MODELS,
@@ -21,6 +19,7 @@ import { getHost } from "@/lib/host";
 import { shellModeOf, useAssistant } from "@/lib/assistant/store";
 import { useApp } from "@/lib/store";
 import type { ShellMode } from "@mdword/shared";
+import { useModelLists } from "./useModelLists";
 
 const CAPS: (number | null)[] = [1, 3, 5, 10, 25, null];
 const TIERS: Tier[] = ["low", "balanced", "quality"];
@@ -167,27 +166,6 @@ function ModelScores({ info }: { info: ModelInfo | undefined }) {
 }
 
 const zeroPrice = { pricePerImage: 0, imageTokenPrice: 0 };
-
-/** Stand-in row for a picture model whose details could not be loaded. */
-function plainImageModel(id: string): ModelInfo {
-  return {
-    id,
-    name: id,
-    contextLength: 0,
-    promptPrice: 0,
-    completionPrice: 0,
-    supportsTools: false,
-    expired: false,
-    intelligence: null,
-    intelligenceEstimated: false,
-    codingIndex: null,
-    agenticIndex: null,
-    created: 0,
-    outputModalities: ["image", "text"],
-    pricePerImage: 0,
-    imageTokenPrice: 0
-  };
-}
 
 function ModelPicker({
   current,
@@ -431,38 +409,7 @@ export function AssistantSettings() {
   const [keyError, setKeyError] = useState<null | "invalid" | "storage">(null);
   const host = getHost().assistant;
 
-  const { loadModels } = s;
-  const hasKey = s.key?.hasKey ?? false;
-  const haveModels = s.models != null;
-  const modelsFailed = s.modelsFailed;
-  const zdrOnly = s.settings.zdrOnly;
-  useEffect(() => {
-    if (hasKey && !haveModels && !modelsFailed) void loadModels();
-  }, [hasKey, haveModels, modelsFailed, zdrOnly, loadModels]);
-
-  const { loadImageModels } = s;
-  const haveImageModels = s.imageModels != null;
-  const imageModelsFailed = s.imageModelsFailed;
-  useEffect(() => {
-    if (hasKey && !haveImageModels && !imageModelsFailed) void loadImageModels();
-  }, [hasKey, haveImageModels, imageModelsFailed, zdrOnly, loadImageModels]);
-
-  const currentImage = s.settings.imageModelId;
-  const imageOthers = useMemo(() => {
-    if (s.imageModels) return s.imageModels;
-    // The list could not be loaded: keep the chosen model and the default usable.
-    return [...new Set([currentImage, DEFAULT_IMAGE_MODEL_ID])].map(plainImageModel);
-  }, [s.imageModels, currentImage]);
-
-  const suggestedIds = useMemo(() => new Set(s.usableSuggested.map((m) => m.id)), [s.usableSuggested]);
-  const current = s.settings.modelId;
-  const others = useMemo(
-    () =>
-      latestModels(s.models ?? [], new Set([current]))
-        .filter((m) => m.supportsTools && !m.expired && !suggestedIds.has(m.id))
-        .sort((a, b) => a.id.localeCompare(b.id)),
-    [s.models, suggestedIds, current]
-  );
+  const { current, currentImage, others, imageList: imageOthers } = useModelLists();
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="assistant-settings">

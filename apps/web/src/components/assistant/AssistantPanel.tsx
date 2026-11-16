@@ -32,6 +32,7 @@ import { AssistantSettings } from "./AssistantSettings";
 import { CommandCard, CommandStep } from "./CommandCard";
 import { DeleteCard, DeleteStep } from "./DeleteCard";
 import { ImageCard } from "./ImageCard";
+import { ModelMenu } from "./ModelMenu";
 import { EditCard, EditStep } from "./EditCard";
 
 const iconButton =
@@ -937,6 +938,7 @@ function Composer({ disabled, reason }: { disabled: boolean; reason?: string }) 
           </button>
           <EditApprovalControl />
           {root ? <ShellModeControl /> : null}
+          <ModelMenu disabled={disabled} />
           <span className="flex-1" />
           {running && canSend ? (
             <button
