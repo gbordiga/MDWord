@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
-import { runAssistantTurn } from "./loop";
+import { providerErrorSuffix, runAssistantTurn } from "./loop";
 import { TOOL_DESCRIPTIONS, SYSTEM_PROMPT, buildContext } from "./prompt";
 import { createTools, maskDataUrls, scrubForModel, type ToolContext } from "./tools";
 import { formatMessage, messagesEn, t } from "./messages.en";
@@ -111,6 +111,36 @@ const run = (
   });
   return { done, events };
 };
+
+describe("providerErrorSuffix", () => {
+  it("shows the status and the provider reason, without keys", () => {
+    const error = {
+      statusCode: 400,
+      message: "Bad Request",
+      responseBody: JSON.stringify({ error: { message: "maximum context length exceeded sk-or-v1-abcdef123456" } })
+    };
+    const suffix = providerErrorSuffix(error);
+    expect(suffix).toBe(" (HTTP 400: maximum context length exceeded sk-or-\u2026)");
+  });
+
+  it("prefers the upstream reason in metadata.raw over the generic wrapper message", () => {
+    const error = {
+      statusCode: 502,
+      message: "Provider returned error",
+      responseBody: JSON.stringify({
+        error: { message: "Provider returned error", metadata: { raw: "credit balance too low" } }
+      })
+    };
+    expect(providerErrorSuffix(error)).toBe(" (HTTP 502: credit balance too low)");
+  });
+
+  it("falls back to the error message when the body is not JSON, and to nothing", () => {
+    expect(providerErrorSuffix({ statusCode: 404, message: "Not found", responseBody: "<html>" })).toBe(
+      " (HTTP 404: Not found)"
+    );
+    expect(providerErrorSuffix(new Error("boom"))).toBe("");
+  });
+});
 
 describe("assistant loop", () => {
   it("reads, edits after Apply, and finishes with text", async () => {
@@ -322,7 +352,7 @@ describe("assistant loop", () => {
       const { done, events } = run(model, env);
       const result = await done;
       expect(result.stop).toBe("error");
-      expect(events.at(-1)).toMatchObject({ type: "stop", message: t("error.auth") });
+      expect(events.at(-1)).toMatchObject({ type: "stop", message: `${t("error.auth")} (HTTP 401: bad key)` });
     } finally {
       logged.mockRestore();
     }
