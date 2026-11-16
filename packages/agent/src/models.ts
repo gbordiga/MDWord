@@ -35,13 +35,20 @@ export interface ModelInfo {
   agenticIndex: number | null;
   /** Release time as a Unix timestamp in seconds; 0 when unknown. */
   created: number;
+  /** What the model produces: `text`, `image`, or both. */
+  outputModalities: string[];
+  /** USD per generated picture, when OpenRouter lists a flat price; 0 otherwise. */
+  pricePerImage: number;
+  /** USD per generated image token; 0 when unknown. */
+  imageTokenPrice: number;
 }
 
 interface RawModel {
   id?: unknown;
   name?: unknown;
   context_length?: unknown;
-  pricing?: { prompt?: unknown; completion?: unknown };
+  pricing?: { prompt?: unknown; completion?: unknown; image?: unknown; image_output?: unknown };
+  architecture?: { output_modalities?: unknown } | null;
   supported_parameters?: unknown;
   expiration_date?: unknown;
   created?: unknown;
@@ -73,7 +80,12 @@ export function parseModelList(json: unknown, now = Date.now()): ModelInfo[] {
       intelligenceEstimated: false,
       codingIndex: num(aa?.coding_index),
       agenticIndex: num(aa?.agentic_index),
-      created: num(raw.created) ?? 0
+      created: num(raw.created) ?? 0,
+      outputModalities: Array.isArray(raw.architecture?.output_modalities)
+        ? (raw.architecture.output_modalities as unknown[]).filter((m): m is string => typeof m === "string")
+        : [],
+      pricePerImage: Number(raw.pricing?.image) || 0,
+      imageTokenPrice: Number(raw.pricing?.image_output) || 0
     });
   }
   estimateIntelligence(out);
@@ -288,6 +300,33 @@ const MODELS_URL = "https://openrouter.ai/api/v1/models";
  */
 export function modelsListUrl(zdrOnly: boolean): string {
   return zdrOnly ? `${MODELS_URL}?zdr=true` : MODELS_URL;
+}
+
+/**
+ * Models that generate pictures. The default list holds only models that answer
+ * in text, so pictures need their own query. `zdr=true` applies here too.
+ */
+export function imageModelsListUrl(zdrOnly: boolean): string {
+  return `${MODELS_URL}?output_modalities=image${zdrOnly ? "&zdr=true" : ""}`;
+}
+
+/** Newest first, and only models that really output pictures. */
+export function imageModels(models: ModelInfo[]): ModelInfo[] {
+  return models
+    .filter((m) => m.outputModalities.includes("image") && !m.expired)
+    .sort((a, b) => b.created - a.created || a.name.localeCompare(b.name));
+}
+
+/** A model that returns pictures only, and so must not be asked for text. */
+export function isImageOnly(model: Pick<ModelInfo, "outputModalities"> | undefined): boolean {
+  return model != null && model.outputModalities.includes("image") && !model.outputModalities.includes("text");
+}
+
+/** Short price line for a picture model: per picture when known, else per million image tokens. */
+export function imagePriceLabel(info: Pick<ModelInfo, "pricePerImage" | "imageTokenPrice">): string {
+  if (info.pricePerImage > 0) return `$${Number(info.pricePerImage.toPrecision(2))} / image`;
+  if (info.imageTokenPrice > 0) return `$${(info.imageTokenPrice * 1_000_000).toFixed(2)} / 1M image tokens`;
+  return "";
 }
 
 /**

@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   intelligenceLevel,
+  DEFAULT_IMAGE_MODEL_ID,
   effectiveReasoning,
+  imagePriceLabel,
   latestModels,
   parseReasoningEffort,
   reasoningChoices,
@@ -164,19 +166,46 @@ function ModelScores({ info }: { info: ModelInfo | undefined }) {
   );
 }
 
+const zeroPrice = { pricePerImage: 0, imageTokenPrice: 0 };
+
+/** Stand-in row for a picture model whose details could not be loaded. */
+function plainImageModel(id: string): ModelInfo {
+  return {
+    id,
+    name: id,
+    contextLength: 0,
+    promptPrice: 0,
+    completionPrice: 0,
+    supportsTools: false,
+    expired: false,
+    intelligence: null,
+    intelligenceEstimated: false,
+    codingIndex: null,
+    agenticIndex: null,
+    created: 0,
+    outputModalities: ["image", "text"],
+    pricePerImage: 0,
+    imageTokenPrice: 0
+  };
+}
+
 function ModelPicker({
   current,
   models,
   suggested,
   others,
-  onSelect
+  onSelect,
+  variant = "text"
 }: {
   current: string;
   models: ModelInfo[] | null;
   suggested: SuggestedModel[];
   others: ModelInfo[];
   onSelect: (id: string) => void;
+  /** `image` lists picture models, shows what a picture costs, and has no tiers or scores. */
+  variant?: "text" | "image";
 }) {
+  const image = variant === "image";
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const byId = useMemo(() => new Map((models ?? []).map((m) => [m.id, m])), [models]);
@@ -209,7 +238,11 @@ function ModelPicker({
       >
         <Check size={12} className={selected ? "shrink-0 text-accent" : "invisible shrink-0"} />
         <span className="min-w-0 flex-1 truncate">{nameOf(id)}</span>
-        <ModelScores info={byId.get(id)} />
+        {image ? (
+          <span className="shrink-0 text-[10px] text-[#667085]">{imagePriceLabel(byId.get(id) ?? zeroPrice)}</span>
+        ) : (
+          <ModelScores info={byId.get(id)} />
+        )}
       </button>
     );
   };
@@ -222,7 +255,7 @@ function ModelPicker({
   return (
     <div
       className="rounded-lg border border-[#d0d5dd] bg-white"
-      data-testid="assistant-model"
+      data-testid={image ? "assistant-image-model" : "assistant-model"}
       onKeyDown={(e) => {
         if (e.key === "Escape" && open) {
           e.stopPropagation();
@@ -240,7 +273,10 @@ function ModelPicker({
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[12px] font-medium text-[#1c1f24]">{nameOf(current)}</span>
           <span className="block truncate text-[10px] text-[#667085]">
-            {[currentTier ? t(`settings.tier.${currentTier}` as const) : null, shortPrice(byId.get(current))]
+            {(image
+              ? [current.split("/")[0], imagePriceLabel(byId.get(current) ?? zeroPrice)]
+              : [currentTier ? t(`settings.tier.${currentTier}` as const) : null, shortPrice(byId.get(current))]
+            )
               .filter(Boolean)
               .join(" · ") || current}
           </span>
@@ -261,18 +297,24 @@ function ModelPicker({
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <div className="relative mt-1.5 flex items-center justify-end gap-3 px-2 text-[10px] text-[#98a2b3]">
-            <span className="flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-              {t("settings.model.intelligence")}
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#f79009]" />
-              {t("settings.model.cost")}
-            </span>
-            <InfoTip text={t("settings.model.scoreNote")} />
-          </div>
-          <div role="listbox" aria-label={t("settings.model")} className="mt-0.5 max-h-60 overflow-auto">
+          {image ? null : (
+            <div className="relative mt-1.5 flex items-center justify-end gap-3 px-2 text-[10px] text-[#98a2b3]">
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                {t("settings.model.intelligence")}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#f79009]" />
+                {t("settings.model.cost")}
+              </span>
+              <InfoTip text={t("settings.model.scoreNote")} />
+            </div>
+          )}
+          <div
+            role="listbox"
+            aria-label={image ? t("settings.imageModel") : t("settings.model")}
+            className="mt-0.5 max-h-60 overflow-auto"
+          >
             {TIERS.map((tier) => {
               const rows = suggested.filter((m) => m.tier === tier && matches(m.id, byId.get(m.id)?.name));
               return rows.length ? (
@@ -284,7 +326,7 @@ function ModelPicker({
             })}
             {othersShown.length ? (
               <div>
-                {heading(t("settings.model.all"))}
+                {heading(image ? t("settings.imageModel.all") : t("settings.model.all"))}
                 {othersShown.map((m) => row(m.id))}
               </div>
             ) : null}
@@ -397,6 +439,20 @@ export function AssistantSettings() {
   useEffect(() => {
     if (hasKey && !haveModels && !modelsFailed) void loadModels();
   }, [hasKey, haveModels, modelsFailed, zdrOnly, loadModels]);
+
+  const { loadImageModels } = s;
+  const haveImageModels = s.imageModels != null;
+  const imageModelsFailed = s.imageModelsFailed;
+  useEffect(() => {
+    if (hasKey && !haveImageModels && !imageModelsFailed) void loadImageModels();
+  }, [hasKey, haveImageModels, imageModelsFailed, zdrOnly, loadImageModels]);
+
+  const currentImage = s.settings.imageModelId;
+  const imageOthers = useMemo(() => {
+    if (s.imageModels) return s.imageModels;
+    // The list could not be loaded: keep the chosen model and the default usable.
+    return [...new Set([currentImage, DEFAULT_IMAGE_MODEL_ID])].map(plainImageModel);
+  }, [s.imageModels, currentImage]);
 
   const suggestedIds = useMemo(() => new Set(s.usableSuggested.map((m) => m.id)), [s.usableSuggested]);
   const current = s.settings.modelId;
@@ -544,19 +600,23 @@ export function AssistantSettings() {
               ))}
             </select>
           </label>
-          <label className="block space-y-1">
+          <div className="space-y-1">
             <span className="flex items-center gap-1 px-1 text-[12px] font-medium text-[#344054]">
               {t("settings.imageModel")}
               <InfoTip text={t("settings.imageModel.note")} />
             </span>
-            <input
-              data-testid="assistant-image-model"
-              aria-label={t("settings.imageModel")}
-              className={controlClass}
-              value={s.settings.imageModelId}
-              onChange={(e) => s.updateSettings({ imageModelId: e.target.value })}
+            {s.imageModelsFailed ? (
+              <p className="px-1 text-[11px] leading-snug text-[#b54708]">{t("settings.imageModel.failed")}</p>
+            ) : null}
+            <ModelPicker
+              variant="image"
+              current={currentImage}
+              models={imageOthers}
+              suggested={[]}
+              others={imageOthers}
+              onSelect={(imageModelId) => s.updateSettings({ imageModelId })}
             />
-          </label>
+          </div>
           <label className="block space-y-1">
             <span className="px-1 text-[12px] font-medium text-[#344054]">{t("settings.cap")}</span>
           <select

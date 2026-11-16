@@ -102,6 +102,8 @@ export const messagesEn = {
   "image.noDocument": "Open a markdown document first.",
   "image.notUpdated": "The document could not be updated.",
   "settings.imageModel": "Image model",
+  "settings.imageModel.all": "Image models",
+  "settings.imageModel.failed": "Could not load the image model list. The current model still works.",
   "settings.imageModel.note": "Used only to generate pictures. Separate from the writing model. The picture is shown first and inserted only if you accept it.",
   "delete.card.title": "Delete {path}",
   "delete.card.warning": "This removes the file from the project. It cannot be undone.",
