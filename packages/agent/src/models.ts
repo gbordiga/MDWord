@@ -322,6 +322,25 @@ export function isImageOnly(model: Pick<ModelInfo, "outputModalities"> | undefin
   return model != null && model.outputModalities.includes("image") && !model.outputModalities.includes("text");
 }
 
+/** About how many image tokens one picture takes, when a model is priced per token. */
+const TYPICAL_IMAGE_TOKENS = 1300;
+
+/** Cost of one picture in USD, or null when OpenRouter lists no image price. */
+export function typicalImageCost(info: Pick<ModelInfo, "pricePerImage" | "imageTokenPrice">): number | null {
+  if (info.pricePerImage > 0) return info.pricePerImage;
+  if (info.imageTokenPrice > 0) return info.imageTokenPrice * TYPICAL_IMAGE_TOKENS;
+  return null;
+}
+
+/** 1 (cheapest) to 5 (most expensive) from the cost of one picture, or null when unknown. */
+export function imagePriceLevel(
+  info: Pick<ModelInfo, "pricePerImage" | "imageTokenPrice">
+): 1 | 2 | 3 | 4 | 5 | null {
+  const cost = typicalImageCost(info);
+  if (cost == null) return null;
+  return cost < 0.01 ? 1 : cost < 0.03 ? 2 : cost < 0.06 ? 3 : cost < 0.12 ? 4 : 5;
+}
+
 /** Short price line for a picture model: per picture when known, else per million image tokens. */
 export function imagePriceLabel(info: Pick<ModelInfo, "pricePerImage" | "imageTokenPrice">): string {
   if (info.pricePerImage > 0) return `$${Number(info.pricePerImage.toPrecision(2))} / image`;

@@ -5,6 +5,8 @@ import {
   effectiveReasoning,
   formatPerMillion,
   imagePriceLabel,
+  imagePriceLevel,
+  priceLevel,
   parseReasoningEffort,
   reasoningChoices,
   SUGGESTED_MODELS,
@@ -14,6 +16,7 @@ import {
 import { cn } from "@mdword/ui";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { useAssistant } from "@/lib/assistant/store";
+import { Meter } from "./AssistantSettings";
 import { useModelLists } from "./useModelLists";
 
 type Kind = "text" | "image";
@@ -23,6 +26,17 @@ const REASONING_ORDER = ["default", "none", "low", "medium", "high"] as const;
 /** Name without the "Vendor: " prefix OpenRouter puts in front. */
 function plainName(info: ModelInfo | undefined, id: string): string {
   return info?.name?.replace(/^[^:]+:\s*/, "") ?? id;
+}
+
+/** Cost scale for a writing model: five bars, the exact price on hover. */
+function TextCost({ info }: { info: ModelInfo | undefined }) {
+  return <Meter tone="cost" level={info ? priceLevel(info) : null} label={`${t("settings.model.cost")}: ${textPrice(info)}`} />;
+}
+
+/** Cost scale for a picture model, from the cost of one picture. */
+function ImageCost({ info }: { info: ModelInfo | undefined }) {
+  const price = info ? imagePriceLabel(info) : "";
+  return <Meter tone="cost" level={info ? imagePriceLevel(info) : null} label={`${t("settings.model.cost")}: ${price || "?"}`} />;
 }
 
 function textPrice(info: ModelInfo | undefined): string {
@@ -69,7 +83,7 @@ export function ModelMenu({ disabled = false }: { disabled?: boolean }) {
   const hit = (id: string, name?: string) =>
     !needle || id.toLowerCase().includes(needle) || (name ?? "").toLowerCase().includes(needle);
 
-  const row = (id: string, name: string, hint: string, selected: boolean, pick: () => void) => (
+  const row = (id: string, name: string, hint: React.ReactNode, selected: boolean, pick: () => void) => (
     <button
       key={id}
       type="button"
@@ -87,7 +101,7 @@ export function ModelMenu({ disabled = false }: { disabled?: boolean }) {
     >
       <Check size={12} className={selected ? "shrink-0 text-accent" : "invisible shrink-0"} aria-hidden />
       <span className="min-w-0 flex-1 truncate">{name}</span>
-      {hint ? <span className="shrink-0 text-[10px] text-[#98a2b3]">{hint}</span> : null}
+      {hint ? <span className="shrink-0">{hint}</span> : null}
     </button>
   );
 
@@ -179,7 +193,7 @@ export function ModelMenu({ disabled = false }: { disabled?: boolean }) {
                       row(
                         m.id,
                         plainName(textById.get(m.id), m.id),
-                        textPrice(textById.get(m.id)),
+                        <TextCost info={textById.get(m.id)} />,
                         m.id === lists.current,
                         () => updateSettings({ modelId: m.id })
                       )
@@ -190,7 +204,7 @@ export function ModelMenu({ disabled = false }: { disabled?: boolean }) {
                   <div>
                     {heading(t("settings.model.all"))}
                     {textRows.others.map((m) =>
-                      row(m.id, plainName(m, m.id), textPrice(m), m.id === lists.current, () => updateSettings({ modelId: m.id }))
+                      row(m.id, plainName(m, m.id), <TextCost info={m} />, m.id === lists.current, () => updateSettings({ modelId: m.id }))
                     )}
                   </div>
                 ) : null}
@@ -198,7 +212,7 @@ export function ModelMenu({ disabled = false }: { disabled?: boolean }) {
             ) : (
               <div>
                 {imageRows.map((m) =>
-                  row(m.id, plainName(m, m.id), imagePriceLabel(imageById.get(m.id) ?? m), m.id === lists.currentImage, () =>
+                  row(m.id, plainName(m, m.id), <ImageCost info={imageById.get(m.id) ?? m} />, m.id === lists.currentImage, () =>
                     updateSettings({ imageModelId: m.id })
                   )
                 )}

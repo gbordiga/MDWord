@@ -116,7 +116,7 @@ function shortPrice(info: ModelInfo | undefined): string {
 }
 
 /** Five small bars; `level` of them are filled. A missing level shows empty, faint bars. */
-function Meter({
+export function Meter({
   level,
   tone,
   label,
