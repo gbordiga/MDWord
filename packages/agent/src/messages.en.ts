@@ -161,6 +161,14 @@ export const messagesEn = {
   "settings.key.note":
     "The key has no spending limit of its own. For a hard limit, create a dedicated key on openrouter.ai and paste it here.",
   "settings.model": "Model",
+  "settings.reasoning": "Reasoning",
+  "settings.reasoning.note":
+    "How much the model thinks before it answers. More is slower and costs more. Default leaves it to the model.",
+  "settings.reasoning.default": "Default",
+  "settings.reasoning.none": "Off",
+  "settings.reasoning.low": "Low",
+  "settings.reasoning.medium": "Medium",
+  "settings.reasoning.high": "High",
   "settings.model.all": "All models",
   "settings.model.failed": "Could not load the model list. Suggested models are still available.",
   "settings.model.search": "Search models",

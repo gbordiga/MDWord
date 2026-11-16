@@ -253,6 +253,32 @@ export interface ProviderPrefs {
   quantizations?: string[];
 }
 
+/**
+ * How much the model reasons before it answers. `default` sends nothing and
+ * leaves the choice to the model; `none` turns reasoning off where the model allows it.
+ */
+export type ReasoningEffort = "default" | "none" | "low" | "medium" | "high";
+export const REASONING_EFFORTS: readonly ReasoningEffort[] = ["default", "none", "low", "medium", "high"];
+
+export function parseReasoningEffort(value: unknown): ReasoningEffort {
+  return REASONING_EFFORTS.includes(value as ReasoningEffort) ? (value as ReasoningEffort) : "default";
+}
+
+/** Efforts the picker offers for a model. Mandatory reasoning cannot be switched off. */
+export function reasoningChoices(model?: Pick<SuggestedModel, "reasoning">): ReasoningEffort[] {
+  return model?.reasoning === "mandatory"
+    ? REASONING_EFFORTS.filter((effort) => effort !== "none")
+    : [...REASONING_EFFORTS];
+}
+
+/** The effort to send. A choice the model cannot take falls back to `default`. */
+export function effectiveReasoning(
+  effort: ReasoningEffort,
+  model?: Pick<SuggestedModel, "reasoning">
+): ReasoningEffort {
+  return reasoningChoices(model).includes(effort) ? effort : "default";
+}
+
 const MODELS_URL = "https://openrouter.ai/api/v1/models";
 
 /**

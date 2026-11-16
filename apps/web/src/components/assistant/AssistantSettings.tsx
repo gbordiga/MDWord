@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   intelligenceLevel,
+  effectiveReasoning,
   latestModels,
+  parseReasoningEffort,
+  reasoningChoices,
+  SUGGESTED_MODELS,
   priceLevel,
   t,
   type ModelInfo,
@@ -521,6 +525,25 @@ export function AssistantSettings() {
             others={others}
             onSelect={(modelId) => s.updateSettings({ modelId })}
           />
+          <label className="block space-y-1">
+            <span className="flex items-center gap-1 px-1 text-[12px] font-medium text-[#344054]">
+              {t("settings.reasoning")}
+              <InfoTip text={t("settings.reasoning.note")} />
+            </span>
+            <select
+              data-testid="assistant-reasoning"
+              aria-label={t("settings.reasoning")}
+              className={controlClass}
+              value={effectiveReasoning(s.settings.reasoningEffort, SUGGESTED_MODELS.find((m) => m.id === current))}
+              onChange={(e) => s.updateSettings({ reasoningEffort: parseReasoningEffort(e.target.value) })}
+            >
+              {reasoningChoices(SUGGESTED_MODELS.find((m) => m.id === current)).map((effort) => (
+                <option key={effort} value={effort}>
+                  {t(`settings.reasoning.${effort}`)}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="block space-y-1">
             <span className="flex items-center gap-1 px-1 text-[12px] font-medium text-[#344054]">
               {t("settings.imageModel")}

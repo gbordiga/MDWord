@@ -12,6 +12,7 @@ import {
   parseGeneratedImage,
   modelsListUrl,
   parseModelList,
+  parseReasoningEffort,
   SUGGESTED_MODELS,
   t,
   checkCommand,
@@ -25,6 +26,7 @@ import {
   type EditProposal,
   type ModelInfo,
   type ModelMessage,
+  type ReasoningEffort,
   type SuggestedModel,
   type TurnEvent
 } from "@mdword/agent";
@@ -66,6 +68,8 @@ const DEFAULT_CAP_USD = 3;
 
 export interface AssistantSettings {
   modelId: string;
+  /** How much the model reasons. `default` leaves it to the model. */
+  reasoningEffort: ReasoningEffort;
   /** OpenRouter model used only for generated pictures. */
   imageModelId: string;
   /** `null` turns the session cap off. */
@@ -86,6 +90,7 @@ const SHELL_MODES: readonly ShellMode[] = ["off", "manual", "ai", "always"];
 
 const defaultSettings: AssistantSettings = {
   modelId: DEFAULT_MODEL_ID,
+  reasoningEffort: "default",
   imageModelId: DEFAULT_IMAGE_MODEL_ID,
   spendCapUsd: DEFAULT_CAP_USD,
   privacyOnly: true,
@@ -118,6 +123,7 @@ function loadSettings(): AssistantSettings {
     const parsed = JSON.parse(raw) as Partial<AssistantSettings>;
     return {
       modelId: typeof parsed.modelId === "string" && parsed.modelId ? parsed.modelId : defaultSettings.modelId,
+      reasoningEffort: parseReasoningEffort(parsed.reasoningEffort),
       imageModelId:
         typeof parsed.imageModelId === "string" && parsed.imageModelId ? parsed.imageModelId : defaultSettings.imageModelId,
       spendCapUsd:
@@ -785,6 +791,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
         const model = createAssistantModel({
           apiKey: "host-managed",
           modelId: state.settings.modelId,
+          reasoningEffort: state.settings.reasoningEffort,
           privacyOnly: state.settings.privacyOnly,
           zdrOnly: state.settings.zdrOnly,
           webSearch: state.settings.webSearch,

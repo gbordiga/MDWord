@@ -1,6 +1,6 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { LanguageModel } from "ai";
-import { routingPreferences, SUGGESTED_MODELS } from "./models";
+import { effectiveReasoning, routingPreferences, SUGGESTED_MODELS, type ReasoningEffort } from "./models";
 
 export { OPENROUTER_ORIGIN } from "./origin";
 import { OPENROUTER_ORIGIN } from "./origin";
@@ -16,6 +16,8 @@ export interface ModelSelection {
   fetch?: typeof fetch;
   /** Let the model search the web through OpenRouter's server tool. */
   webSearch?: boolean;
+  /** Reasoning level. Missing or `default` leaves it to the model. */
+  reasoningEffort?: ReasoningEffort;
 }
 
 /**
@@ -61,8 +63,10 @@ export function createAssistantModel(selection: ModelSelection): LanguageModel {
   });
   const suggested = SUGGESTED_MODELS.find((m) => m.id === selection.modelId);
   const routing = routingPreferences({ noTraining: selection.privacyOnly, zdr: selection.zdrOnly === true }, suggested);
+  const effort = effectiveReasoning(selection.reasoningEffort ?? "default", suggested);
   return provider(selection.modelId, {
     usage: { include: true },
+    ...(effort !== "default" ? { reasoning: { effort } } : {}),
     ...(routing ? { provider: routing } : {})
   }) as unknown as LanguageModel;
 }
