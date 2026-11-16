@@ -20,7 +20,6 @@ export function plainImageModel(id: string): ModelInfo {
     agenticIndex: null,
     created: 0,
     outputModalities: ["image", "text"],
-    pricePerImage: 0,
     imageTokenPrice: 0
   };
 }

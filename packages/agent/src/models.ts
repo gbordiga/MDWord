@@ -37,9 +37,10 @@ export interface ModelInfo {
   created: number;
   /** What the model produces: `text`, `image`, or both. */
   outputModalities: string[];
-  /** USD per generated picture, when OpenRouter lists a flat price; 0 otherwise. */
-  pricePerImage: number;
-  /** USD per generated image token; 0 when unknown. */
+  /**
+   * USD per generated image token; 0 when unknown. OpenRouter's `pricing.image` is the
+   * price of pictures sent *to* the model, so it is not used here.
+   */
   imageTokenPrice: number;
 }
 
@@ -47,7 +48,7 @@ interface RawModel {
   id?: unknown;
   name?: unknown;
   context_length?: unknown;
-  pricing?: { prompt?: unknown; completion?: unknown; image?: unknown; image_output?: unknown };
+  pricing?: { prompt?: unknown; completion?: unknown; image_output?: unknown };
   architecture?: { output_modalities?: unknown } | null;
   supported_parameters?: unknown;
   expiration_date?: unknown;
@@ -84,7 +85,6 @@ export function parseModelList(json: unknown, now = Date.now()): ModelInfo[] {
       outputModalities: Array.isArray(raw.architecture?.output_modalities)
         ? (raw.architecture.output_modalities as unknown[]).filter((m): m is string => typeof m === "string")
         : [],
-      pricePerImage: Number(raw.pricing?.image) || 0,
       imageTokenPrice: Number(raw.pricing?.image_output) || 0
     });
   }
@@ -322,30 +322,29 @@ export function isImageOnly(model: Pick<ModelInfo, "outputModalities"> | undefin
   return model != null && model.outputModalities.includes("image") && !model.outputModalities.includes("text");
 }
 
-/** About how many image tokens one picture takes, when a model is priced per token. */
+/**
+ * About how many image tokens one generated picture takes (roughly one megapixel).
+ * Real sizes differ by model and request, so costs shown are an estimate.
+ */
 const TYPICAL_IMAGE_TOKENS = 1300;
 
-/** Cost of one picture in USD, or null when OpenRouter lists no image price. */
-export function typicalImageCost(info: Pick<ModelInfo, "pricePerImage" | "imageTokenPrice">): number | null {
-  if (info.pricePerImage > 0) return info.pricePerImage;
-  if (info.imageTokenPrice > 0) return info.imageTokenPrice * TYPICAL_IMAGE_TOKENS;
-  return null;
+/** Estimated cost of one generated picture in USD, or null when OpenRouter lists no image price. */
+export function typicalImageCost(info: Pick<ModelInfo, "imageTokenPrice">): number | null {
+  return info.imageTokenPrice > 0 ? info.imageTokenPrice * TYPICAL_IMAGE_TOKENS : null;
 }
 
 /** 1 (cheapest) to 5 (most expensive) from the cost of one picture, or null when unknown. */
-export function imagePriceLevel(
-  info: Pick<ModelInfo, "pricePerImage" | "imageTokenPrice">
-): 1 | 2 | 3 | 4 | 5 | null {
+export function imagePriceLevel(info: Pick<ModelInfo, "imageTokenPrice">): 1 | 2 | 3 | 4 | 5 | null {
   const cost = typicalImageCost(info);
   if (cost == null) return null;
   return cost < 0.01 ? 1 : cost < 0.03 ? 2 : cost < 0.06 ? 3 : cost < 0.12 ? 4 : 5;
 }
 
-/** Short price line for a picture model: per picture when known, else per million image tokens. */
-export function imagePriceLabel(info: Pick<ModelInfo, "pricePerImage" | "imageTokenPrice">): string {
-  if (info.pricePerImage > 0) return `$${Number(info.pricePerImage.toPrecision(2))} / image`;
-  if (info.imageTokenPrice > 0) return `$${(info.imageTokenPrice * 1_000_000).toFixed(2)} / 1M image tokens`;
-  return "";
+/** Estimated price of one generated picture, such as "~$0.039 / image"; empty when unknown. */
+export function imagePriceLabel(info: Pick<ModelInfo, "imageTokenPrice">): string {
+  const cost = typicalImageCost(info);
+  if (cost == null) return "";
+  return `~$${cost < 0.1 ? cost.toFixed(3) : cost.toFixed(2)} / image`;
 }
 
 /**

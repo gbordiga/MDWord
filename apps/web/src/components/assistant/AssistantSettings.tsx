@@ -244,7 +244,7 @@ function ChoicePicker<T extends string>({
   );
 }
 
-const zeroPrice = { pricePerImage: 0, imageTokenPrice: 0 };
+const zeroPrice = { imageTokenPrice: 0 };
 
 function ModelPicker({
   current,
