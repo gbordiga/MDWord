@@ -112,6 +112,26 @@ const run = (
   return { done, events };
 };
 
+describe("scrubForModel and reasoning", () => {
+  it("leaves reasoning parts and provider options untouched, so signatures stay valid", () => {
+    const signature = `${"Eu8DCkYIBxgCKkD".repeat(12)}+/abc==`;
+    const reasoning = {
+      type: "reasoning",
+      text: "thinking",
+      providerOptions: {
+        openrouter: { reasoning_details: [{ type: "reasoning.text", text: "thinking", signature }] }
+      }
+    };
+    const history = [{ role: "assistant", content: [reasoning, { type: "text", text: "Ciao" }] }];
+    expect(scrubForModel(history)).toEqual(history);
+  });
+
+  it("still masks payloads in ordinary text", () => {
+    const blob = `${"AAAA".repeat(30)}+/==`;
+    expect(scrubForModel([{ role: "user", content: `see ${blob}` }])[0]!.content).toContain("base64 omitted");
+  });
+});
+
 describe("providerErrorSuffix", () => {
   it("shows the status and the provider reason, without keys", () => {
     const error = {

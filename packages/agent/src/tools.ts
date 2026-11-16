@@ -83,6 +83,8 @@ export function scrubForModel<T>(value: T): T {
     if (record.type === "image" || record.type === "file") {
       return { type: "text", text: "[binary omitted]" } as T;
     }
+    // Reasoning carries a provider signature (long base64) that must come back unchanged.
+    if (record.type === "reasoning") return value;
     const out: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(record)) out[key] = scrubForModel(item);
     return out as T;
