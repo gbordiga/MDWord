@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   intelligenceLevel,
-  latestModels,
+  effectiveReasoning,
+  imagePriceLabel,
+  parseReasoningEffort,
+  reasoningChoices,
+  SUGGESTED_MODELS,
   priceLevel,
   t,
   type ModelInfo,
@@ -15,6 +19,7 @@ import { getHost } from "@/lib/host";
 import { shellModeOf, useAssistant } from "@/lib/assistant/store";
 import { useApp } from "@/lib/store";
 import type { ShellMode } from "@mdword/shared";
+import { useModelLists } from "./useModelLists";
 
 const CAPS: (number | null)[] = [1, 3, 5, 10, 25, null];
 const TIERS: Tier[] = ["low", "balanced", "quality"];
@@ -111,7 +116,7 @@ function shortPrice(info: ModelInfo | undefined): string {
 }
 
 /** Five small bars; `level` of them are filled. A missing level shows empty, faint bars. */
-function Meter({
+export function Meter({
   level,
   tone,
   label,
@@ -160,19 +165,104 @@ function ModelScores({ info }: { info: ModelInfo | undefined }) {
   );
 }
 
+/**
+ * A small fixed set of choices as a picker: the trigger shows the current one with its
+ * note, the list shows every option with its note. Same look as the model picker.
+ */
+function ChoicePicker<T extends string>({
+  value,
+  options,
+  onSelect,
+  label,
+  testId
+}: {
+  value: T;
+  options: { value: T; label: string; note?: string }[];
+  onSelect: (value: T) => void;
+  label: string;
+  testId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = options.find((o) => o.value === value) ?? options[0];
+  return (
+    <div
+      className="rounded-lg border border-[#d0d5dd] bg-white"
+      data-testid={testId}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.stopPropagation();
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={label}
+        className="flex w-full items-center gap-2 px-2.5 py-2 text-left"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[12px] font-medium text-[#1c1f24]">{current?.label}</span>
+          {current?.note ? <span className="block truncate text-[10px] text-[#667085]">{current.note}</span> : null}
+        </span>
+        <ChevronDown size={14} className={`shrink-0 text-[#667085] transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open ? (
+        <div role="listbox" aria-label={label} className="border-t border-[#e4e7ec] p-1.5">
+          {options.map((option) => {
+            const selected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                data-testid={`${testId}-${option.value}`}
+                className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left ${
+                  selected ? "bg-[#eef4ff]" : "hover:bg-[#f2f4f7]"
+                }`}
+                onClick={() => {
+                  onSelect(option.value);
+                  setOpen(false);
+                }}
+              >
+                <Check size={12} className={selected ? "mt-0.5 shrink-0 text-accent" : "invisible mt-0.5 shrink-0"} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[12px] text-[#1c1f24]">{option.label}</span>
+                  {option.note ? (
+                    <span className="mt-0.5 block text-[11px] leading-snug text-[#667085]">{option.note}</span>
+                  ) : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const zeroPrice = { imageTokenPrice: 0 };
+
 function ModelPicker({
   current,
   models,
   suggested,
   others,
-  onSelect
+  onSelect,
+  variant = "text"
 }: {
   current: string;
   models: ModelInfo[] | null;
   suggested: SuggestedModel[];
   others: ModelInfo[];
   onSelect: (id: string) => void;
+  /** `image` lists picture models, shows what a picture costs, and has no tiers or scores. */
+  variant?: "text" | "image";
 }) {
+  const image = variant === "image";
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const byId = useMemo(() => new Map((models ?? []).map((m) => [m.id, m])), [models]);
@@ -205,7 +295,11 @@ function ModelPicker({
       >
         <Check size={12} className={selected ? "shrink-0 text-accent" : "invisible shrink-0"} />
         <span className="min-w-0 flex-1 truncate">{nameOf(id)}</span>
-        <ModelScores info={byId.get(id)} />
+        {image ? (
+          <span className="shrink-0 text-[10px] text-[#667085]">{imagePriceLabel(byId.get(id) ?? zeroPrice)}</span>
+        ) : (
+          <ModelScores info={byId.get(id)} />
+        )}
       </button>
     );
   };
@@ -218,7 +312,7 @@ function ModelPicker({
   return (
     <div
       className="rounded-lg border border-[#d0d5dd] bg-white"
-      data-testid="assistant-model"
+      data-testid={image ? "assistant-image-model" : "assistant-model"}
       onKeyDown={(e) => {
         if (e.key === "Escape" && open) {
           e.stopPropagation();
@@ -236,7 +330,10 @@ function ModelPicker({
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[12px] font-medium text-[#1c1f24]">{nameOf(current)}</span>
           <span className="block truncate text-[10px] text-[#667085]">
-            {[currentTier ? t(`settings.tier.${currentTier}` as const) : null, shortPrice(byId.get(current))]
+            {(image
+              ? [current.split("/")[0], imagePriceLabel(byId.get(current) ?? zeroPrice)]
+              : [currentTier ? t(`settings.tier.${currentTier}` as const) : null, shortPrice(byId.get(current))]
+            )
               .filter(Boolean)
               .join(" · ") || current}
           </span>
@@ -257,18 +354,24 @@ function ModelPicker({
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <div className="relative mt-1.5 flex items-center justify-end gap-3 px-2 text-[10px] text-[#98a2b3]">
-            <span className="flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-              {t("settings.model.intelligence")}
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#f79009]" />
-              {t("settings.model.cost")}
-            </span>
-            <InfoTip text={t("settings.model.scoreNote")} />
-          </div>
-          <div role="listbox" aria-label={t("settings.model")} className="mt-0.5 max-h-60 overflow-auto">
+          {image ? null : (
+            <div className="relative mt-1.5 flex items-center justify-end gap-3 px-2 text-[10px] text-[#98a2b3]">
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                {t("settings.model.intelligence")}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#f79009]" />
+                {t("settings.model.cost")}
+              </span>
+              <InfoTip text={t("settings.model.scoreNote")} />
+            </div>
+          )}
+          <div
+            role="listbox"
+            aria-label={image ? t("settings.imageModel") : t("settings.model")}
+            className="mt-0.5 max-h-60 overflow-auto"
+          >
             {TIERS.map((tier) => {
               const rows = suggested.filter((m) => m.tier === tier && matches(m.id, byId.get(m.id)?.name));
               return rows.length ? (
@@ -280,7 +383,7 @@ function ModelPicker({
             })}
             {othersShown.length ? (
               <div>
-                {heading(t("settings.model.all"))}
+                {heading(image ? t("settings.imageModel.all") : t("settings.model.all"))}
                 {othersShown.map((m) => row(m.id))}
               </div>
             ) : null}
@@ -385,24 +488,7 @@ export function AssistantSettings() {
   const [keyError, setKeyError] = useState<null | "invalid" | "storage">(null);
   const host = getHost().assistant;
 
-  const { loadModels } = s;
-  const hasKey = s.key?.hasKey ?? false;
-  const haveModels = s.models != null;
-  const modelsFailed = s.modelsFailed;
-  const zdrOnly = s.settings.zdrOnly;
-  useEffect(() => {
-    if (hasKey && !haveModels && !modelsFailed) void loadModels();
-  }, [hasKey, haveModels, modelsFailed, zdrOnly, loadModels]);
-
-  const suggestedIds = useMemo(() => new Set(s.usableSuggested.map((m) => m.id)), [s.usableSuggested]);
-  const current = s.settings.modelId;
-  const others = useMemo(
-    () =>
-      latestModels(s.models ?? [], new Set([current]))
-        .filter((m) => m.supportsTools && !m.expired && !suggestedIds.has(m.id))
-        .sort((a, b) => a.id.localeCompare(b.id)),
-    [s.models, suggestedIds, current]
-  );
+  const { current, currentImage, others, imageList: imageOthers } = useModelLists();
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="assistant-settings">
@@ -523,17 +609,40 @@ export function AssistantSettings() {
           />
           <label className="block space-y-1">
             <span className="flex items-center gap-1 px-1 text-[12px] font-medium text-[#344054]">
+              {t("settings.reasoning")}
+              <InfoTip text={t("settings.reasoning.note")} />
+            </span>
+            <select
+              data-testid="assistant-reasoning"
+              aria-label={t("settings.reasoning")}
+              className={controlClass}
+              value={effectiveReasoning(s.settings.reasoningEffort, SUGGESTED_MODELS.find((m) => m.id === current))}
+              onChange={(e) => s.updateSettings({ reasoningEffort: parseReasoningEffort(e.target.value) })}
+            >
+              {reasoningChoices(SUGGESTED_MODELS.find((m) => m.id === current)).map((effort) => (
+                <option key={effort} value={effort}>
+                  {t(`settings.reasoning.${effort}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="space-y-1">
+            <span className="flex items-center gap-1 px-1 text-[12px] font-medium text-[#344054]">
               {t("settings.imageModel")}
               <InfoTip text={t("settings.imageModel.note")} />
             </span>
-            <input
-              data-testid="assistant-image-model"
-              aria-label={t("settings.imageModel")}
-              className={controlClass}
-              value={s.settings.imageModelId}
-              onChange={(e) => s.updateSettings({ imageModelId: e.target.value })}
+            {s.imageModelsFailed ? (
+              <p className="px-1 text-[11px] leading-snug text-[#b54708]">{t("settings.imageModel.failed")}</p>
+            ) : null}
+            <ModelPicker
+              variant="image"
+              current={currentImage}
+              models={imageOthers}
+              suggested={[]}
+              others={imageOthers}
+              onSelect={(imageModelId) => s.updateSettings({ imageModelId })}
             />
-          </label>
+          </div>
           <label className="block space-y-1">
             <span className="px-1 text-[12px] font-medium text-[#344054]">{t("settings.cap")}</span>
           <select
@@ -574,25 +683,22 @@ export function AssistantSettings() {
             label={t("settings.web")}
             note={t("settings.web.note")}
           />
-          <div role="radiogroup" aria-label={t("settings.edits")} className="space-y-1.5 px-1" data-testid="assistant-edit-approval">
-            <p className="text-[12px] font-medium text-[#344054]">{t("settings.edits")}</p>
-            <p className="text-[11px] leading-snug text-[#667085]">{t("settings.edits.note")}</p>
-            {(["manual", "auto"] as const).map((choice) => (
-              <label key={choice} className="flex items-start gap-2 text-[12px] text-[#344054]">
-                <input
-                  type="radio"
-                  name="assistant-edit-approval"
-                  className="mt-0.5"
-                  data-testid={`assistant-edits-${choice}`}
-                  checked={s.settings.editApproval === choice}
-                  onChange={() => s.updateSettings({ editApproval: choice })}
-                />
-                <span>
-                  {t(`settings.edits.${choice}`)}
-                  <span className="mt-0.5 block text-[11px] leading-snug text-[#667085]">{t(`settings.editsNote.${choice}`)}</span>
-                </span>
-              </label>
-            ))}
+          <div className="space-y-1">
+            <span className="flex items-center gap-1 px-1 text-[12px] font-medium text-[#344054]">
+              {t("settings.edits")}
+              <InfoTip text={t("settings.edits.note")} />
+            </span>
+            <ChoicePicker
+              testId="assistant-edit-approval"
+              label={t("settings.edits")}
+              value={s.settings.editApproval}
+              options={(["manual", "auto"] as const).map((choice) => ({
+                value: choice,
+                label: t(`settings.edits.${choice}`),
+                note: t(`settings.editsNote.${choice}`)
+              }))}
+              onSelect={(editApproval) => s.updateSettings({ editApproval })}
+            />
           </div>
         </Section>
 

@@ -9,9 +9,13 @@ import {
   DEFAULT_IMAGE_MODEL_ID,
   DEFAULT_MODEL_ID,
   imageGenerationRequest,
+  imageModels,
+  imageModelsListUrl,
+  isImageOnly,
   parseGeneratedImage,
   modelsListUrl,
   parseModelList,
+  parseReasoningEffort,
   SUGGESTED_MODELS,
   t,
   checkCommand,
@@ -25,6 +29,7 @@ import {
   type EditProposal,
   type ModelInfo,
   type ModelMessage,
+  type ReasoningEffort,
   type SuggestedModel,
   type TurnEvent
 } from "@mdword/agent";
@@ -66,6 +71,8 @@ const DEFAULT_CAP_USD = 3;
 
 export interface AssistantSettings {
   modelId: string;
+  /** How much the model reasons. `default` leaves it to the model. */
+  reasoningEffort: ReasoningEffort;
   /** OpenRouter model used only for generated pictures. */
   imageModelId: string;
   /** `null` turns the session cap off. */
@@ -86,6 +93,7 @@ const SHELL_MODES: readonly ShellMode[] = ["off", "manual", "ai", "always"];
 
 const defaultSettings: AssistantSettings = {
   modelId: DEFAULT_MODEL_ID,
+  reasoningEffort: "default",
   imageModelId: DEFAULT_IMAGE_MODEL_ID,
   spendCapUsd: DEFAULT_CAP_USD,
   privacyOnly: true,
@@ -118,6 +126,7 @@ function loadSettings(): AssistantSettings {
     const parsed = JSON.parse(raw) as Partial<AssistantSettings>;
     return {
       modelId: typeof parsed.modelId === "string" && parsed.modelId ? parsed.modelId : defaultSettings.modelId,
+      reasoningEffort: parseReasoningEffort(parsed.reasoningEffort),
       imageModelId:
         typeof parsed.imageModelId === "string" && parsed.imageModelId ? parsed.imageModelId : defaultSettings.imageModelId,
       spendCapUsd:
@@ -158,6 +167,9 @@ export interface AssistantState {
   costUnknown: boolean;
   models: ModelInfo[] | null;
   modelsFailed: boolean;
+  /** Models that generate pictures; loaded when the settings open. */
+  imageModels: ModelInfo[] | null;
+  imageModelsFailed: boolean;
   usableSuggested: SuggestedModel[];
   signIn: SignInState;
   workspaceKey: string | null;
@@ -173,6 +185,7 @@ export interface AssistantState {
   cancelSignIn: () => Promise<void>;
   completeWebSignIn: (code: string) => Promise<void>;
   loadModels: () => Promise<void>;
+  loadImageModels: () => Promise<void>;
   loadWorkspaceHistory: (workspaceKey: string) => Promise<void>;
   newChat: () => void;
   clearHistory: () => Promise<void>;
@@ -362,11 +375,17 @@ export const useAssistant = create<AssistantState>((set, get) => {
     if (settings.spendCapUsd != null && get().sessionCostUsd >= settings.spendCapUsd) {
       return { status: "failed" as const, reason: t("stop.spendCap") };
     }
+    const imageModelId = settings.imageModelId || DEFAULT_IMAGE_MODEL_ID;
+    // A picture-only model must not be asked for text, so the list is needed even when settings were never opened.
+    if (!get().imageModels) await get().loadImageModels();
+    const catalogModel = get().imageModels?.find((m) => m.id === imageModelId);
     const request = imageGenerationRequest({
-      model: settings.imageModelId || DEFAULT_IMAGE_MODEL_ID,
+      model: imageModelId,
       prompt,
       privacyOnly: settings.privacyOnly,
-      zdrOnly: settings.zdrOnly
+      zdrOnly: settings.zdrOnly,
+      // Only the picture is used, so a model missing from the catalog is asked for pictures alone.
+      imageOnly: catalogModel ? isImageOnly(catalogModel) : true
     });
     let dataUrl = "";
     let refId = "";
@@ -517,6 +536,8 @@ export const useAssistant = create<AssistantState>((set, get) => {
     costUnknown: false,
     models: null,
     modelsFailed: false,
+    imageModels: null,
+    imageModelsFailed: false,
     usableSuggested: SUGGESTED_MODELS,
     signIn: "idle",
     workspaceKey: null,
@@ -531,7 +552,10 @@ export const useAssistant = create<AssistantState>((set, get) => {
       const previous = get().settings;
       const settings = { ...previous, ...patch };
       const privacyChanged = patch.zdrOnly !== undefined && patch.zdrOnly !== previous.zdrOnly;
-      set({ settings, ...(privacyChanged ? { models: null, modelsFailed: false } : {}) });
+      set({
+        settings,
+        ...(privacyChanged ? { models: null, modelsFailed: false, imageModels: null, imageModelsFailed: false } : {})
+      });
       try {
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
       } catch {
@@ -624,6 +648,22 @@ export const useAssistant = create<AssistantState>((set, get) => {
       } catch {
         if (get().settings.zdrOnly !== zdrOnly) return;
         set({ modelsFailed: true, usableSuggested: SUGGESTED_MODELS });
+      }
+    },
+    loadImageModels: async () => {
+      const host = assistantHost();
+      if (!host) return;
+      const zdrOnly = get().settings.zdrOnly;
+      try {
+        const response = await host.fetch(imageModelsListUrl(zdrOnly));
+        if (!response.ok) throw new Error(String(response.status));
+        const found = imageModels(parseModelList(await response.json()));
+        if (get().settings.zdrOnly !== zdrOnly) return;
+        if (found.length === 0) throw new Error("empty");
+        set({ imageModels: found, imageModelsFailed: false });
+      } catch {
+        if (get().settings.zdrOnly !== zdrOnly) return;
+        set({ imageModelsFailed: true });
       }
     },
     loadWorkspaceHistory: async (workspaceKey) => {
@@ -785,6 +825,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
         const model = createAssistantModel({
           apiKey: "host-managed",
           modelId: state.settings.modelId,
+          reasoningEffort: state.settings.reasoningEffort,
           privacyOnly: state.settings.privacyOnly,
           zdrOnly: state.settings.zdrOnly,
           webSearch: state.settings.webSearch,

@@ -35,13 +35,21 @@ export interface ModelInfo {
   agenticIndex: number | null;
   /** Release time as a Unix timestamp in seconds; 0 when unknown. */
   created: number;
+  /** What the model produces: `text`, `image`, or both. */
+  outputModalities: string[];
+  /**
+   * USD per generated image token; 0 when unknown. OpenRouter's `pricing.image` is the
+   * price of pictures sent *to* the model, so it is not used here.
+   */
+  imageTokenPrice: number;
 }
 
 interface RawModel {
   id?: unknown;
   name?: unknown;
   context_length?: unknown;
-  pricing?: { prompt?: unknown; completion?: unknown };
+  pricing?: { prompt?: unknown; completion?: unknown; image_output?: unknown };
+  architecture?: { output_modalities?: unknown } | null;
   supported_parameters?: unknown;
   expiration_date?: unknown;
   created?: unknown;
@@ -73,7 +81,11 @@ export function parseModelList(json: unknown, now = Date.now()): ModelInfo[] {
       intelligenceEstimated: false,
       codingIndex: num(aa?.coding_index),
       agenticIndex: num(aa?.agentic_index),
-      created: num(raw.created) ?? 0
+      created: num(raw.created) ?? 0,
+      outputModalities: Array.isArray(raw.architecture?.output_modalities)
+        ? (raw.architecture.output_modalities as unknown[]).filter((m): m is string => typeof m === "string")
+        : [],
+      imageTokenPrice: Number(raw.pricing?.image_output) || 0
     });
   }
   estimateIntelligence(out);
@@ -253,6 +265,32 @@ export interface ProviderPrefs {
   quantizations?: string[];
 }
 
+/**
+ * How much the model reasons before it answers. `default` sends nothing and
+ * leaves the choice to the model; `none` turns reasoning off where the model allows it.
+ */
+export type ReasoningEffort = "default" | "none" | "low" | "medium" | "high";
+export const REASONING_EFFORTS: readonly ReasoningEffort[] = ["default", "none", "low", "medium", "high"];
+
+export function parseReasoningEffort(value: unknown): ReasoningEffort {
+  return REASONING_EFFORTS.includes(value as ReasoningEffort) ? (value as ReasoningEffort) : "default";
+}
+
+/** Efforts the picker offers for a model. Mandatory reasoning cannot be switched off. */
+export function reasoningChoices(model?: Pick<SuggestedModel, "reasoning">): ReasoningEffort[] {
+  return model?.reasoning === "mandatory"
+    ? REASONING_EFFORTS.filter((effort) => effort !== "none")
+    : [...REASONING_EFFORTS];
+}
+
+/** The effort to send. A choice the model cannot take falls back to `default`. */
+export function effectiveReasoning(
+  effort: ReasoningEffort,
+  model?: Pick<SuggestedModel, "reasoning">
+): ReasoningEffort {
+  return reasoningChoices(model).includes(effort) ? effort : "default";
+}
+
 const MODELS_URL = "https://openrouter.ai/api/v1/models";
 
 /**
@@ -262,6 +300,51 @@ const MODELS_URL = "https://openrouter.ai/api/v1/models";
  */
 export function modelsListUrl(zdrOnly: boolean): string {
   return zdrOnly ? `${MODELS_URL}?zdr=true` : MODELS_URL;
+}
+
+/**
+ * Models that generate pictures. The default list holds only models that answer
+ * in text, so pictures need their own query. `zdr=true` applies here too.
+ */
+export function imageModelsListUrl(zdrOnly: boolean): string {
+  return `${MODELS_URL}?output_modalities=image${zdrOnly ? "&zdr=true" : ""}`;
+}
+
+/** Newest first, and only models that really output pictures. */
+export function imageModels(models: ModelInfo[]): ModelInfo[] {
+  return models
+    .filter((m) => m.outputModalities.includes("image") && !m.expired)
+    .sort((a, b) => b.created - a.created || a.name.localeCompare(b.name));
+}
+
+/** A model that returns pictures only, and so must not be asked for text. */
+export function isImageOnly(model: Pick<ModelInfo, "outputModalities"> | undefined): boolean {
+  return model != null && model.outputModalities.includes("image") && !model.outputModalities.includes("text");
+}
+
+/**
+ * About how many image tokens one generated picture takes (roughly one megapixel).
+ * Real sizes differ by model and request, so costs shown are an estimate.
+ */
+const TYPICAL_IMAGE_TOKENS = 1300;
+
+/** Estimated cost of one generated picture in USD, or null when OpenRouter lists no image price. */
+export function typicalImageCost(info: Pick<ModelInfo, "imageTokenPrice">): number | null {
+  return info.imageTokenPrice > 0 ? info.imageTokenPrice * TYPICAL_IMAGE_TOKENS : null;
+}
+
+/** 1 (cheapest) to 5 (most expensive) from the cost of one picture, or null when unknown. */
+export function imagePriceLevel(info: Pick<ModelInfo, "imageTokenPrice">): 1 | 2 | 3 | 4 | 5 | null {
+  const cost = typicalImageCost(info);
+  if (cost == null) return null;
+  return cost < 0.01 ? 1 : cost < 0.03 ? 2 : cost < 0.06 ? 3 : cost < 0.12 ? 4 : 5;
+}
+
+/** Estimated price of one generated picture, such as "~$0.039 / image"; empty when unknown. */
+export function imagePriceLabel(info: Pick<ModelInfo, "imageTokenPrice">): string {
+  const cost = typicalImageCost(info);
+  if (cost == null) return "";
+  return `~$${cost < 0.1 ? cost.toFixed(3) : cost.toFixed(2)} / image`;
 }
 
 /**

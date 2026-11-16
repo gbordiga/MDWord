@@ -8,6 +8,8 @@ export function imageGenerationRequest(options: {
   prompt: string;
   privacyOnly: boolean;
   zdrOnly: boolean;
+  /** The model returns pictures only: asking it for text as well is rejected. */
+  imageOnly?: boolean;
 }): { url: string; body: Record<string, unknown> } {
   const provider: ProviderPrefs | undefined = routingPreferences({
     noTraining: options.privacyOnly,
@@ -18,7 +20,7 @@ export function imageGenerationRequest(options: {
     body: {
       model: options.model,
       messages: [{ role: "user", content: options.prompt }],
-      modalities: ["image", "text"],
+      modalities: options.imageOnly ? ["image"] : ["image", "text"],
       usage: { include: true },
       ...(provider ? { provider } : {})
     }
