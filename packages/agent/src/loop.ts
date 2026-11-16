@@ -73,6 +73,30 @@ export function classifyError(error: unknown): MessageKey {
   return "error.unknown";
 }
 
+/**
+ * HTTP status and the reason OpenRouter gave, for the message the user sees.
+ * Keys are redacted and the text is short; the request body is never included.
+ */
+export function providerErrorSuffix(error: unknown): string {
+  const e = error as { statusCode?: unknown; responseBody?: unknown; message?: unknown } | null;
+  const status = typeof e?.statusCode === "number" ? e.statusCode : null;
+  let reason = "";
+  if (typeof e?.responseBody === "string") {
+    try {
+      const body = JSON.parse(e.responseBody) as { error?: { message?: unknown } | string };
+      const inner = typeof body.error === "string" ? body.error : body.error?.message;
+      if (typeof inner === "string") reason = inner;
+    } catch {
+      /* not JSON: fall back to the error message below */
+    }
+  }
+  if (!reason && status != null && typeof e?.message === "string") reason = e.message;
+  reason = redactKeys(reason.replace(/\s+/g, " ").trim()).slice(0, 300);
+  if (status == null && !reason) return "";
+  const head = status != null ? `HTTP ${status}` : "";
+  return ` (${[head, reason].filter(Boolean).join(": ")})`;
+}
+
 function errorDetail(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
   return redactKeys(raw).slice(0, 300);
@@ -264,7 +288,7 @@ export async function runAssistantTurn(input: TurnInput): Promise<TurnResult> {
   }
 
   if (stop === "error") {
-    input.onEvent({ type: "stop", reason: stop, message: t(classifyError(streamError)) });
+    input.onEvent({ type: "stop", reason: stop, message: t(classifyError(streamError)) + providerErrorSuffix(streamError) });
   } else if (stop !== "done") {
     input.onEvent({ type: "stop", reason: stop, message: t(STOP_MESSAGE[stop]) });
   } else {
