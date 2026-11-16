@@ -83,9 +83,13 @@ export function providerErrorSuffix(error: unknown): string {
   let reason = "";
   if (typeof e?.responseBody === "string") {
     try {
-      const body = JSON.parse(e.responseBody) as { error?: { message?: unknown } | string };
+      const body = JSON.parse(e.responseBody) as {
+        error?: { message?: unknown; metadata?: { raw?: unknown } } | string;
+      };
+      const raw = typeof body.error === "object" ? body.error?.metadata?.raw : undefined;
       const inner = typeof body.error === "string" ? body.error : body.error?.message;
-      if (typeof inner === "string") reason = inner;
+      if (typeof raw === "string" && raw.trim()) reason = raw;
+      else if (typeof inner === "string") reason = inner;
     } catch {
       /* not JSON: fall back to the error message below */
     }

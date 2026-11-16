@@ -123,6 +123,17 @@ describe("providerErrorSuffix", () => {
     expect(suffix).toBe(" (HTTP 400: maximum context length exceeded sk-or-\u2026)");
   });
 
+  it("prefers the upstream reason in metadata.raw over the generic wrapper message", () => {
+    const error = {
+      statusCode: 502,
+      message: "Provider returned error",
+      responseBody: JSON.stringify({
+        error: { message: "Provider returned error", metadata: { raw: "credit balance too low" } }
+      })
+    };
+    expect(providerErrorSuffix(error)).toBe(" (HTTP 502: credit balance too low)");
+  });
+
   it("falls back to the error message when the body is not JSON, and to nothing", () => {
     expect(providerErrorSuffix({ statusCode: 404, message: "Not found", responseBody: "<html>" })).toBe(
       " (HTTP 404: Not found)"
