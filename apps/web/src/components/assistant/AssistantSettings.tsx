@@ -165,6 +165,85 @@ function ModelScores({ info }: { info: ModelInfo | undefined }) {
   );
 }
 
+/**
+ * A small fixed set of choices as a picker: the trigger shows the current one with its
+ * note, the list shows every option with its note. Same look as the model picker.
+ */
+function ChoicePicker<T extends string>({
+  value,
+  options,
+  onSelect,
+  label,
+  testId
+}: {
+  value: T;
+  options: { value: T; label: string; note?: string }[];
+  onSelect: (value: T) => void;
+  label: string;
+  testId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = options.find((o) => o.value === value) ?? options[0];
+  return (
+    <div
+      className="rounded-lg border border-[#d0d5dd] bg-white"
+      data-testid={testId}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.stopPropagation();
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={label}
+        className="flex w-full items-center gap-2 px-2.5 py-2 text-left"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[12px] font-medium text-[#1c1f24]">{current?.label}</span>
+          {current?.note ? <span className="block truncate text-[10px] text-[#667085]">{current.note}</span> : null}
+        </span>
+        <ChevronDown size={14} className={`shrink-0 text-[#667085] transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open ? (
+        <div role="listbox" aria-label={label} className="border-t border-[#e4e7ec] p-1.5">
+          {options.map((option) => {
+            const selected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                data-testid={`${testId}-${option.value}`}
+                className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left ${
+                  selected ? "bg-[#eef4ff]" : "hover:bg-[#f2f4f7]"
+                }`}
+                onClick={() => {
+                  onSelect(option.value);
+                  setOpen(false);
+                }}
+              >
+                <Check size={12} className={selected ? "mt-0.5 shrink-0 text-accent" : "invisible mt-0.5 shrink-0"} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[12px] text-[#1c1f24]">{option.label}</span>
+                  {option.note ? (
+                    <span className="mt-0.5 block text-[11px] leading-snug text-[#667085]">{option.note}</span>
+                  ) : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const zeroPrice = { pricePerImage: 0, imageTokenPrice: 0 };
 
 function ModelPicker({
@@ -604,25 +683,22 @@ export function AssistantSettings() {
             label={t("settings.web")}
             note={t("settings.web.note")}
           />
-          <div role="radiogroup" aria-label={t("settings.edits")} className="space-y-1.5 px-1" data-testid="assistant-edit-approval">
-            <p className="text-[12px] font-medium text-[#344054]">{t("settings.edits")}</p>
-            <p className="text-[11px] leading-snug text-[#667085]">{t("settings.edits.note")}</p>
-            {(["manual", "auto"] as const).map((choice) => (
-              <label key={choice} className="flex items-start gap-2 text-[12px] text-[#344054]">
-                <input
-                  type="radio"
-                  name="assistant-edit-approval"
-                  className="mt-0.5"
-                  data-testid={`assistant-edits-${choice}`}
-                  checked={s.settings.editApproval === choice}
-                  onChange={() => s.updateSettings({ editApproval: choice })}
-                />
-                <span>
-                  {t(`settings.edits.${choice}`)}
-                  <span className="mt-0.5 block text-[11px] leading-snug text-[#667085]">{t(`settings.editsNote.${choice}`)}</span>
-                </span>
-              </label>
-            ))}
+          <div className="space-y-1">
+            <span className="flex items-center gap-1 px-1 text-[12px] font-medium text-[#344054]">
+              {t("settings.edits")}
+              <InfoTip text={t("settings.edits.note")} />
+            </span>
+            <ChoicePicker
+              testId="assistant-edit-approval"
+              label={t("settings.edits")}
+              value={s.settings.editApproval}
+              options={(["manual", "auto"] as const).map((choice) => ({
+                value: choice,
+                label: t(`settings.edits.${choice}`),
+                note: t(`settings.editsNote.${choice}`)
+              }))}
+              onSelect={(editApproval) => s.updateSettings({ editApproval })}
+            />
           </div>
         </Section>
 
