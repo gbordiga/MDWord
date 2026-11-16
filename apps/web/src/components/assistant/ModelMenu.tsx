@@ -105,6 +105,17 @@ export function ModelMenu({ disabled = false }: { disabled?: boolean }) {
     </button>
   );
 
+  const textRow = (id: string, info: ModelInfo | undefined) => {
+    const cost = <TextCost info={info} />;
+    return row(id, plainName(info, id), cost, id === lists.current, () => updateSettings({ modelId: id }));
+  };
+  const imageRow = (info: ModelInfo) => {
+    const cost = <ImageCost info={imageById.get(info.id) ?? info} />;
+    return row(info.id, plainName(info, info.id), cost, info.id === lists.currentImage, () =>
+      updateSettings({ imageModelId: info.id })
+    );
+  };
+
   const heading = (label: string) => (
     <div className="px-2 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wide text-[#98a2b3]">{label}</div>
   );
@@ -120,7 +131,7 @@ export function ModelMenu({ disabled = false }: { disabled?: boolean }) {
   const label = plainName(textById.get(lists.current), lists.current);
 
   return (
-    <div ref={root} className="relative min-w-0">
+    <div ref={root} className="relative min-w-0 max-w-[10rem] shrink">
       <button
         type="button"
         data-testid="assistant-model-chip"
@@ -129,7 +140,7 @@ export function ModelMenu({ disabled = false }: { disabled?: boolean }) {
         disabled={disabled}
         title={t("panel.model.title")}
         className={cn(
-          "flex h-7 max-w-[10rem] items-center gap-1 rounded-full px-2 text-[11px] text-[#475467] hover:bg-[#f2f4f7] disabled:opacity-40",
+          "flex h-7 max-w-full items-center gap-1 rounded-full px-2 text-[11px] text-[#475467] hover:bg-[#f2f4f7] disabled:opacity-40",
           open && "bg-[#f2f4f7]"
         )}
         onClick={() => setOpen((v) => !v)}
@@ -189,33 +200,19 @@ export function ModelMenu({ disabled = false }: { disabled?: boolean }) {
                 {textRows.suggested.length ? (
                   <div>
                     {heading(t("panel.model.suggested"))}
-                    {textRows.suggested.map((m) =>
-                      row(
-                        m.id,
-                        plainName(textById.get(m.id), m.id),
-                        <TextCost info={textById.get(m.id)} />,
-                        m.id === lists.current,
-                        () => updateSettings({ modelId: m.id })
-                      )
-                    )}
+                    {textRows.suggested.map((m) => textRow(m.id, textById.get(m.id)))}
                   </div>
                 ) : null}
                 {textRows.others.length ? (
                   <div>
                     {heading(t("settings.model.all"))}
-                    {textRows.others.map((m) =>
-                      row(m.id, plainName(m, m.id), <TextCost info={m} />, m.id === lists.current, () => updateSettings({ modelId: m.id }))
-                    )}
+                    {textRows.others.map((m) => textRow(m.id, m))}
                   </div>
                 ) : null}
               </>
             ) : (
               <div>
-                {imageRows.map((m) =>
-                  row(m.id, plainName(m, m.id), <ImageCost info={imageById.get(m.id) ?? m} />, m.id === lists.currentImage, () =>
-                    updateSettings({ imageModelId: m.id })
-                  )
-                )}
+                {imageRows.map((m) => imageRow(m))}
               </div>
             )}
             {empty ? <p className="px-2 py-3 text-[11px] text-[#667085]">{t("settings.model.empty")}</p> : null}
