@@ -8,7 +8,7 @@ function sse(chunks: unknown[]): string {
 
 const base = { id: "gen-1", object: "chat.completion.chunk", created: 1, model: "qwen/qwen3.8-flash" };
 
-function toolCall(name: string, args: unknown): string {
+function toolCall(name: string, args: unknown, id = "call_1"): string {
   return sse([
     {
       ...base,
@@ -18,7 +18,7 @@ function toolCall(name: string, args: unknown): string {
           delta: {
             role: "assistant",
             content: null,
-            tool_calls: [{ index: 0, id: "call_1", type: "function", function: { name, arguments: JSON.stringify(args) } }]
+            tool_calls: [{ index: 0, id, type: "function", function: { name, arguments: JSON.stringify(args) } }]
           },
           finish_reason: null
         }
@@ -406,4 +406,94 @@ test("a web search shows as a step with the sites it used", async ({ page }) => 
   await page.getByTestId("assistant-work").click();
   await expect(page.getByTestId("assistant-work")).toContainText("example.com");
   await expect(page.getByTestId("assistant-work")).toContainText("docs.other.org");
+});
+
+test("steps accordion shows last three steps, keeps spinner on last step, and keeps thinking collapsed", async ({ page }) => {
+  await withKey(page);
+  const thoughtAndTool = sse([
+    {
+      ...base,
+      choices: [
+        {
+          index: 0,
+          delta: {
+            role: "assistant",
+            reasoning: "First line of reasoning\nSecond hidden detail"
+          },
+          finish_reason: null
+        }
+      ]
+    },
+    {
+      ...base,
+      choices: [
+        {
+          index: 0,
+          delta: {
+            tool_calls: [{ index: 0, id: "call_1", type: "function", function: { name: "listFiles", arguments: "{}" } }]
+          },
+          finish_reason: null
+        }
+      ]
+    },
+    { ...base, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] },
+    { ...base, choices: [], usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120, cost: 0.0005 } }
+  ]);
+
+  let releaseFinal!: () => void;
+  const finalGate = new Promise<void>((resolve) => {
+    releaseFinal = resolve;
+  });
+  const replies = [
+    thoughtAndTool,
+    toolCall("search", { query: "alpha" }, "call_2"),
+    toolCall("search", { query: "beta" }, "call_3"),
+    text("All done.")
+  ];
+  let callCount = 0;
+  await page.route("https://openrouter.ai/**", async (route: Route) => {
+    const req = route.request();
+    if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+    if (req.url().includes("/api/v1/models")) {
+      return route.fulfill({ status: 200, headers: { ...cors, "content-type": "application/json" }, body: JSON.stringify({ data: [] }) });
+    }
+    if (req.url().includes("/chat/completions")) {
+      const idx = callCount++;
+      if (idx === 3) await finalGate;
+      const body = replies[Math.min(idx, replies.length - 1)]!;
+      return route.fulfill({ status: 200, headers: { ...cors, "content-type": "text/event-stream" }, body });
+    }
+    return route.fulfill({ status: 404, headers: cors, body: "{}" });
+  });
+
+  await openAssistant(page);
+  await page.getByTestId("assistant-input").fill("Inspect the workspace");
+  await page.getByTestId("assistant-send").click();
+
+  const work = page.getByTestId("assistant-work");
+  const toggle = work.locator("button", { hasText: "4 steps" });
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  // While the 4th API call is in flight, no standalone Thinking line appears below,
+  // and the last step keeps the spinner.
+  await expect(page.getByTestId("assistant-thinking")).toHaveCount(0);
+  await expect(work).toHaveAttribute("data-status", "running");
+  await expect(work.getByTestId("assistant-tool")).toHaveCount(3);
+  await expect(work.getByTestId("assistant-tool").last().locator(".animate-spin")).toHaveCount(1);
+  await expect(work.getByTestId("assistant-thought")).toHaveCount(0);
+
+  // Expanding reveals the 4th (earliest) step: the thought, collapsed like the other steps.
+  await toggle.click();
+  const thought = work.getByTestId("assistant-thought");
+  await expect(thought).toBeVisible();
+  const thoughtToggle = thought.locator("button");
+  await expect(thoughtToggle).toHaveAttribute("aria-expanded", "false");
+  await thoughtToggle.click();
+  await expect(thoughtToggle).toHaveAttribute("aria-expanded", "true");
+  await expect(thought).toContainText("Second hidden detail");
+
+  // Releasing the final answer finishes the work group.
+  releaseFinal();
+  await expect(page.getByTestId("assistant-message").last()).toContainText("All done.", { timeout: 15_000 });
+  await expect(work).toHaveAttribute("data-status", "done");
+  await expect(work.locator(".animate-spin")).toHaveCount(0);
 });
