@@ -985,6 +985,11 @@ export const useAssistant = create<AssistantState>((set, get) => {
             patchItem(id, { status: "discarded", preview: undefined });
             entry.resolve(false);
           }
+          if (get().thread.some((item) => item.kind === "thought" && item.streaming)) {
+            mutateThread((thread) =>
+              thread.map((item) => (item.kind === "thought" && item.streaming ? { ...item, streaming: false } : item))
+            );
+          }
           if (abort === controller) abort = null;
           set({ running: false });
           // Steering sends its message at once. A normal finish sends the next queued one;

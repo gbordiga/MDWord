@@ -38,14 +38,15 @@ function summary(item: CommandItem): string {
 }
 
 /** A command that already ran, shown as one row inside the steps accordion. */
-export function CommandStep({ item }: { item: CommandItem }) {
+export function CommandStep({ item, inProgress = false }: { item: CommandItem; inProgress?: boolean }) {
   const stop = useAssistant((s) => s.stop);
   const [outputOpen, setOutputOpen] = useState(false);
   const failed = item.status === "failed" || (item.status === "done" && (item.exitCode !== 0 || item.timedOut));
+  const spinning = item.status === "running" || inProgress;
   return (
     <div data-testid="assistant-command-step" data-status={item.status} className="text-[11px] text-[#667085]">
       <div className="flex items-center gap-1.5">
-        {item.status === "running" ? (
+        {spinning ? (
           <Loader2 size={12} className="shrink-0 animate-spin" aria-hidden />
         ) : failed ? (
           <AlertCircle size={12} className="shrink-0 text-[#b42318]" aria-hidden />

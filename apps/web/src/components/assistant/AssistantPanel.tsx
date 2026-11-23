@@ -19,7 +19,7 @@ import type { ShellMode } from "@mdword/shared";
 import { getHost } from "@/lib/host";
 import { relativeWorkspacePath } from "@mdword/workspace";
 import { useApp } from "@/lib/store";
-import { groupThread, type ToolItem, type WorkEntry } from "@/lib/assistant/thread";
+import { groupThread, type ThreadBlock, type WorkEntry } from "@/lib/assistant/thread";
 import { linkifyWikilinks, safeHref, wikiTargetFromHref } from "@/lib/assistant/links";
 import { openWikiTarget } from "@/lib/openEditorLink";
 import { shellModeOf, useAssistant } from "@/lib/assistant/store";
@@ -38,7 +38,8 @@ import { EditCard, EditStep } from "./EditCard";
 const iconButton =
   "rounded-md p-1 text-[#667085] hover:bg-[#f2f4f7] hover:text-[#1c1f24] disabled:opacity-40";
 
-function ToolLine({ item }: { item: Extract<ThreadItem, { kind: "tool" }> }) {
+function ToolLine({ item, inProgress = false }: { item: Extract<ThreadItem, { kind: "tool" }>; inProgress?: boolean }) {
+  const spinning = item.status === "running" || inProgress;
   return (
     <div
       data-testid="assistant-tool"
@@ -46,7 +47,7 @@ function ToolLine({ item }: { item: Extract<ThreadItem, { kind: "tool" }> }) {
       title={item.status === "error" ? item.detail : undefined}
       className="flex items-center gap-1.5 text-[11px] text-[#667085]"
     >
-      {item.status === "running" ? (
+      {spinning ? (
         <Loader2 size={12} className="shrink-0 animate-spin" aria-hidden />
       ) : item.status === "ok" ? (
         <Check size={12} className="shrink-0" aria-hidden />
@@ -125,97 +126,92 @@ const Markdown = memo(function Markdown({ text }: { text: string }) {
   );
 });
 
-function renderEntry(entry: WorkEntry) {
-  if (entry.kind === "tool") return <ToolLine key={entry.id} item={entry} />;
-  if (entry.kind === "edit") return <EditStep key={entry.id} item={entry} />;
-  if (entry.kind === "delete") return <DeleteStep key={entry.id} item={entry} />;
-  if (entry.kind === "thought") return <ThoughtBlock key={entry.id} item={entry} />;
-  return <CommandStep key={entry.id} item={entry} />;
+const VISIBLE_STEPS = 3;
+
+function renderEntry(entry: WorkEntry, inProgress: boolean) {
+  if (entry.kind === "tool") return <ToolLine key={entry.id} item={entry} inProgress={inProgress} />;
+  if (entry.kind === "edit") return <EditStep key={entry.id} item={entry} inProgress={inProgress} />;
+  if (entry.kind === "delete") return <DeleteStep key={entry.id} item={entry} inProgress={inProgress} />;
+  if (entry.kind === "thought") return <ThoughtStep key={entry.id} item={entry} inProgress={inProgress} />;
+  return <CommandStep key={entry.id} item={entry} inProgress={inProgress} />;
 }
 
-function workLabel(entry: WorkEntry): string {
-  if (entry.kind === "thought") {
-    if (entry.streaming) return t("panel.thought.live");
-    const preview = entry.text.replace(/\s+/g, " ").trim();
-    return preview ? `${t("panel.thought")}: ${preview}` : t("panel.thought");
-  }
-  if (entry.kind === "tool") return entry.label;
-  if (entry.kind === "edit") return t(entry.create ? "edit.step.created" : "edit.step.applied", { path: entry.path });
-  if (entry.kind === "delete") {
-    return t(entry.status === "deleted" ? "delete.deleted" : entry.status === "failed" ? "delete.failed" : "delete.kept", {
-      path: entry.path,
-      reason: entry.error ?? ""
-    });
-  }
-  return entry.command;
-}
-
-function workFailed(entry: WorkEntry): boolean {
-  if (entry.kind === "thought") return false;
-  if (entry.kind === "tool") return entry.status === "error";
-  if (entry.kind === "edit") return false;
-  if (entry.kind === "delete") return entry.status === "failed";
-  return entry.status === "failed" || (entry.status === "done" && (entry.exitCode !== 0 || entry.timedOut === true));
-}
-
-const WorkGroup = memo(function WorkGroup({ entries }: { entries: WorkEntry[] }) {
-  const running = entries.some((x) => x.kind === "thought" ? x.streaming : x.status === "running");
-  // Open only while the model is thinking, so the text can be followed. Tool steps do not move the layout.
-  const thinking = entries.some((x) => x.kind === "thought" && x.streaming);
-  const [open, setOpen] = useState(thinking);
-  const pinned = useRef(false);
-  useEffect(() => {
-    if (!pinned.current) setOpen(thinking);
-  }, [thinking]);
-  const last = entries.at(-1)!;
-  const failed = !running && workFailed(last);
+const WorkGroup = memo(function WorkGroup({ entries, active }: { entries: WorkEntry[]; active: boolean }) {
+  const [open, setOpen] = useState(false);
+  const running = active || entries.some((x) => (x.kind === "thought" ? x.streaming : x.status === "running"));
+  const collapsible = entries.length > VISIBLE_STEPS;
+  const visible = open || !collapsible ? entries : entries.slice(-VISIBLE_STEPS);
+  const lastId = entries.at(-1)?.id;
   return (
     <div data-testid="assistant-work" data-status={running ? "running" : "done"} className="rounded-md border border-[#e4e7ec] bg-[#f9fafb]">
-      <button
-        type="button"
-        aria-expanded={open}
-        className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-[11px] text-[#667085]"
-        onClick={() => {
-          pinned.current = true;
-          setOpen((v) => !v);
-        }}
-      >
-        {running ? (
-          <Loader2 size={12} className="shrink-0 animate-spin" aria-hidden />
-        ) : failed ? (
-          <AlertCircle size={12} className="shrink-0 text-[#b42318]" aria-hidden />
-        ) : (
-          <Check size={12} className="shrink-0" aria-hidden />
-        )}
-        <span className="min-w-0 truncate">{workLabel(last)}</span>
-        <span className="ml-auto shrink-0 text-[#667085]">{t("panel.work.steps", { count: entries.length })}</span>
-        <ChevronRight size={12} className={cn("shrink-0 transition-transform", open && "rotate-90")} aria-hidden />
-      </button>
-      {open ? (
-        <div className="space-y-1 border-t border-[#e4e7ec] px-2 py-1.5">
-          {entries.map(renderEntry)}
-        </div>
+      {collapsible ? (
+        <button
+          type="button"
+          aria-expanded={open}
+          className="flex w-full items-center gap-1.5 border-b border-[#e4e7ec] px-2 py-1 text-left text-[11px] text-[#667085] hover:text-[#344054]"
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span>{t("panel.work.steps", { count: entries.length })}</span>
+          <ChevronRight size={12} className={cn("ml-auto shrink-0 transition-transform", open && "rotate-90")} aria-hidden />
+        </button>
       ) : null}
+      <div className="space-y-1 px-2 py-1.5">
+        {visible.map((entry) => renderEntry(entry, active && entry.id === lastId))}
+      </div>
     </div>
   );
 });
 
-function ThoughtBlock({ item }: { item: Extract<ThreadItem, { kind: "thought" }> }) {
+function ThoughtStep({ item, inProgress = false }: { item: Extract<ThreadItem, { kind: "thought" }>; inProgress?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const spinning = item.streaming || inProgress;
+  const preview = item.text.replace(/\s+/g, " ").trim();
+  const heading = t(item.streaming ? "panel.thought.live" : "panel.thought");
+  const label = preview ? `${heading}: ${preview}` : heading;
   return (
-    <div data-testid="assistant-thought" className="text-[12px] text-[#667085]">
-      <p className="font-medium text-[#475467]">{t(item.streaming ? "panel.thought.live" : "panel.thought")}</p>
-      <div className="mt-0.5 max-h-40 overflow-auto whitespace-pre-wrap break-words border-l border-[#e4e7ec] pl-2.5 leading-relaxed">
-        {item.text}
-      </div>
+    <div data-testid="assistant-thought" data-status={spinning ? "running" : "done"} className="text-[11px] text-[#667085]">
+      {preview ? (
+        <button
+          type="button"
+          aria-expanded={open}
+          className="flex w-full items-center gap-1.5 text-left hover:text-[#344054]"
+          onClick={() => setOpen((v) => !v)}
+        >
+          {spinning ? (
+            <Loader2 size={12} className="shrink-0 animate-spin" aria-hidden />
+          ) : (
+            <Check size={12} className="shrink-0" aria-hidden />
+          )}
+          <span className="min-w-0 flex-1 truncate">{label}</span>
+          <ChevronRight size={12} className={cn("shrink-0 transition-transform", open && "rotate-90")} aria-hidden />
+        </button>
+      ) : (
+        <div className="flex items-center gap-1.5">
+          {spinning ? (
+            <Loader2 size={12} className="shrink-0 animate-spin" aria-hidden />
+          ) : (
+            <Check size={12} className="shrink-0" aria-hidden />
+          )}
+          <span className="min-w-0 truncate">{label}</span>
+        </div>
+      )}
+      {open && preview ? (
+        <div className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words border-l border-[#e4e7ec] pl-2.5 text-[12px] leading-relaxed">
+          {item.text}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function ThreadView({ thread }: { thread: ThreadItem[] }) {
+function ThreadView({ blocks, active }: { blocks: ThreadBlock[]; active: boolean }) {
+  const lastIndex = blocks.length - 1;
   return (
     <>
-      {groupThread(thread).map((block) => {
-        if (block.kind === "work") return <WorkGroup key={block.id} entries={block.entries} />;
+      {blocks.map((block, index) => {
+        if (block.kind === "work") {
+          return <WorkGroup key={block.id} entries={block.entries} active={active && index === lastIndex} />;
+        }
         const item = block.item;
         switch (item.kind) {
           case "user":
@@ -1011,6 +1007,10 @@ export function AssistantPanel({ className, onClose }: { className?: string; onC
   const waitingForUser = s.thread.some(
     (i) => (i.kind === "edit" || i.kind === "command" || i.kind === "delete" || i.kind === "image") && i.status === "pending"
   );
+  const blocks = useMemo(() => groupThread(s.thread), [s.thread]);
+  const active = s.running && !waitingForUser;
+  const lastBlock = blocks.at(-1);
+  const showStandaloneThinking = active && lastBlock?.kind !== "work" && lastBlock?.item.kind !== "assistant";
   const lastUser = [...s.thread].reverse().find((i) => i.kind === "user")?.id;
   useEffect(() => {
     attachedRef.current = true;
@@ -1137,8 +1137,8 @@ export function AssistantPanel({ className, onClose }: { className?: string; onC
                 </div>
               </div>
             ) : null}
-            <ThreadView thread={s.thread} />
-            {s.running && !waitingForUser ? (
+            <ThreadView blocks={blocks} active={active} />
+            {showStandaloneThinking ? (
               <div data-testid="assistant-thinking" className="flex items-center gap-1.5 text-[11px] text-[#667085]" role="status">
                 <Loader2 size={12} className="animate-spin" aria-hidden />
                 {t(webSearchOn ? "panel.thinking.web" : "panel.thinking")}…

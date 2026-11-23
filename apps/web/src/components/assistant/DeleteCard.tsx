@@ -1,7 +1,7 @@
 "use client";
 
 import { t } from "@mdword/agent";
-import { Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import type { ThreadItem } from "@/lib/assistant/thread";
 import { useAssistant } from "@/lib/assistant/store";
 
@@ -15,10 +15,14 @@ function label(item: DeleteItem): string {
 }
 
 /** A finished delete, shown as one row inside the steps accordion. */
-export function DeleteStep({ item }: { item: DeleteItem }) {
+export function DeleteStep({ item, inProgress = false }: { item: DeleteItem; inProgress?: boolean }) {
   return (
     <div data-testid="assistant-delete-step" data-status={item.status} className="flex items-center gap-1.5 text-[11px] text-[#667085]">
-      <Trash2 size={12} className="shrink-0" aria-hidden />
+      {inProgress ? (
+        <Loader2 size={12} className="shrink-0 animate-spin" aria-hidden />
+      ) : (
+        <Trash2 size={12} className="shrink-0" aria-hidden />
+      )}
       <span className="min-w-0 flex-1 truncate" title={item.path}>
         {label(item)}
       </span>
