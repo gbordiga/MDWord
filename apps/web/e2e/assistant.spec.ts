@@ -8,7 +8,7 @@ function sse(chunks: unknown[]): string {
 
 const base = { id: "gen-1", object: "chat.completion.chunk", created: 1, model: "qwen/qwen3.8-flash" };
 
-function toolCall(name: string, args: unknown): string {
+function toolCall(name: string, args: unknown, id = "call_1"): string {
   return sse([
     {
       ...base,
@@ -18,7 +18,7 @@ function toolCall(name: string, args: unknown): string {
           delta: {
             role: "assistant",
             content: null,
-            tool_calls: [{ index: 0, id: "call_1", type: "function", function: { name, arguments: JSON.stringify(args) } }]
+            tool_calls: [{ index: 0, id, type: "function", function: { name, arguments: JSON.stringify(args) } }]
           },
           finish_reason: null
         }
@@ -446,8 +446,8 @@ test("steps accordion shows last three steps, keeps spinner on last step, and ke
   });
   const replies = [
     thoughtAndTool,
-    toolCall("search", { query: "alpha" }),
-    toolCall("search", { query: "beta" }),
+    toolCall("search", { query: "alpha" }, "call_2"),
+    toolCall("search", { query: "beta" }, "call_3"),
     text("All done.")
   ];
   let callCount = 0;

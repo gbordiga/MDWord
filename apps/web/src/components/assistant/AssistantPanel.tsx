@@ -141,7 +141,6 @@ const WorkGroup = memo(function WorkGroup({ entries, active }: { entries: WorkEn
   const running = active || entries.some((x) => (x.kind === "thought" ? x.streaming : x.status === "running"));
   const collapsible = entries.length > VISIBLE_STEPS;
   const visible = open || !collapsible ? entries : entries.slice(-VISIBLE_STEPS);
-  const lastId = entries.at(-1)?.id;
   return (
     <div data-testid="assistant-work" data-status={running ? "running" : "done"} className="rounded-md border border-[#e4e7ec] bg-[#f9fafb]">
       {collapsible ? (
@@ -156,7 +155,7 @@ const WorkGroup = memo(function WorkGroup({ entries, active }: { entries: WorkEn
         </button>
       ) : null}
       <div className="space-y-1 px-2 py-1.5">
-        {visible.map((entry) => renderEntry(entry, active && entry.id === lastId))}
+        {visible.map((entry, index) => renderEntry(entry, active && index === visible.length - 1))}
       </div>
     </div>
   );
